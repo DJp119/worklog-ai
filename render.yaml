@@ -5,25 +5,25 @@ services:
     region: oregon
     plan: free
     rootDir: server
-    buildCommand: npm install && npm run build
-    startCommand: node dist/index.js
+    buildCommand: npm install --workspace=server && npm run build --workspace=server
+    startCommand: npm run start --workspace=server
     envVars:
       - key: NODE_ENV
         value: production
       - key: PORT
         value: 10000
       - key: SUPABASE_URL
-        sync: false
+        value: https://zeckjaazpvxrpzylzapi.supabase.co
       - key: SUPABASE_SERVICE_KEY
-        sync: false
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY2tqYWF6cHZ4cnB6eWx6YXBpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjMzNTk5OCwiZXhwIjoyMDkxOTExOTk4fQ.J9YJ4j9OlfDJB5SWO4-Kze400ecWCOd2wJgr_NBkBYM
       - key: ANTHROPIC_API_KEY
-        sync: false
+        value: ""
       - key: RESEND_API_KEY
-        sync: false
+        value: re_fDejhPn2_FcxvEpy6GUEQjDZz6e5bSBXE
       - key: FROM_EMAIL
-        sync: false
+        value: onboarding@resend.dev
       - key: JWT_SECRET
-        generateValue: true
+        value: worklog-ai-production-jwt-secret-xyz123
       - key: FRONTEND_URL
-        sync: false
+        value: ""
     healthCheckPath: /health
