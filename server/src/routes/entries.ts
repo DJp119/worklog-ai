@@ -1,0 +1,163 @@
+import { Router } from 'express'
+import { supabase } from '../lib/supabase.js'
+import { requireAuth, type AuthRequest } from '../middleware/auth.js'
+import type { WorkLogEntry, CreateWorkLogRequest, ApiResponse } from 'shared'
+
+export const entriesRoutes = Router()
+
+/**
+ * GET /api/entries
+ * Get all work log entries for current user
+ */
+entriesRoutes.get('/', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!
+
+    const { data, error } = await supabase
+      .from('work_log_entries')
+      .select('*')
+      .eq('user_id', userId)
+      .order('week_start_date', { ascending: false })
+
+    if (error) {
+      console.error('Fetch entries error:', error)
+      return res.status(500).json({ success: false, error: 'Failed to fetch entries' })
+    }
+
+    res.json({ success: true, data: data || [] })
+  } catch (error) {
+    console.error('Entries error:', error)
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
+
+/**
+ * GET /api/entries/:id
+ * Get single work log entry
+ */
+entriesRoutes.get('/:id', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!
+    const { id } = req.params
+
+    const { data, error } = await supabase
+      .from('work_log_entries')
+      .select('*')
+      .eq('id', id)
+      .eq('user_id', userId)
+      .single()
+
+    if (error) {
+      return res.status(404).json({ success: false, error: 'Entry not found' })
+    }
+
+    res.json({ success: true, data })
+  } catch (error) {
+    console.error('Fetch entry error:', error)
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
+
+/**
+ * POST /api/entries
+ * Create new work log entry
+ */
+entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!
+    const body: CreateWorkLogRequest = req.body
+
+    // Validate required fields
+    const required = ['week_start_date', 'accomplishments', 'challenges', 'learnings', 'goals_next_week']
+    const missing = required.filter(field => !body[field as keyof CreateWorkLogRequest])
+
+    if (missing.length > 0) {
+      return res.status(400).json({
+        success: false,
+        error: `Missing required fields: ${missing.join(', ')}`
+      })
+    }
+
+    const { data, error } = await supabase
+      .from('work_log_entries')
+      .insert({
+        user_id: userId,
+        week_start_date: body.week_start_date,
+        accomplishments: body.accomplishments,
+        challenges: body.challenges,
+        learnings: body.learnings,
+        goals_next_week: body.goals_next_week,
+        hours_logged: body.hours_logged,
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Create entry error:', error)
+      return res.status(500).json({ success: false, error: 'Failed to create entry' })
+    }
+
+    res.status(201).json({ success: true, data })
+  } catch (error) {
+    console.error('Create entry error:', error)
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
+
+/**
+ * PUT /api/entries/:id
+ * Update work log entry
+ */
+entriesRoutes.put('/:id', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!
+    const { id } = req.params
+    const body = req.body
+
+    const { data, error } = await supabase
+      .from('work_log_entries')
+      .update({
+        ...body,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .eq('user_id', userId)
+      .select()
+      .single()
+
+    if (error) {
+      return res.status(404).json({ success: false, error: 'Entry not found' })
+    }
+
+    res.json({ success: true, data })
+  } catch (error) {
+    console.error('Update entry error:', error)
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
+
+/**
+ * DELETE /api/entries/:id
+ * Delete work log entry
+ */
+entriesRoutes.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!
+    const { id } = req.params
+
+    const { error } = await supabase
+      .from('work_log_entries')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', userId)
+
+    if (error) {
+      return res.status(404).json({ success: false, error: 'Entry not found' })
+    }
+
+    res.json({ success: true, data: null })
+  } catch (error) {
+    console.error('Delete entry error:', error)
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
