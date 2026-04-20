@@ -11,6 +11,19 @@ dotenv.config()
 
 const app = express()
 const PORT = process.env.PORT || 3001
+const allowedOrigins = (process.env.FRONTEND_URL || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+
+function isAllowedVercelOrigin(origin: string): boolean {
+  try {
+    const parsed = new URL(origin)
+    return parsed.protocol === 'https:' && parsed.hostname.endsWith('.vercel.app')
+  } catch {
+    return false
+  }
+}
 
 // CORS configuration - allow localhost in development
 app.use(cors({
@@ -21,8 +34,12 @@ app.use(cors({
     if (/^http:\/\/localhost:\d+$/.test(origin)) {
       return callback(null, true)
     }
-    // Allow configured production URL
-    if (origin === process.env.FRONTEND_URL) {
+    // Allow configured production URL(s)
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true)
+    }
+    // Allow Vercel preview/prod domains
+    if (isAllowedVercelOrigin(origin)) {
       return callback(null, true)
     }
     console.warn(`CORS blocked: ${origin}`)
