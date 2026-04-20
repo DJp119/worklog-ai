@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, Link } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { Layout } from './components/Layout'
 import Login from './pages/Login'
@@ -52,12 +52,12 @@ function HomePage() {
         Track your work weekly. Generate self-appraisals in seconds.
       </p>
       <div className="space-x-4">
-        <a
-          href="/login"
+        <Link
+          to="/login"
           className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
         >
           Sign In
-        </a>
+        </Link>
       </div>
 
       {/* Features */}

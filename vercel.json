@@ -3,5 +3,11 @@
   "framework": "vite",
   "installCommand": "npm install",
   "buildCommand": "npm run build --workspace=client && node scripts/vercel-prepare-output.mjs",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
 }
