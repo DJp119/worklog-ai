@@ -1,5 +1,4 @@
 import { useState, FormEvent, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { createEntry, getEntries, updateEntry } from '../lib/api'
 import type { WorkLogEntry } from 'shared'
 
@@ -13,7 +12,6 @@ interface LogEntryForm {
 }
 
 export default function LogEntry() {
-  const navigate = useNavigate()
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)

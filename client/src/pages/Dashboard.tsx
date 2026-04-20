@@ -18,7 +18,6 @@ export default function Dashboard() {
   const [entries, setEntries] = useState<WorkLogEntry[]>([])
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [currentWeekLogged, setCurrentWeekLogged] = useState(false)
-  const [currentWeekStart, setCurrentWeekStart] = useState<string>('')
 
   useEffect(() => {
     loadDashboard()
@@ -50,7 +49,6 @@ export default function Dashboard() {
     // Calculate current week start
     const now = new Date()
     const currentStart = getWeekStart(now)
-    setCurrentWeekStart(currentStart)
 
     // Check if current week is logged
     const currentWeekLogged = entries.some(e => e.week_start_date === currentStart)
