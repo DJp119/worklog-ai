@@ -3,19 +3,5 @@
   "framework": "vite",
   "installCommand": "npm install",
   "buildCommand": "npm run build --workspace=client",
-  "outputDirectory": "client/dist",
-  "env": {
-    "VITE_SUPABASE_URL": {
-      "type": "secret",
-      "description": "Supabase project URL"
-    },
-    "VITE_SUPABASE_ANON_KEY": {
-      "type": "secret",
-      "description": "Supabase anon/public key"
-    },
-    "VITE_API_URL": {
-      "type": "secret",
-      "description": "Backend API URL (Railway)"
-    }
-  }
+  "outputDirectory": "client/dist"
 }
