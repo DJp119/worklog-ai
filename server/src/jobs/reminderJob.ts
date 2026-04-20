@@ -1,5 +1,5 @@
 import cron from 'node-cron'
-import { supabase } from '../lib/supabase.js'
+import { supabase, canRunReminderJobs } from '../lib/supabase.js'
 import { sendWeeklyReminder } from '../lib/email.js'
 
 interface ReminderUser {
@@ -15,6 +15,11 @@ class ReminderJob {
    * Runs every Monday at 9:00 AM user's local time
    */
   start(): void {
+    if (!canRunReminderJobs) {
+      console.warn('Skipping reminder job: Supabase service role key is not configured.')
+      return
+    }
+
     if (this.task) {
       console.log('Reminder job already running')
       return

@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import { anthropic } from '../lib/anthropic.js'
-import { supabase } from '../lib/supabase.js'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import type { GeneratedAppraisal, GenerateAppraisalRequest, ApiResponse } from 'shared'
 
@@ -20,6 +19,7 @@ appraisalRoutes.post('/generate', requireAuth, async (req: AuthRequest, res) => 
   try {
     const userId = req.userId!
     const body: GenerateAppraisalRequest = req.body
+    const supabase = req.supabase!
 
     // Validate required fields
     if (!body.period_start || !body.period_end || !body.criteria_text) {
@@ -133,6 +133,7 @@ Write the self-appraisal:`
 appraisalRoutes.get('/history', requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!
+    const supabase = req.supabase!
 
     const { data, error } = await supabase
       .from('generated_appraisals')
@@ -160,6 +161,7 @@ appraisalRoutes.get('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!
     const { id } = req.params
+    const supabase = req.supabase!
 
     const { data, error } = await supabase
       .from('generated_appraisals')

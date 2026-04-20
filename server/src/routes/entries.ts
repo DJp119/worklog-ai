@@ -1,5 +1,4 @@
 import { Router } from 'express'
-import { supabase } from '../lib/supabase.js'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import type { WorkLogEntry, CreateWorkLogRequest, ApiResponse } from 'shared'
 
@@ -12,6 +11,7 @@ export const entriesRoutes = Router()
 entriesRoutes.get('/', requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!
+    const supabase = req.supabase!
 
     const { data, error } = await supabase
       .from('work_log_entries')
@@ -39,6 +39,7 @@ entriesRoutes.get('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!
     const { id } = req.params
+    const supabase = req.supabase!
 
     const { data, error } = await supabase
       .from('work_log_entries')
@@ -66,6 +67,7 @@ entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!
     const body: CreateWorkLogRequest = req.body
+    const supabase = req.supabase!
 
     // Validate required fields
     const required = ['week_start_date', 'accomplishments', 'challenges', 'learnings', 'goals_next_week']
@@ -113,6 +115,7 @@ entriesRoutes.put('/:id', requireAuth, async (req: AuthRequest, res) => {
     const userId = req.userId!
     const { id } = req.params
     const body = req.body
+    const supabase = req.supabase!
 
     const { data, error } = await supabase
       .from('work_log_entries')
@@ -144,6 +147,7 @@ entriesRoutes.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!
     const { id } = req.params
+    const supabase = req.supabase!
 
     const { error } = await supabase
       .from('work_log_entries')

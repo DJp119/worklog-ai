@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express'
-import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
+import { isSupabaseConfigured, getSupabaseClient } from '../lib/supabase.js'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface AuthRequest extends Request {
   userId?: string
@@ -7,6 +8,7 @@ export interface AuthRequest extends Request {
     id: string
     email: string
   }
+  supabase?: SupabaseClient
 }
 
 /**
@@ -38,6 +40,7 @@ export async function requireAuth(
     console.log(`[Auth] Token received (first 20 chars): ${token.substring(0, 20)}...`)
 
     // Verify token with Supabase
+    const supabase = getSupabaseClient(token)
     const { data: { user }, error } = await supabase.auth.getUser(token)
 
     if (error || !user) {
@@ -52,6 +55,7 @@ export async function requireAuth(
       id: user.id,
       email: user.email || '',
     }
+    req.supabase = supabase
 
     console.log(`[Auth] User authenticated: ${user.email}`)
     next()
@@ -74,6 +78,7 @@ export async function optionalAuth(
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       const token = authHeader.substring(7)
+      const supabase = getSupabaseClient(token)
       const { data: { user } } = await supabase.auth.getUser(token)
 
       if (user) {
@@ -82,6 +87,7 @@ export async function optionalAuth(
           id: user.id,
           email: user.email || '',
         }
+        req.supabase = supabase
       }
     }
 
