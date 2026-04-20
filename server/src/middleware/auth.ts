@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
-import { supabase } from '../lib/supabase.js'
+import { isSupabaseConfigured, supabase } from '../lib/supabase.js'
 
 export interface AuthRequest extends Request {
   userId?: string
@@ -19,6 +19,11 @@ export async function requireAuth(
   next: NextFunction
 ): Promise<void> {
   try {
+    if (!isSupabaseConfigured) {
+      res.status(503).json({ error: 'Service unavailable: Supabase backend is not configured' })
+      return
+    }
+
     const authHeader = req.headers.authorization
 
     console.log(`[Auth] Request from ${req.ip}, Auth header: ${authHeader ? 'present' : 'missing'}`)
