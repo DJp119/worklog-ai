@@ -5,6 +5,7 @@ import { authRoutes } from './routes/auth.js'
 import { entriesRoutes } from './routes/entries.js'
 import { appraisalRoutes } from './routes/appraisal.js'
 import { reminderJob } from './jobs/reminderJob.js'
+import { isSupabaseConfigured } from './lib/supabase.js'
 
 dotenv.config()
 
@@ -67,6 +68,10 @@ app.listen(PORT, () => {
 
   // Start reminder job
   if (process.env.NODE_ENV !== 'test') {
-    reminderJob.start()
+    if (isSupabaseConfigured) {
+      reminderJob.start()
+    } else {
+      console.warn('Skipping reminder job startup because Supabase is not configured.')
+    }
   }
 })

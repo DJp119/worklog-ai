@@ -21,7 +21,9 @@ const supabaseServiceKey = firstDefined([
   'VITE_SUPABASE_ANON_KEY',
 ])
 
-if (!supabaseUrl || !supabaseServiceKey) {
+export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseServiceKey)
+
+if (!isSupabaseConfigured) {
   console.error('Missing Supabase environment variables:')
   if (!supabaseUrl) {
     console.error('  - Set SUPABASE_URL (or VITE_SUPABASE_URL)')
@@ -29,8 +31,10 @@ if (!supabaseUrl || !supabaseServiceKey) {
   if (!supabaseServiceKey) {
     console.error('  - Set SUPABASE_SERVICE_KEY (or SUPABASE_SERVICE_ROLE_KEY / SUPABASE_ANON_KEY)')
   }
-  console.error('On Render, add these in Service > Environment before starting.')
-  process.exit(1)
+  console.error('Continuing startup without Supabase. API routes depending on Supabase will fail until env vars are set.')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseServiceKey)
+const runtimeSupabaseUrl = supabaseUrl || 'https://placeholder.supabase.co'
+const runtimeSupabaseServiceKey = supabaseServiceKey || 'placeholder-key'
+
+export const supabase = createClient(runtimeSupabaseUrl, runtimeSupabaseServiceKey)
