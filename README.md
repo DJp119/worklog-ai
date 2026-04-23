@@ -20,7 +20,7 @@ Weekly work log tracker with AI-generated self-appraisals.
 | Database | Supabase Postgres |
 | Backend | Node.js + Express + TypeScript |
 | AI | Anthropic Claude API |
-| Email | Resend + Nodemailer |
+| Email | Supabase Auth SMTP via Resend + Nodemailer |
 | Scheduler | node-cron |
 | Deploy FE | Vercel |
 | Deploy BE | Railway |
@@ -43,7 +43,7 @@ worklog-ai/
 - npm or yarn
 - Supabase account
 - Anthropic API key
-- Resend API key (for email)
+- Resend API key (for reminder emails and Supabase Auth SMTP)
 
 ### Installation
 
@@ -80,9 +80,20 @@ npm run run dev:server
 - `SUPABASE_URL` - Supabase project URL
 - `SUPABASE_SERVICE_KEY` - Supabase service role key
 - `ANTHROPIC_API_KEY` - Anthropic API key
-- `RESEND_API_KEY` - Resend email API key
+- `RESEND_API_KEY` - Resend email API key for reminder emails and Supabase Auth SMTP
 - `JWT_SECRET` - JWT signing secret
 - `NODE_ENV` - development/production
+
+### Supabase Auth Email Delivery
+
+Supabase sends the magic-link login emails. To avoid Supabase free-trial email limits, configure custom SMTP in your Supabase project and point it at Resend:
+
+- Host: `smtp.resend.com`
+- Port: `465` or `587`
+- Username: `resend`
+- Password: your Resend API key
+
+In Supabase Dashboard, go to `Authentication -> Email -> SMTP Settings` and save the Resend credentials there.
 
 ## License
 

@@ -88,6 +88,20 @@ In Railway dashboard → Variables:
 | `NODE_ENV` | `production` |
 | `FRONTEND_URL` | `https://your-app.vercel.app` |
 
+### Step 3.1: Configure Supabase Auth SMTP
+
+Supabase sends the magic-link login emails. To avoid Supabase free-trial email limits, set Supabase Auth to use Resend as custom SMTP:
+
+1. Go to Supabase Dashboard -> Authentication -> Email -> SMTP Settings
+2. Enable custom SMTP
+3. Enter these Resend SMTP settings:
+   - Host: `smtp.resend.com`
+   - Port: `465` or `587`
+   - Username: `resend`
+   - Password: your Resend API key
+4. Use a verified sender address for the From email
+5. Save and send a test auth email
+
 ### Step 4: Deploy
 
 Railway will automatically deploy when you push to Git.
@@ -194,6 +208,16 @@ appraisalRoutes.get('/test-reminders', async (req, res) => {
 1. Verify Supabase site URL is set correctly
 2. Check redirect URLs include your Vercel domain pattern
 3. Test in Supabase dashboard (Authentication → URL Configuration)
+
+### Supabase Email Quota Reached
+
+**Symptom:** Magic-link emails stop sending after a few tries
+
+**Fix:**
+1. Configure Supabase Auth SMTP to use Resend
+2. Verify your Resend domain
+3. Use a verified `FROM_EMAIL`
+4. Send a test auth email from Supabase
 
 ### Emails Not Sending
 

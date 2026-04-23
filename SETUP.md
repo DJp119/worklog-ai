@@ -17,6 +17,13 @@ npm install
    - Project URL (Settings → API)
    - Anon/Public key (Settings → API)
    - Service role key (Settings → API → Service role)
+4. Configure Supabase Auth email delivery with Resend:
+   - Go to Authentication → Email → SMTP Settings
+   - Host: `smtp.resend.com`
+   - Port: `465` or `587`
+   - Username: `resend`
+   - Password: your Resend API key
+   - From name/address: use a verified sender from your Resend domain
 
 ### 3. Configure Environment Variables
 
@@ -174,6 +181,8 @@ worklog-ai/
 **Auth not working:** Verify Supabase anon key in client `.env`
 
 **Email not sending:** Check Resend API key and `FROM_EMAIL`
+
+**Magic link limit / email delivery issues:** Confirm Supabase Auth SMTP is configured to use Resend and that your Resend domain is verified.
 
 **401 errors:** Ensure you're passing `Authorization: Bearer <token>` header
 
