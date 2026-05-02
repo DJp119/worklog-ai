@@ -272,7 +272,7 @@ export default function Settings() {
           <div className="flex justify-between items-center py-3 border-b border-white/5">
             <span className="text-sm text-gray-400">Account created</span>
             <span className="text-sm text-white">
-              {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
+              {'N/A'}
             </span>
           </div>
           <div className="flex justify-between items-center py-3 border-b border-white/5">

@@ -7,12 +7,12 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
-  const { user, signOut } = useAuth()
+  const { user, logout } = useAuth()
   const navigate = useNavigate()
 
   const handleSignOut = async () => {
     try {
-      await signOut()
+      await logout()
       navigate('/')
     } catch (error) {
       console.error('Failed to sign out:', error)

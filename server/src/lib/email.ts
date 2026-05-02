@@ -1,148 +1,163 @@
-import { Resend } from 'resend'
+import dotenv from 'dotenv'
 
-const resendApiKey = process.env.RESEND_API_KEY
-const fromEmail = process.env.FROM_EMAIL
+dotenv.config()
 
-// Allow missing key for development (emails won't be sent without it)
-let resendClient: Resend | null = null
+const BREVO_API_KEY = process.env.BREVO_API_KEY || ''
+const BREVO_FROM_EMAIL = process.env.BREVO_FROM_EMAIL || 'noreply@worklog-ai.com'
+const BREVO_FROM_NAME = process.env.BREVO_FROM_NAME || 'Worklog AI'
 
-if (!resendApiKey) {
-  console.warn('Warning: RESEND_API_KEY not set. Email reminders will not be sent.')
-  console.warn('Get a key at: https://resend.com')
-} else {
-  resendClient = new Resend(resendApiKey)
-}
-
-export const resend = resendClient
-
-export interface SendReminderOptions {
-  email: string
-  weekStart: string
-  frontendUrl: string
+interface SendEmailOptions {
+    to: string
+    subject: string
+    htmlBody: string
+    textBody?: string
 }
 
 /**
- * Send weekly reminder email to user
+ * Send email via Brevo API
  */
-export async function sendWeeklyReminder(options: SendReminderOptions): Promise<void> {
-  const { email, weekStart, frontendUrl } = options
+export async function sendEmail(options: SendEmailOptions): Promise<{ success: boolean; messageId?: string }> {
+    if (!BREVO_API_KEY) {
+        console.warn('Brevo API key not configured - email not sent')
+        return { success: false }
+    }
 
-  if (!resendClient) {
-    console.log('Resend not configured, skipping email send (dev mode)')
-    return
-  }
+    try {
+        const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'api-key': BREVO_API_KEY,
+            },
+            body: JSON.stringify({
+                sender: {
+                    email: BREVO_FROM_EMAIL,
+                    name: BREVO_FROM_NAME,
+                },
+                to: [{ email: options.to }],
+                subject: options.subject,
+                htmlContent: options.htmlBody,
+                textContent: options.textBody || '',
+            }),
+        })
 
-  if (!fromEmail) {
-    console.warn('FROM_EMAIL not configured, skipping email send')
-    return
-  }
+        if (!response.ok) {
+            const error = await response.text()
+            console.error('Brevo API error:', error)
+            return { success: false }
+        }
 
-  await resendClient.emails.send({
-    from: fromEmail,
-    to: email,
-    subject: `Time to log your week (${weekStart})`,
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <title>Weekly Work Log Reminder</title>
-        </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #4f46e5; margin-bottom: 16px;">Weekly Work Log Reminder</h2>
-
-          <p>Hi there,</p>
-
-          <p>It's time to log your work for the week starting <strong>${weekStart}</strong>.</p>
-
-          <p>This should only take about 5 minutes. Your future self will thank you when appraisal time comes!</p>
-
-          <div style="margin: 24px 0;">
-            <a href="${frontendUrl}/log" style="
-              background-color: #4f46e5;
-              color: white;
-              padding: 12px 24px;
-              text-decoration: none;
-              border-radius: 6px;
-              display: inline-block;
-              font-weight: 500;
-            ">Log Your Week</a>
-          </div>
-
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;">
-
-          <p style="color: #666; font-size: 14px; margin: 0;">
-            This email was sent because you're subscribed to Worklog AI reminders.
-          </p>
-        </body>
-      </html>
-    `,
-  })
-
-  console.log(`Reminder email sent to ${email}`)
+        return { success: true }
+    } catch (error) {
+        console.error('Send email error:', error)
+        return { success: false }
+    }
 }
 
 /**
- * Send appraisal ready notification
+ * Create email verification link
  */
-export async function sendAppraisalReadyNotification(
-  email: string,
-  periodStart: string,
-  periodEnd: string,
-  frontendUrl: string
-): Promise<void> {
-  if (!resendClient) {
-    console.log('Resend not configured, skipping email send (dev mode)')
-    return
-  }
+export function createEmailVerificationLink(userId: string, emailToken: string): string {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+    return `${frontendUrl}/verify-email?token=${emailToken}&userId=${userId}`
+}
 
-  if (!fromEmail) {
-    console.warn('FROM_EMAIL not configured, skipping email send')
-    return
-  }
+/**
+ * Create password reset link
+ */
+export function createPasswordResetLink(userId: string, resetToken: string): string {
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+    return `${frontendUrl}/reset-password?token=${resetToken}&userId=${userId}`
+}
 
-  await resendClient.emails.send({
-    from: fromEmail,
-    to: email,
-    subject: 'Your self-appraisal is ready!',
-    html: `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Your Appraisal is Ready</title>
-        </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #10b981; margin-bottom: 16px;">Your Self-Appraisal is Ready!</h2>
+/**
+ * Send email verification email
+ */
+export async function sendVerificationEmail(to: string, userId: string, emailToken: string): Promise<boolean> {
+    const link = createEmailVerificationLink(userId, emailToken)
 
-          <p>Hi there,</p>
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #4F46E5;">Welcome to Worklog AI!</h1>
+        <p>Thanks for signing up. Please verify your email address to get started.</p>
+        <p style="margin: 30px 0;">
+            <a href="${link}"
+               style="display: inline-block; padding: 12px 30px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                Verify Email Address
+            </a>
+        </p>
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #4F46E5;">${link}</p>
+        <p style="margin-top: 30px; color: #666; font-size: 14px;">
+            This link will expire in 24 hours.
+            <br>If you didn't create an account, you can ignore this email.
+        </p>
+    </div>
+</body>
+</html>
+    `
 
-          <p>Great news! Your self-appraisal for the period <strong>${periodStart}</strong> to <strong>${periodEnd}</strong> has been generated.</p>
+    const textBody = `Welcome to Worklog AI!\n\nThanks for signing up. Please verify your email by visiting this link:\n${link}\n\nThis link will expire in 24 hours.`
 
-          <p>Review it, make any adjustments, and you're ready to submit!</p>
+    const result = await sendEmail({
+        to,
+        subject: 'Verify your email - Worklog AI',
+        htmlBody,
+        textBody,
+    })
 
-          <div style="margin: 24px 0;">
-            <a href="${frontendUrl}/appraisals" style="
-              background-color: #10b981;
-              color: white;
-              padding: 12px 24px;
-              text-decoration: none;
-              border-radius: 6px;
-              display: inline-block;
-              font-weight: 500;
-            ">View Your Appraisal</a>
-          </div>
+    return result.success
+}
 
-          <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 32px 0;">
+/**
+ * Send password reset email
+ */
+export async function sendPasswordResetEmail(to: string, userId: string, resetToken: string): Promise<boolean> {
+    const link = createPasswordResetLink(userId, resetToken)
 
-          <p style="color: #666; font-size: 14px; margin: 0;">
-            Worklog AI - Helping you track your impact
-          </p>
-        </body>
-      </html>
-    `,
-  })
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+    <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h1 style="color: #4F46E5;">Password Reset</h1>
+        <p>You requested a password reset. Click the button below to set a new password:</p>
+        <p style="margin: 30px 0;">
+            <a href="${link}"
+               style="display: inline-block; padding: 12px 30px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
+                Reset Password
+            </a>
+        </p>
+        <p>Or copy and paste this link into your browser:</p>
+        <p style="word-break: break-all; color: #4F46E5;">${link}</p>
+        <p style="margin-top: 30px; color: #666; font-size: 14px;">
+            This link will expire in 1 hour.
+            <br>If you didn't request a password reset, you can ignore this email.
+        </p>
+    </div>
+</body>
+</html>
+    `
 
-  console.log(`Appraisal ready notification sent to ${email}`)
+    const textBody = `Password Reset Request\n\nYou requested a password reset. Visit this link to reset your password:\n${link}\n\nThis link will expire in 1 hour.`
+
+    const result = await sendEmail({
+        to,
+        subject: 'Password Reset - Worklog AI',
+        htmlBody,
+        textBody,
+    })
+
+    return result.success
 }

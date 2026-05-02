@@ -1,78 +1,207 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { User, Session } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
+
+interface User {
+    id: string
+    email: string
+    name?: string
+    companyName?: string
+    jobTitle?: string
+}
 
 interface AuthContextType {
-  user: User | null
-  session: Session | null
-  loading: boolean
-  signIn: (email: string) => Promise<void>
-  signOut: () => Promise<void>
+    user: User | null
+    accessToken: string | null
+    loading: boolean
+    login: (email: string, password: string, rememberMe?: boolean) => Promise<void>
+    signup: (email: string, password: string, name?: string, companyName?: string, jobTitle?: string) => Promise<void>
+    logout: () => Promise<void>
+    verifyEmail: (userId: string, token: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-interface AuthProviderProps {
-  children: ReactNode
-}
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
-export function AuthProvider({ children }: AuthProviderProps) {
-  const [user, setUser] = useState<User | null>(null)
-  const [session, setSession] = useState<Session | null>(null)
-  const [loading, setLoading] = useState(true)
+export function AuthProvider({ children }: { children: ReactNode }) {
+    const [user, setUser] = useState<User | null>(null)
+    const [accessToken, setAccessToken] = useState<string | null>(null)
+    const [refreshToken, setRefreshToken] = useState<string | null>(null)
+    const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user || null)
-      setLoading(false)
-    })
+    useEffect(() => {
+        loadAuthState()
+    }, [])
 
-    // Listen for auth changes
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-      setUser(session?.user || null)
-      setLoading(false)
-    })
+    useEffect(() => {
+        if (accessToken) {
+            const interval = setInterval(handleRefreshToken, 14 * 60 * 1000)
+            return () => clearInterval(interval)
+        }
+    }, [accessToken])
 
-    return () => subscription.unsubscribe()
-  }, [])
+    async function loadAuthState() {
+        try {
+            const savedAccessToken = localStorage.getItem('accessToken')
+            const savedRefreshToken = localStorage.getItem('refreshToken')
 
-  const signIn = async (email: string): Promise<void> => {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-    })
+            if (savedAccessToken && savedRefreshToken) {
+                setAccessToken(savedAccessToken)
+                setRefreshToken(savedRefreshToken)
 
-    if (error) {
-      throw error
+                try {
+                    const response = await fetch(`${API_URL}/api/users/profile`, {
+                        headers: { Authorization: `Bearer ${savedAccessToken}` },
+                    })
+
+                    if (response.ok) {
+                        const data = await response.json()
+                        setUser(data.data)
+                    } else {
+                        clearAuth()
+                    }
+                } catch (error) {
+                    console.error('Failed to verify token:', error)
+                    clearAuth()
+                }
+            }
+        } finally {
+            setLoading(false)
+        }
     }
-  }
 
-  const signOut = async (): Promise<void> => {
-    const { error } = await supabase.auth.signOut()
-    if (error) {
-      throw error
+    async function login(email: string, password: string, rememberMe: boolean = false) {
+        const response = await fetch(`${API_URL}/api/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, rememberMe }),
+        })
+
+        if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.error || 'Login failed')
+        }
+
+        const data = await response.json()
+        const newAccessToken = data.data.accessToken
+        const newRefreshToken = data.data.refreshToken
+
+        setAccessToken(newAccessToken)
+        setRefreshToken(newRefreshToken)
+        setUser(data.data.user)
+
+        localStorage.setItem('accessToken', newAccessToken)
+        localStorage.setItem('refreshToken', newRefreshToken)
+
+        if (!rememberMe) {
+            sessionStorage.setItem('accessToken', newAccessToken)
+            sessionStorage.setItem('refreshToken', newRefreshToken)
+        }
     }
-  }
 
-  const value: AuthContextType = {
-    user,
-    session,
-    loading,
-    signIn,
-    signOut,
-  }
+    async function signup(email: string, password: string, name?: string, companyName?: string, jobTitle?: string) {
+        const response = await fetch(`${API_URL}/api/auth/signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password, name, company_name: companyName, job_title: jobTitle }),
+        })
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+        if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.error || 'Signup failed')
+        }
+
+        return await response.json()
+    }
+
+    async function logout() {
+        if (refreshToken) {
+            try {
+                await fetch(`${API_URL}/api/auth/logout`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refreshToken }),
+                })
+            } catch (error) {
+                console.error('Logout API error:', error)
+            }
+        }
+        clearAuth()
+    }
+
+    async function verifyEmail(userId: string, token: string) {
+        const response = await fetch(`${API_URL}/api/auth/verify-email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId, token }),
+        })
+
+        if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.error || 'Verification failed')
+        }
+    }
+
+    async function handleRefreshToken() {
+        if (!refreshToken) return
+
+        try {
+            const response = await fetch(`${API_URL}/api/auth/refresh`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refreshToken }),
+            })
+
+            if (!response.ok) {
+                clearAuth()
+                return
+            }
+
+            const data = await response.json()
+            const newAccessToken = data.data.accessToken
+            const newRefreshToken = data.data.refreshToken
+
+            setAccessToken(newAccessToken)
+            setRefreshToken(newRefreshToken)
+
+            localStorage.setItem('accessToken', newAccessToken)
+            localStorage.setItem('refreshToken', newRefreshToken)
+        } catch (error) {
+            console.error('Token refresh failed:', error)
+            clearAuth()
+        }
+    }
+
+    function clearAuth() {
+        setUser(null)
+        setAccessToken(null)
+        setRefreshToken(null)
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        sessionStorage.removeItem('accessToken')
+        sessionStorage.removeItem('refreshToken')
+    }
+
+    return (
+        <AuthContext.Provider
+            value={{
+                user,
+                accessToken,
+                loading,
+                login,
+                signup,
+                logout,
+                verifyEmail,
+            }}
+        >
+            {children}
+        </AuthContext.Provider>
+    )
 }
 
 export function useAuth() {
-  const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider')
-  }
-  return context
+    const context = useContext(AuthContext)
+    if (context === undefined) {
+        throw new Error('useAuth must be used within an AuthProvider')
+    }
+    return context
 }

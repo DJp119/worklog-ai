@@ -1,10 +1,24 @@
 {
-  "enabledPlugins": {
-    "ui-ux-pro-max@ui-ux-pro-max-skill": true
-  },
   "permissions": {
     "allow": [
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(npm install *)",
+      "Bash(npm view *)",
+      "Bash(npm info *)",
+      "Bash(npx skills *)",
+      "Bash(npm list *)",
+      "Bash(npx tsc *)",
+      "Bash(taskkill /F /IM node.exe)",
+      "Bash(pkill -f \"node.*index.js\")",
+      "PowerShell(Stop-Process *)",
+      "Bash(curl -s http://localhost:3001/health)",
+      "Bash(Get-Content \"server\\\\.env\")",
+      "Bash(Select-String BREVO -Context 1,0)",
+      "Bash(Start-Sleep -Seconds 3)",
+      "Bash(curl -s -X POST http://localhost:3001/api/auth/signup -H \"Content-Type: application/json\" -d \"{\\\\\"email\\\\\": \\\\\"test'$\\(date +%s\\)@example.com\\\\\", \\\\\"password\\\\\": \\\\\"password123\\\\\", \\\\\"name\\\\\": \\\\\"Test User\\\\\", \\\\\"company_name\\\\\": \\\\\"Acme Corp\\\\\", \\\\\"job_title\\\\\": \\\\\"Developer\\\\\"}\")"
     ]
+  },
+  "enabledPlugins": {
+    "ui-ux-pro-max@ui-ux-pro-max-skill": true
   }
 }

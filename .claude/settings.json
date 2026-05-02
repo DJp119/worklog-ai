@@ -1,0 +1,6 @@
+{
+  "enabledPlugins": {
+    "claude-mem@thedotmack": true,
+    "engineering-skills@claude-code-skills": true
+  }
+}
