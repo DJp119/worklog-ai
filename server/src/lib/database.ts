@@ -33,8 +33,8 @@ if (!isDatabaseConfigured) {
     console.error('Continuing startup without database. API routes will fail until env vars are set.')
 }
 
-const runtimeSupabaseUrl = supabaseUrl || 'https://placeholder.supabase.co'
-const runtimeSupabaseKey = supabaseServiceKey || 'placeholder-key'
+export const runtimeSupabaseUrl = supabaseUrl || 'https://placeholder.supabase.co'
+export const runtimeSupabaseKey = supabaseServiceKey || 'placeholder-key'
 
 // Database client for Supabase Postgres (data only, not auth)
 export const supabase = createClient(runtimeSupabaseUrl, runtimeSupabaseKey, {
