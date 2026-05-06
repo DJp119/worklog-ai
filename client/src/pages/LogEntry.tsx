@@ -1,5 +1,6 @@
 import { useState, FormEvent, useEffect } from 'react'
-import { createEntry, getEntries, updateEntry } from '../lib/api'
+import { useSearchParams } from 'react-router-dom'
+import { createEntry, getEntries, updateEntry, getEntry } from '../lib/api'
 import type { WorkLogEntry } from 'shared'
 
 interface LogEntryForm {
@@ -16,6 +17,8 @@ export default function LogEntry() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [existingEntry, setExistingEntry] = useState<WorkLogEntry | null>(null)
+  const [searchParams] = useSearchParams()
+  const editEntryId = searchParams.get('edit')
 
   const [form, setForm] = useState<LogEntryForm>({
     week_start_date: '',
@@ -26,17 +29,40 @@ export default function LogEntry() {
     hours_logged: '',
   })
 
-  // Pre-fill current week's start date (Monday)
+  // Either load specific entry by ID, or check for current week's entry
   useEffect(() => {
-    const today = new Date()
-    const dayOfWeek = today.getDay()
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)
-    const monday = new Date(today.setDate(diff))
-    const weekStart = monday.toISOString().split('T')[0]
-    setForm((prev) => ({ ...prev, week_start_date: weekStart }))
+    const loadEntry = async () => {
+      if (editEntryId && editEntryId !== 'null') {
+        // Load specific entry by ID
+        try {
+          const entry = await getEntry(editEntryId)
+          setExistingEntry(entry)
+          setForm({
+            week_start_date: entry.week_start_date,
+            accomplishments: entry.accomplishments,
+            challenges: entry.challenges,
+            learnings: entry.learnings,
+            goals_next_week: entry.goals_next_week,
+            hours_logged: entry.hours_logged?.toString() || '',
+          })
+        } catch (err) {
+          console.error('Failed to load entry:', err)
+          setError('Failed to load the work log entry')
+        }
+      } else {
+        // Pre-fill current week's start date (Monday)
+        const today = new Date()
+        const dayOfWeek = today.getDay()
+        const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)
+        const monday = new Date(today.setDate(diff))
+        const weekStart = monday.toISOString().split('T')[0]
+        setForm((prev) => ({ ...prev, week_start_date: weekStart }))
+        await checkExistingEntry(weekStart)
+      }
+    }
 
-    checkExistingEntry(weekStart)
-  }, [])
+    loadEntry()
+  }, [editEntryId])
 
   async function checkExistingEntry(weekStart: string) {
     try {
@@ -84,19 +110,9 @@ export default function LogEntry() {
         await updateEntry(existingEntry.id, payload)
         setMessage('Work log updated successfully!')
       } else {
-        await createEntry(payload)
+        const newEntry = await createEntry(payload)
+        setExistingEntry(newEntry)
         setMessage('Work log saved successfully!')
-      }
-
-      if (!existingEntry) {
-        setForm({
-          week_start_date: form.week_start_date,
-          accomplishments: '',
-          challenges: '',
-          learnings: '',
-          goals_next_week: '',
-          hours_logged: '',
-        })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save work log')
@@ -120,10 +136,14 @@ export default function LogEntry() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-white">
-              {existingEntry ? 'Update Your Work Log' : 'Log Your Week'}
+              {editEntryId ? 'Edit Work Log Entry' : existingEntry ? 'Update Your Work Log' : 'Log Your Week'}
             </h1>
             <p className="text-gray-400 text-sm">
-              {existingEntry ? 'Update your work log for this week' : 'Take 5 minutes to reflect on your week'}
+              {editEntryId
+                ? 'Edit an existing work log entry'
+                : existingEntry
+                  ? 'Update your work log for this week'
+                  : 'Take 5 minutes to reflect on your week'}
             </p>
           </div>
         </div>

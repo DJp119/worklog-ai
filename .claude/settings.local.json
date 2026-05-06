@@ -30,7 +30,10 @@
       "Bash(Get-Content \"C:\\\\Users\\\\djpat\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\D--Vibe-Coded-worklog-ai\\\\e207be4b-77d0-4fb1-b683-c403dc7f26eb\\\\tasks\\\\bhsg2k1o1.output\")",
       "Bash(Select-Object -First 30)",
       "Bash(netstat -ano)",
-      "Bash(findstr :3001)"
+      "Bash(findstr :3001)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)"
     ]
   },
   "enabledPlugins": {
