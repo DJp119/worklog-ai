@@ -1,6 +1,6 @@
 import { useState, FormEvent, useEffect } from 'react'
-import { useSearchParams } from 'react-router-dom'
-import { createEntry, getEntries, updateEntry, getEntry } from '../lib/api'
+import { useSearchParams, useNavigate } from 'react-router-dom'
+import { createEntry, getEntries, updateEntry, getEntry, deleteEntry } from '../lib/api'
 import type { WorkLogEntry } from 'shared'
 
 interface LogEntryForm {
@@ -14,11 +14,12 @@ interface LogEntryForm {
 
 export default function LogEntry() {
   const [loading, setLoading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [existingEntry, setExistingEntry] = useState<WorkLogEntry | null>(null)
-  const [searchParams] = useSearchParams()
-  const editEntryId = searchParams.get('edit')
+  const navigate = useNavigate()
 
   // Debug: Log what we're receiving
   console.log('LogEntry: editEntryId from URL =', editEntryId)
@@ -123,6 +124,27 @@ export default function LogEntry() {
       setError(err instanceof Error ? err.message : 'Failed to save work log')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!existingEntry) return
+
+    setDeleting(true)
+    setError(null)
+    setMessage(null)
+    setShowDeleteConfirm(false)
+
+    try {
+      await deleteEntry(existingEntry.id)
+      setMessage('Work log deleted successfully!')
+      setExistingEntry(null)
+      // Redirect to /log without edit parameter
+      navigate('/log', { replace: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete work log')
+    } finally {
+      setDeleting(false)
     }
   }
 
