@@ -19,10 +19,9 @@ export default function LogEntry() {
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [existingEntry, setExistingEntry] = useState<WorkLogEntry | null>(null)
+  const [searchParams] = useSearchParams()
+  const editEntryId = searchParams.get('edit')
   const navigate = useNavigate()
-
-  // Debug: Log what we're receiving
-  console.log('LogEntry: editEntryId from URL =', editEntryId)
 
   const [form, setForm] = useState<LogEntryForm>({
     week_start_date: '',
@@ -38,10 +37,8 @@ export default function LogEntry() {
     const loadEntry = async () => {
       if (editEntryId && editEntryId !== 'null') {
         // Load specific entry by ID
-        console.log('LogEntry: Loading entry with ID =', editEntryId)
         try {
           const entry = await getEntry(editEntryId)
-          console.log('LogEntry: Entry loaded =', entry)
           setExistingEntry(entry)
           setForm({
             week_start_date: entry.week_start_date,
@@ -139,7 +136,6 @@ export default function LogEntry() {
       await deleteEntry(existingEntry.id)
       setMessage('Work log deleted successfully!')
       setExistingEntry(null)
-      // Redirect to /log without edit parameter
       navigate('/log', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete work log')
@@ -155,25 +151,59 @@ export default function LogEntry() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="glass-strong rounded-2xl p-8 border border-white/10">
-        <div className="mb-2 flex items-center">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center mr-3 glow-primary">
-            <svg className="w-5 h-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-            </svg>
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center mr-3 glow-primary">
+              <svg className="w-5 h-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">
+                {editEntryId ? 'Edit Work Log Entry' : existingEntry ? 'Update Your Work Log' : 'Log Your Week'}
+              </h1>
+              <p className="text-gray-400 text-sm">
+                {editEntryId
+                  ? 'Edit an existing work log entry'
+                  : existingEntry
+                    ? 'Update your work log for this week'
+                    : 'Take 5 minutes to reflect on your week'}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">
-              {editEntryId ? 'Edit Work Log Entry' : existingEntry ? 'Update Your Work Log' : 'Log Your Week'}
-            </h1>
-            <p className="text-gray-400 text-sm">
-              {editEntryId
-                ? 'Edit an existing work log entry'
-                : existingEntry
-                  ? 'Update your work log for this week'
-                  : 'Take 5 minutes to reflect on your week'}
-            </p>
-          </div>
+          {existingEntry && (
+            <button
+              onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+              className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors"
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting...' : showDeleteConfirm ? 'Cancel' : 'Delete'}
+            </button>
+          )}
         </div>
+
+        {showDeleteConfirm && existingEntry && (
+          <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+            <p className="text-red-400 text-sm mb-3">
+              Are you sure you want to delete this work log entry? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Yes, Delete'}
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-8">
           {/* Week Start Date */}
