@@ -20,6 +20,9 @@ export default function LogEntry() {
   const [searchParams] = useSearchParams()
   const editEntryId = searchParams.get('edit')
 
+  // Debug: Log what we're receiving
+  console.log('LogEntry: editEntryId from URL =', editEntryId)
+
   const [form, setForm] = useState<LogEntryForm>({
     week_start_date: '',
     accomplishments: '',
@@ -34,8 +37,10 @@ export default function LogEntry() {
     const loadEntry = async () => {
       if (editEntryId && editEntryId !== 'null') {
         // Load specific entry by ID
+        console.log('LogEntry: Loading entry with ID =', editEntryId)
         try {
           const entry = await getEntry(editEntryId)
+          console.log('LogEntry: Entry loaded =', entry)
           setExistingEntry(entry)
           setForm({
             week_start_date: entry.week_start_date,
