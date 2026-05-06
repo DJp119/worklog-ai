@@ -56,7 +56,7 @@ CREATE TRIGGER on_auth_user_created
 -- 1.2 Work log entries table
 CREATE TABLE IF NOT EXISTS work_log_entries (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   week_start_date DATE NOT NULL,
   accomplishments TEXT NOT NULL,
   challenges TEXT NOT NULL,
@@ -98,7 +98,7 @@ CREATE POLICY "Users can delete own work logs"
 -- 1.3 Appraisal criteria & generated outputs table
 CREATE TABLE IF NOT EXISTS appraisal_criteria (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   period_start DATE NOT NULL,
   period_end DATE NOT NULL,
   criteria_text TEXT NOT NULL,
@@ -125,7 +125,7 @@ CREATE POLICY "Users can insert own criteria"
 -- Generated appraisals table
 CREATE TABLE IF NOT EXISTS generated_appraisals (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   criteria_id UUID REFERENCES appraisal_criteria(id) ON DELETE SET NULL,
   period_start DATE NOT NULL,
   period_end DATE NOT NULL,
@@ -152,7 +152,7 @@ CREATE POLICY "Users can insert own appraisals"
 -- 1.4 Reminder logs (track sent reminders)
 CREATE TABLE IF NOT EXISTS reminder_logs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   sent_at TIMESTAMPTZ DEFAULT NOW(),
   email_address TEXT NOT NULL,
   status TEXT NOT NULL CHECK (status IN ('sent', 'failed', 'bounced')),
