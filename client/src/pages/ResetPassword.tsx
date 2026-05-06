@@ -4,11 +4,12 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 export default function ResetPassword() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
-  const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
+  const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
   const [message, setMessage] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const token = searchParams.get('token')
   const userId = searchParams.get('userId')
@@ -22,6 +23,15 @@ export default function ResetPassword() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    console.log('=== FORM SUBMITTED ===')
+    console.log('Token:', token)
+    console.log('User ID:', userId)
+
+    if (!token || !userId) {
+      setStatus('error')
+      setMessage('Invalid reset link.')
+      return
+    }
 
     if (!newPassword || !confirmPassword) {
       setMessage('Please fill in all fields')
@@ -38,7 +48,7 @@ export default function ResetPassword() {
       return
     }
 
-    setStatus('loading')
+    setIsSubmitting(true)
     setMessage('Resetting password...')
 
     try {
@@ -54,10 +64,11 @@ export default function ResetPassword() {
       })
 
       const data = await response.json()
+      console.log('Response:', data)
 
       if (response.ok && data.success) {
         setStatus('success')
-        setMessage('Password reset successfully! You can now log in.')
+        setMessage('Password reset successfully!')
       } else {
         setStatus('error')
         setMessage(data.error || 'Failed to reset password')
@@ -66,34 +77,21 @@ export default function ResetPassword() {
       console.error('Password reset error:', error)
       setStatus('error')
       setMessage('Failed to reset password. Please try again.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
-  if (status === 'loading' && !token) {
+  // Show error if no token
+  if (!token || !userId) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
-  }
-
-  if (status === 'error' && (!token || !userId)) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
-          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
-            <svg className="h-8 w-8 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Invalid Link</h2>
-          <p className="text-gray-600 mb-6">{message}</p>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
+        <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', maxWidth: '28rem', width: '100%', textAlign: 'center' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#111827', marginBottom: '8px' }}>Invalid Link</h2>
+          <p style={{ color: '#6b7280', marginBottom: '24px' }}>{message}</p>
           <button
             onClick={() => navigate('/login')}
-            className="inline-block bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            style={{ backgroundColor: '#4f46e5', color: 'white', padding: '8px 24px', borderRadius: '6px', border: 'none', cursor: 'pointer' }}
           >
             Go to Login
           </button>
@@ -102,20 +100,16 @@ export default function ResetPassword() {
     )
   }
 
+  // Show success state
   if (status === 'success') {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full text-center">
-          <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 mb-4">
-            <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Password Reset!</h2>
-          <p className="text-gray-600 mb-6">{message}</p>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
+        <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', maxWidth: '28rem', width: '100%', textAlign: 'center' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#111827', marginBottom: '8px' }}>Password Reset!</h2>
+          <p style={{ color: '#6b7280', marginBottom: '24px' }}>Your password has been reset successfully.</p>
           <button
             onClick={() => navigate('/login')}
-            className="inline-block bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
+            style={{ backgroundColor: '#4f46e5', color: 'white', padding: '8px 24px', borderRadius: '6px', border: 'none', cursor: 'pointer' }}
           >
             Go to Login
           </button>
@@ -124,23 +118,24 @@ export default function ResetPassword() {
     )
   }
 
+  // Show form
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-50">
-      <div className="bg-white p-8 rounded-lg shadow-md max-w-md w-full">
-        <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Reset Password</h2>
-          <p className="text-gray-600 mt-2">Enter your new password</p>
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
+      <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', maxWidth: '28rem', width: '100%' }}>
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#111827' }}>Reset Password</h2>
+          <p style={{ color: '#6b7280', marginTop: '8px' }}>Enter your new password</p>
         </div>
 
         {message && (
-          <div className={`mb-4 p-3 rounded-lg ${status === 'error' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700'}`}>
+          <div style={{ marginBottom: '16px', padding: '12px', borderRadius: '6px', backgroundColor: status === 'error' ? '#fee2e2' : '#dbeafe', color: status === 'error' ? '#991b1b' : '#1e40af' }}>
             {message}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-1">
+        <form onSubmit={handleSubmit} noValidate>
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="newPassword" style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#374151', marginBottom: '4px' }}>
               New Password
             </label>
             <input
@@ -148,14 +143,14 @@ export default function ResetPassword() {
               type={showPassword ? 'text' : 'password'}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              style={{ width: '100%', padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: '6px' }}
               placeholder="Enter new password"
-              required
+              autoComplete="new-password"
             />
           </div>
 
-          <div>
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 mb-1">
+          <div style={{ marginBottom: '16px' }}>
+            <label htmlFor="confirmPassword" style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#374151', marginBottom: '4px' }}>
               Confirm Password
             </label>
             <input
@@ -163,37 +158,47 @@ export default function ResetPassword() {
               type={showPassword ? 'text' : 'password'}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              style={{ width: '100%', padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: '6px' }}
               placeholder="Confirm new password"
-              required
+              autoComplete="new-password"
             />
           </div>
 
-          <div>
-            <label className="flex items-center">
+          <div style={{ marginBottom: '16px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
               <input
                 type="checkbox"
                 checked={showPassword}
                 onChange={(e) => setShowPassword(e.target.checked)}
-                className="mr-2"
+                style={{ marginRight: '8px' }}
               />
-              <span className="text-sm text-gray-600">Show password</span>
+              <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>Show password</span>
             </label>
           </div>
 
           <button
             type="submit"
-            disabled={!newPassword || !confirmPassword || status === 'loading'}
-            className="w-full bg-indigo-600 text-white py-2 px-4 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            disabled={isSubmitting}
+            style={{
+              width: '100%',
+              backgroundColor: isSubmitting ? '#9ca3af' : '#4f46e5',
+              color: 'white',
+              padding: '10px 16px',
+              borderRadius: '6px',
+              border: 'none',
+              cursor: isSubmitting ? 'not-allowed' : 'pointer',
+              fontWeight: 500,
+              opacity: (newPassword && confirmPassword) ? 1 : 0.5
+            }}
           >
-            {status === 'loading' ? 'Resetting...' : 'Reset Password'}
+            {isSubmitting ? 'Resetting...' : 'Reset Password'}
           </button>
         </form>
 
-        <div className="mt-4 text-center">
+        <div style={{ marginTop: '16px', textAlign: 'center' }}>
           <button
             onClick={() => navigate('/login')}
-            className="text-sm text-indigo-600 hover:text-indigo-700"
+            style={{ background: 'none', border: 'none', color: '#4f46e5', cursor: 'pointer', fontSize: '0.875rem' }}
           >
             Back to Login
           </button>
