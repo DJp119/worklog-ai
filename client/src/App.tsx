@@ -7,6 +7,8 @@ import Dashboard from './pages/Dashboard'
 import LogEntry from './pages/LogEntry'
 import Appraisal from './pages/Appraisal'
 import Settings from './pages/Settings'
+import VerifyEmail from './pages/VerifyEmail'
+import ResetPassword from './pages/ResetPassword'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -33,6 +35,7 @@ function AppRoutes() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       <Route
         path="/dashboard"
         element={
@@ -65,6 +68,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      <Route path="/verify-email" element={<VerifyEmail />} />
     </Routes>
   )
 }

@@ -77,6 +77,21 @@ app.use('/api/entries', entriesRoutes)
 app.use('/api/appraisal', appraisalRoutes)
 app.use('/api/users', userRoutes)
 
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    name: 'WorkLog AI API',
+    version: '0.1.0',
+    endpoints: {
+      health: '/health',
+      auth: 'POST /api/auth/login, POST /api/auth/verify, POST /api/auth/logout',
+      entries: 'GET/POST /api/entries, GET/PUT/DELETE /api/entries/:id',
+      appraisal: 'POST /api/appraisal/generate, GET /api/appraisal/:id',
+      users: 'GET/PUT /api/users/profile, PUT /api/users/reminder',
+    },
+  })
+})
+
 // Health check
 app.get('/health', (req, res) => {
     res.json({
