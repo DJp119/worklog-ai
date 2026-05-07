@@ -44,7 +44,8 @@
       "WebFetch(domain:pricepertoken.com)",
       "WebFetch(domain:freellm.ai)",
       "WebFetch(domain:free-llm.com)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:cdn.jsdelivr.net)"
     ]
   },
   "enabledPlugins": {
