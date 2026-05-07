@@ -85,7 +85,7 @@ Write the self-appraisal:`
     // Call Mistral API
     let result
     try {
-      result = await mistral.chat({
+      result = await mistral.chat.complete({
         model: chatModel,
         messages: [
           {
