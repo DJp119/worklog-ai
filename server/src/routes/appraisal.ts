@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { anthropic } from '../lib/anthropic.js'
+import { model } from '../lib/gemini.js'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import type { GeneratedAppraisal, GenerateAppraisalRequest, ApiResponse } from 'shared'
 
@@ -10,10 +10,10 @@ export const appraisalRoutes = Router()
  * Generate self-appraisal from work logs and criteria
  *
  * This is the core AI endpoint. It:
- * 1. Fetches all work entries for the chosen date range
- * 2. Formats them into a structured prompt
- * 3. Calls Claude API with the user's company criteria
- * 4. Stores and returns the generated text
+ *  1. Fetches all work entries for the chosen date range
+ *  2. Formats them into a structured prompt
+ *  3. Calls Gemini API with the user's company criteria
+ *  4. Stores and returns the generated text
  */
 appraisalRoutes.post('/generate', requireAuth, async (req: AuthRequest, res) => {
   try {
@@ -50,7 +50,7 @@ appraisalRoutes.post('/generate', requireAuth, async (req: AuthRequest, res) => 
       })
     }
 
-    // Build the prompt for Claude
+    // Build the prompt for Gemini
     const workLogsText = workLogs.map((log, i) => `
 Week ${i + 1} (${log.week_start_date}):
 - Accomplishments: ${log.accomplishments}
@@ -82,14 +82,10 @@ INSTRUCTIONS:
 
 Write the self-appraisal:`
 
-    // Call Claude API
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 2048,
-      messages: [{ role: 'user', content: prompt }],
-    })
-
-    const generatedText = message.content[0].type === 'text' ? message.content[0].text : ''
+    // Call Gemini API
+    const result = await model.generateContent(prompt)
+    const response = await result.response
+    const generatedText = response.text()
 
     // Save to database
     const { data: appraisal, error: saveError } = await supabase

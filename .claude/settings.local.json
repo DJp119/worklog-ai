@@ -33,7 +33,17 @@
       "Bash(findstr :3001)",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "WebSearch",
+      "WebFetch(domain:publicapis.io)",
+      "WebFetch(domain:console.groq.com)",
+      "WebFetch(domain:api-docs.deepseek.com)",
+      "WebFetch(domain:docs.cohere.com)",
+      "WebFetch(domain:tokenmix.ai)",
+      "WebFetch(domain:www.analyticsvidhya.com)",
+      "WebFetch(domain:pricepertoken.com)",
+      "WebFetch(domain:freellm.ai)",
+      "WebFetch(domain:free-llm.com)"
     ]
   },
   "enabledPlugins": {
