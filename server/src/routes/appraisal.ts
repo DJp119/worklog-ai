@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { model } from '../lib/gemini.js'
+import { mistral, chatModel } from '../lib/mistral.js'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import type { GeneratedAppraisal, GenerateAppraisalRequest, ApiResponse } from 'shared'
 
@@ -12,7 +12,7 @@ export const appraisalRoutes = Router()
  * This is the core AI endpoint. It:
  *  1. Fetches all work entries for the chosen date range
  *  2. Formats them into a structured prompt
- *  3. Calls Gemini API with the user's company criteria
+ *  3. Calls Mistral API with the user's company criteria
  *  4. Stores and returns the generated text
  */
 appraisalRoutes.post('/generate', requireAuth, async (req: AuthRequest, res) => {
@@ -50,7 +50,7 @@ appraisalRoutes.post('/generate', requireAuth, async (req: AuthRequest, res) => 
       })
     }
 
-    // Build the prompt for Gemini
+    // Build the prompt for Mistral
     const workLogsText = workLogs.map((log, i) => `
 Week ${i + 1} (${log.week_start_date}):
 - Accomplishments: ${log.accomplishments}
@@ -82,10 +82,50 @@ INSTRUCTIONS:
 
 Write the self-appraisal:`
 
-    // Call Gemini API
-    const result = await model.generateContent(prompt)
-    const response = await result.response
-    const generatedText = response.text()
+    // Call Mistral API
+    let result
+    try {
+      result = await mistral.chat.completions.create({
+        model: chatModel,
+        messages: [
+          {
+            role: 'user' as const,
+            content: prompt
+          }
+        ],
+        max_tokens: 2048,
+      })
+    } catch (apiError: unknown) {
+      // Handle specific Mistral API errors
+      if (apiError instanceof Error && 'status' in apiError) {
+        const status = (apiError as { status?: number }).status
+        if (status === 429) {
+          console.error('Mistral API quota exceeded')
+          return res.status(503).json({
+            success: false,
+            error: 'AI service temporarily unavailable due to quota limits. Please try again tomorrow.'
+          })
+        }
+        if (status === 400 || status === 401 || status === 403) {
+          console.error('Mistral API configuration error:', apiError)
+          return res.status(400).json({
+            success: false,
+            error: 'Invalid API configuration. Please contact support.'
+          })
+        }
+      }
+      throw apiError
+    }
+
+    const generatedText = result.choices?.[0]?.message?.content || ''
+
+    if (!generatedText) {
+      console.error('No content generated from Mistral API')
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to generate appraisal content'
+      })
+    }
 
     // Save to database
     const { data: appraisal, error: saveError } = await supabase
