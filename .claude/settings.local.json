@@ -45,7 +45,11 @@
       "WebFetch(domain:freellm.ai)",
       "WebFetch(domain:free-llm.com)",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:cdn.jsdelivr.net)"
+      "WebFetch(domain:cdn.jsdelivr.net)",
+      "Bash(xxd \"D:\\\\Vibe Coded\\\\worklog-ai\\\\client\\\\src\\\\context\\\\AuthContext.tsx\")",
+      "PowerShell(& 'D:\\\\Vibe Coded\\\\worklog-ai\\\\temp-edit.ps1')",
+      "Bash(Get-Content \"D:\\\\Vibe Coded\\\\worklog-ai\\\\client\\\\package.json\")",
+      "Bash(Select-String \"logrocket\")"
     ]
   },
   "enabledPlugins": {
