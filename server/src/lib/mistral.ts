@@ -1,4 +1,4 @@
-import { MistralClient } from '@mistralai/mistralai'
+import { Mistral } from '@mistralai/mistralai'
 
 const mistralApiKey = process.env.MISTRAL_API_KEY
 
@@ -8,6 +8,8 @@ if (!mistralApiKey) {
   console.warn('Get an API key at: https://console.mistral.ai/api-keys/')
 }
 
-export const mistral = new MistralClient(mistralApiKey || 'dummy-key-for-dev')
+export const mistral = new Mistral({
+  apiKey: mistralApiKey || 'dummy-key-for-dev',
+})
 
 export const chatModel = 'mistral-large-latest'

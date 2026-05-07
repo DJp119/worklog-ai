@@ -85,15 +85,15 @@ Write the self-appraisal:`
     // Call Mistral API
     let result
     try {
-      result = await mistral.chat.completions.create({
+      result = await mistral.chat({
         model: chatModel,
         messages: [
           {
-            role: 'user' as const,
+            role: 'user',
             content: prompt
           }
         ],
-        max_tokens: 2048,
+        maxTokens: 2048,
       })
     } catch (apiError: unknown) {
       // Handle specific Mistral API errors
