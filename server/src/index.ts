@@ -50,6 +50,9 @@ app.use(cors({
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
+// Trust proxy (Render) for correct client IP in rate limiting
+app.set('trust proxy', true)
+
 // Rate limiting (disabled for development)
 const isDevelopment = process.env.NODE_ENV === 'development'
 
