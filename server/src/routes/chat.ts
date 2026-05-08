@@ -112,7 +112,7 @@ chatRoutes.get('/sessions/:id/messages', requireAuth, async (req: AuthRequest, r
   try {
     const userId = req.userId!.trim()
     const supabase = req.supabase!
-    const id = req.params.id.trim()
+    const id = String(req.params.id).trim()
 
     // Verify session belongs to user
     const { data: session, error: sessionError } = await supabase
@@ -156,7 +156,7 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
   try {
     const userId = req.userId!.trim()
     const supabase = req.supabase!
-    const id = req.params.id.trim()
+    const id = String(req.params.id).trim()
     const { content } = req.body
 
     if (!content || typeof content !== 'string') {
