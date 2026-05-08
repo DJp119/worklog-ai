@@ -34,7 +34,7 @@ export default function LandingPage() {
             <p className="text-xl md:text-2xl text-gray-400 max-w-3xl mx-auto mb-12">
               The intelligent worklog system that transforms your weekly reflections into
               <span className="text-white font-medium"> career-defining self-appraisals</span>.
-              Powered by Claude AI.
+              Powered by Mistral AI.
             </p>
 
             {/* CTA Buttons */}
@@ -138,7 +138,7 @@ export default function LandingPage() {
                 <h3 className="text-xl font-semibold text-white mb-3">AI Appraisal Generation</h3>
                 <p className="text-gray-400 leading-relaxed">
                   Transform your weekly logs into polished, professional self-appraisals.
-                  Claude AI crafts narratives that highlight your impact and growth.
+                  Mistral AI crafts narratives that highlight your impact and growth.
                 </p>
               </div>
             </div>
@@ -269,7 +269,7 @@ export default function LandingPage() {
                 </div>
                 <h3 className="text-xl font-semibold text-white mb-3">Generate Appraisal</h3>
                 <p className="text-gray-400">
-                  Click generate and watch Claude AI transform your logs into a compelling self-appraisal.
+                  Click generate and watch Mistral AI transform your logs into a compelling self-appraisal.
                 </p>
               </div>
             </div>

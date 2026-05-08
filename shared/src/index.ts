@@ -61,6 +61,47 @@ export interface GenerateAppraisalRequest {
     values?: string
 }
 
+// Monthly Summary types
+export interface MonthlySummary {
+    id: string
+    user_id: string
+    month_year: string
+    summary_text: string
+    entry_count: number
+    word_count: number
+    source_entry_ids: string[]
+    generated_at: string
+}
+
+// Chat types
+export interface ChatSession {
+    id: string
+    user_id: string
+    title: string
+    period_start: string
+    period_end: string
+    created_at: string
+    updated_at: string
+}
+
+export interface ChatMessage {
+    id: string
+    session_id: string
+    user_id: string
+    role: 'user' | 'assistant'
+    content: string
+    created_at: string
+}
+
+export interface CreateChatSessionRequest {
+    period_start: string
+    period_end: string
+}
+
+export interface SendChatMessageRequest {
+    content: string
+}
+
 // User profile types
 export interface UserProfile {
     id: string

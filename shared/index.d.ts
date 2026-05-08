@@ -57,6 +57,40 @@ export interface GenerateAppraisalResponse {
     generated_text: string;
     word_count: number;
 }
+export interface MonthlySummary {
+    id: string;
+    user_id: string;
+    month_year: string;
+    summary_text: string;
+    entry_count: number;
+    word_count: number;
+    source_entry_ids: string[];
+    generated_at: string;
+}
+export interface ChatSession {
+    id: string;
+    user_id: string;
+    title: string;
+    period_start: string;
+    period_end: string;
+    created_at: string;
+    updated_at: string;
+}
+export interface ChatMessage {
+    id: string;
+    session_id: string;
+    user_id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    created_at: string;
+}
+export interface CreateChatSessionRequest {
+    period_start: string;
+    period_end: string;
+}
+export interface SendChatMessageRequest {
+    content: string;
+}
 export interface UserProfile {
     id: string;
     email: string;

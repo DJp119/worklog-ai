@@ -61,6 +61,12 @@ export function Layout({ children }: LayoutProps) {
                     Appraisals
                   </Link>
                   <Link
+                    to="/chat"
+                    className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
+                  >
+                    AI Chat
+                  </Link>
+                  <Link
                     to="/settings"
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
                   >
@@ -124,6 +130,9 @@ export function Layout({ children }: LayoutProps) {
               <Link to="/appraisals" className="text-gray-400 hover:text-white text-sm transition-colors">
                 Appraisals
               </Link>
+              <Link to="/chat" className="text-gray-400 hover:text-white text-sm transition-colors">
+                AI Chat
+              </Link>
             </div>
 
             {/* Legal */}
@@ -132,7 +141,7 @@ export function Layout({ children }: LayoutProps) {
                 &copy; {new Date().getFullYear()} Worklog AI
               </p>
               <p className="text-gray-600 text-xs mt-1">
-                Powered by Claude AI & Supabase
+                Powered by Mistral AI & Supabase
               </p>
             </div>
           </div>

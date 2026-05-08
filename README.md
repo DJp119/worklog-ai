@@ -19,7 +19,7 @@ Weekly work log tracker with AI-generated self-appraisals.
 | Auth | Supabase Auth (magic link) |
 | Database | Supabase Postgres |
 | Backend | Node.js + Express + TypeScript |
-| AI | Anthropic Claude API |
+| AI | Mistral AI API |
 | Email | Supabase Auth SMTP via Resend + Nodemailer |
 | Scheduler | node-cron |
 | Deploy FE | Vercel |
@@ -42,7 +42,7 @@ worklog-ai/
 - Node.js 20+
 - npm or yarn
 - Supabase account
-- Anthropic API key
+- Mistral API key
 - Resend API key (for reminder emails and Supabase Auth SMTP)
 
 ### Installation
@@ -79,7 +79,7 @@ npm run run dev:server
 ### Server (.env)
 - `SUPABASE_URL` - Supabase project URL
 - `SUPABASE_SERVICE_KEY` - Supabase service role key
-- `ANTHROPIC_API_KEY` - Anthropic API key
+- `MISTRAL_API_KEY` - Mistral API key
 - `RESEND_API_KEY` - Resend email API key for reminder emails and Supabase Auth SMTP
 - `JWT_SECRET` - JWT signing secret
 - `NODE_ENV` - development/production

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import type { WorkLogEntry, CreateWorkLogRequest, ApiResponse } from 'shared'
+import { invalidateMonthlySummary } from '../lib/summaryService.js'
 
 export const entriesRoutes = Router()
 
@@ -99,6 +100,14 @@ entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(500).json({ success: false, error: 'Failed to create entry' })
     }
 
+    // Invalidate monthly summary since we added a new log
+    if (data && data.week_start_date) {
+      // Don't await to avoid slowing down the response
+      invalidateMonthlySummary(userId, data.week_start_date).catch(err => {
+        console.error('Failed to invalidate monthly summary on entry create:', err)
+      })
+    }
+
     res.status(201).json({ success: true, data })
   } catch (error) {
     console.error('Create entry error:', error)
@@ -132,6 +141,13 @@ entriesRoutes.put('/:id', requireAuth, async (req: AuthRequest, res) => {
       return res.status(404).json({ success: false, error: 'Entry not found' })
     }
 
+    // Invalidate monthly summary since we modified a log
+    if (data && data.week_start_date) {
+      invalidateMonthlySummary(userId, data.week_start_date).catch(err => {
+        console.error('Failed to invalidate monthly summary on entry update:', err)
+      })
+    }
+
     res.json({ success: true, data })
   } catch (error) {
     console.error('Update entry error:', error)
@@ -149,14 +165,26 @@ entriesRoutes.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
     const { id } = req.params
     const supabase = req.supabase!
 
-    const { error } = await supabase
+    // We need to fetch the entry first to know which month to invalidate
+    // or we can just invalidate based on the return from delete
+    // Supabase JS delete doesn't return the deleted rows by default unless we select()
+    const { data: deletedData, error } = await supabase
       .from('work_log_entries')
       .delete()
       .eq('id', id)
       .eq('user_id', userId)
+      .select()
+      .single()
 
     if (error) {
       return res.status(404).json({ success: false, error: 'Entry not found' })
+    }
+
+    // Invalidate monthly summary since we deleted a log
+    if (deletedData && deletedData.week_start_date) {
+      invalidateMonthlySummary(userId, deletedData.week_start_date).catch(err => {
+        console.error('Failed to invalidate monthly summary on entry delete:', err)
+      })
     }
 
     res.json({ success: true, data: null })

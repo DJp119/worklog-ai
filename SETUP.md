@@ -31,7 +31,7 @@ npm install
 ```bash
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=your-service-role-key
-ANTHROPIC_API_KEY=sk-ant-...
+MISTRAL_API_KEY=your-mistral-key
 RESEND_API_KEY=re_...
 FROM_EMAIL=noreply@yourdomain.com
 JWT_SECRET=change-this-to-a-random-string
@@ -89,7 +89,7 @@ worklog-ai/
 │   │   │   └── auth.ts
 │   │   ├── lib/
 │   │   │   ├── supabase.ts
-│   │   │   ├── anthropic.ts
+│   │   │   ├── mistral.ts
 │   │   │   └── email.ts
 │   │   ├── jobs/
 │   │   │   └── reminderJob.ts
@@ -186,4 +186,4 @@ worklog-ai/
 
 **401 errors:** Ensure you're passing `Authorization: Bearer <token>` header
 
-**Claude API errors:** Check `ANTHROPIC_API_KEY` is valid
+**Mistral API errors:** Check `MISTRAL_API_KEY` is valid

@@ -6,7 +6,10 @@ import { authRoutes } from './routes/auth.js'
 import { entriesRoutes } from './routes/entries.js'
 import { appraisalRoutes } from './routes/appraisal.js'
 import { userRoutes } from './routes/users.js'
+import { summariesRoutes } from './routes/summaries.js'
+import { chatRoutes } from './routes/chat.js'
 import { reminderJob } from './jobs/reminderJob.js'
+import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { isDatabaseConfigured } from './lib/database.js'
 
 dotenv.config()
@@ -84,6 +87,8 @@ app.use('/api/auth', authRoutes)
 app.use('/api/entries', entriesRoutes)
 app.use('/api/appraisal', appraisalRoutes)
 app.use('/api/users', userRoutes)
+app.use('/api/summaries', summariesRoutes)
+app.use('/api/chat', chatRoutes)
 
 // Root route
 app.get('/', (req, res) => {
@@ -109,4 +114,10 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`)
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
+  
+  // Start background jobs
+  monthlySummaryJob.start()
+  console.log(`Server running on http://localhost:${PORT}`)
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
+
 })
