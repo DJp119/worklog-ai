@@ -63,7 +63,7 @@ BREVO_FROM_NAME=Worklog AI
 FRONTEND_URL=http://localhost:5173
 
 # AI
-ANTHROPIC_API_KEY=your-anthropic-api-key
+MISTRAL_API_KEY=your-mistral-api-key
 ```
 
 **Generate JWT_SECRET**:
@@ -299,7 +299,7 @@ If issues arise, you can quickly rollback:
 - Capacity: 4,500 new users/month + password resets
 
 ### AI API Costs
-- Anthropic Sonnet: ~$0.02 per appraisal
+- Mistral: ~$0.01 per appraisal
 - Free tier users (1 appraisal/month): $0.02/user
 - At 100 users: $2/month (charge $5-10 for pro tier)
 

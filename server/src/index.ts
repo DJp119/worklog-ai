@@ -6,7 +6,10 @@ import { authRoutes } from './routes/auth.js'
 import { entriesRoutes } from './routes/entries.js'
 import { appraisalRoutes } from './routes/appraisal.js'
 import { userRoutes } from './routes/users.js'
+import { summariesRoutes } from './routes/summaries.js'
+import { chatRoutes } from './routes/chat.js'
 import { reminderJob } from './jobs/reminderJob.js'
+import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { isDatabaseConfigured } from './lib/database.js'
 
 dotenv.config()
@@ -76,6 +79,8 @@ app.use('/api/auth', authLimiter, authRoutes)
 app.use('/api/entries', entriesRoutes)
 app.use('/api/appraisal', appraisalRoutes)
 app.use('/api/users', userRoutes)
+app.use('/api/summaries', summariesRoutes)
+app.use('/api/chat', chatRoutes)
 
 // Health check
 app.get('/health', (req, res) => {
@@ -100,6 +105,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 
 // Start server
 app.listen(PORT, () => {
+<<<<<<< Updated upstream
     console.log(`Server running on http://localhost:${PORT}`)
     console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
     console.log(`Database: ${isDatabaseConfigured ? 'configured' : 'not configured'}`)
@@ -108,4 +114,11 @@ app.listen(PORT, () => {
     if (process.env.NODE_ENV !== 'test') {
         console.log('Reminder job: initialized')
     }
+=======
+  console.log(`Server running on http://localhost:${PORT}`)
+  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
+  
+  // Start background jobs
+  monthlySummaryJob.start()
+>>>>>>> Stashed changes
 })

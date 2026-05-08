@@ -2,7 +2,7 @@
 
 ## The Approach
 
-Instead of compressing work logs on-the-fly, we **pre-compute a monthly summary at the end of each month** and store it in a `monthly_summaries` table. When the user asks an appraisal question for any range (3 months, 6 months, 1 year), we simply **pick the relevant monthly summaries** and pass them to Claude.
+Instead of compressing work logs on-the-fly, we **pre-compute a monthly summary at the end of each month** and store it in a `monthly_summaries` table. When the user asks an appraisal question for any range (3 months, 6 months, 1 year), we simply **pick the relevant monthly summaries** and pass them to Mistral.
 
 ---
 
@@ -37,7 +37,7 @@ Jan W1 │ Jan W2 │ Jan W3 │ Jan W4 │ Feb W1 │ Feb W2 │ ... │ Dec W4
                     ┌───────────────────┐
                     │ System Prompt +   │
                     │ Stitched summary +│
-                    │ User's question   │──▶ Claude API ──▶ Answer
+                    │ User's question   │──▶ Mistral API ──▶ Answer
                     └───────────────────┘
 ```
 
@@ -296,7 +296,7 @@ RULES:
 │  ─────────────────────────────────────           │
 │  TOTAL ....................... ~10,748 tokens     │
 │                                                  │
-│  Claude Sonnet limit: 200,000 tokens ✅          │
+│  Mistral limit: 128,000 tokens ✅          │
 │  Cost per message: ~$0.03                        │
 └─────────────────────────────────────────────────┘
 ```
@@ -334,19 +334,19 @@ CREATE INDEX idx_chat_messages_session ON chat_messages(session_id, created_at A
 ### D2. Message Flow (First Message)
 
 ```
-Claude receives:
+Mistral receives:
   system: "You are an AI assistant... MONTHLY SUMMARIES: [Jan] [Feb] ... [Dec]"
   messages: [
     { role: "user", content: "How did I show leadership?" }
   ]
 
-Claude responds → both messages saved to chat_messages
+Mistral responds → both messages saved to chat_messages
 ```
 
 ### D3. Message Flow (Follow-Up)
 
 ```
-Claude receives:
+Mistral receives:
   system: "You are an AI assistant... MONTHLY SUMMARIES: [same as before]"
   messages: [
     { role: "user",      content: "How did I show leadership?" },
@@ -355,7 +355,7 @@ Claude receives:
   ]
 ```
 
-Claude has full conversation context — it knows what "it" and "Q3" refer to.
+Mistral has full conversation context — it knows what "it" and "Q3" refer to.
 
 ### D4. Sliding Window for Long Conversations
 
@@ -388,7 +388,7 @@ New file: `server/src/jobs/monthlySummaryJob.ts`
 // Runs on the 1st of every month at 2:00 AM
 // 1. Find all users who have work logs for the previous month
 // 2. For each user, check if a summary already exists
-// 3. If not, generate one using Claude
+// 3. If not, generate one using Mistral
 // 4. Store in monthly_summaries table
 
 import cron from 'node-cron';
@@ -441,16 +441,15 @@ class MonthlySummaryJob {
 res.setHeader('Content-Type', 'text/event-stream');
 res.setHeader('Cache-Control', 'no-cache');
 
-const stream = await anthropic.messages.stream({
-  model: 'claude-sonnet-4-5-20250929',
-  max_tokens: 2048,
-  system: systemPrompt,        // includes stitched monthly summaries
+const stream = await mistral.chat.stream({
+  model: chatModel,
   messages: conversationHistory // past messages + new one
 });
 
-for await (const event of stream) {
-  if (event.type === 'content_block_delta') {
-    res.write(`data: ${JSON.stringify({ type: 'delta', text: event.delta.text })}\n\n`);
+for await (const chunk of stream) {
+  const text = chunk.data.choices[0]?.delta?.content
+  if (text) {
+    res.write(`data: ${JSON.stringify({ type: 'delta', text })}\n\n`);
   }
 }
 res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
@@ -493,7 +492,7 @@ Step 4 ─── monthlySummaryJob.ts (cron) + entries.ts (invalidation hooks)
   │
 Step 5 ─── summaries.ts routes (list/force-generate endpoints)
   │
-Step 6 ─── chatService.ts (stitch summaries + sliding window + Claude call)
+Step 6 ─── chatService.ts (stitch summaries + sliding window + Mistral call)
   │
 Step 7 ─── chat.ts routes (sessions CRUD + SSE streaming)
   │

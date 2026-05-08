@@ -21,7 +21,7 @@ Worklog AI is a SaaS platform that helps professionals track their weekly work a
 
 **Core Features:**
 - Weekly work log tracking (accomplishments, challenges, learnings, goals)
-- AI-generated performance appraisals using Anthropic Claude
+- AI-generated performance appraisals using Mistral AI
 - Email reminders and verification
 - User profile management
 - Secure authentication with JWT tokens
@@ -35,7 +35,7 @@ Worklog AI is a SaaS platform that helps professionals track their weekly work a
 | Database | Supabase PostgreSQL | Data storage |
 | Authentication | Custom JWT | User authentication |
 | Email | Brevo (Sendinblue) | Transactional emails |
-| AI | Anthropic Claude | Appraisal generation |
+| AI | Mistral AI | Appraisal generation |
 | Hosting | Vercel + Render | Frontend + Backend |
 
 ### 1.3 Business Model
@@ -104,10 +104,12 @@ Worklog AI is a SaaS platform that helps professionals track their weekly work a
 │  │ • password_resets (temporary tokens)            │   │
 │  └─────────────────────────────────────────────────┘   │
 │  ┌─────────────────────────────────────────────────┐   │
-│  │              CORE DATA TABLES                    │   │
 │  │ • work_log_entries (weekly logs)                │   │
 │  │ • appraisal_criteria (goals & values)           │   │
 │  │ • generated_appraisals (AI output)              │   │
+│  │ • monthly_summaries (AI aggregation caches)     │   │
+│  │ • chat_sessions (chat state)                    │   │
+│  │ • chat_messages (chat history)                  │   │
 │  │ • reminder_logs (audit trail)                   │   │
 │  └─────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
@@ -115,7 +117,7 @@ Worklog AI is a SaaS platform that helps professionals track their weekly work a
         ┌───────────┼───────────┐
         ▼           ▼           ▼
 ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
-│ Brevo API   │ │ Anthropic   │ │ Cron Jobs   │
+│ Brevo API   │ │ Mistral AI  │ │ Cron Jobs   │
 │ (Email)     │ │ API (AI)    │ │ (Reminders) │
 └─────────────┘ └─────────────┘ └─────────────┘
 ```
@@ -288,6 +290,9 @@ async function refreshToken() {
 - `work_log_entries` - Weekly work logs
 - `appraisal_criteria` - Company goals and values
 - `generated_appraisals` - AI-generated content
+- `monthly_summaries` - AI-aggregated work logs per month
+- `chat_sessions` - Interactive AI chat sessions
+- `chat_messages` - Individual messages in a chat session
 - `reminder_logs` - Audit trail for emails
 
 ### 4.2 Detailed Table Schemas
@@ -490,6 +495,39 @@ USING (auth.uid() = user_id);
 - Requires: Authorization header
 - Returns: Appraisal data
 
+### 5.5 Chat & Summaries Endpoints
+
+**GET /api/summaries**
+- Gets all generated monthly summaries for current user
+- Requires: Authorization header
+
+**POST /api/summaries/generate**
+- Manually triggers monthly summary generation for a specific month
+- Requires: Authorization header
+- Body: month_year (YYYY-MM-01 format)
+
+**GET /api/chat/sessions**
+- Gets all chat sessions for the user
+- Requires: Authorization header
+
+**POST /api/chat/sessions**
+- Creates a new chat session bound to a specific date range
+- Requires: Authorization header
+- Body: period_start, period_end
+
+**DELETE /api/chat/sessions/:id**
+- Deletes a chat session
+- Requires: Authorization header
+
+**GET /api/chat/sessions/:id/messages**
+- Gets message history for a session
+- Requires: Authorization header
+
+**POST /api/chat/sessions/:id/messages**
+- Sends a user message and returns SSE (Server-Sent Events) stream from Mistral
+- Requires: Authorization header
+- Body: content
+
 ---
 
 ## 6. Frontend Implementation
@@ -582,7 +620,7 @@ const entries = await apiRequest<WorkLogEntry[]>('/api/entries')
 
 - Supabase account
 - Brevo account (for emails)
-- Anthropic account (for AI)
+- Mistral account (for AI)
 - Vercel account (frontend hosting)
 - Render account (backend hosting)
 - GitHub account (code repository)
@@ -609,7 +647,7 @@ const entries = await apiRequest<WorkLogEntry[]>('/api/entries')
    SUPABASE_SERVICE_KEY=your-service-key
    JWT_SECRET=your-32-char-secret
    BREVO_API_KEY=your-brevo-key
-   ANTHROPIC_API_KEY=your-anthropic-key
+   MISTRAL_API_KEY=your-mistral-key
    FRONTEND_URL=https://your-app.vercel.app
    NODE_ENV=production
    ```
@@ -690,7 +728,7 @@ Store secrets in:
 | Brevo Email | $0 | 300 emails/day |
 | Render Backend | $0 | 750 hours/month |
 | Vercel Frontend | $0 | 100GB bandwidth |
-| Anthropic AI | Pay-as-you-go | ~$0.065/appraisal |
+| Mistral AI | Pay-as-you-go | ~$0.01/appraisal |
 
 **Total Monthly Cost: $0 + AI usage**
 
@@ -751,7 +789,7 @@ Store secrets in:
 
 - **Supabase Docs**: https://supabase.com/docs
 - **Brevo Docs**: https://developers.brevo.com
-- **Anthropic Docs**: https://docs.anthropic.com
+- **Mistral Docs**: https://docs.mistral.ai
 - **Vercel Docs**: https://vercel.com/docs
 - **Render Docs**: https://render.com/docs
 
@@ -770,7 +808,7 @@ BREVO_API_KEY=your-brevo-api-key
 BREVO_FROM_EMAIL=noreply@yourdomain.com
 BREVO_FROM_NAME=Worklog AI
 FRONTEND_URL=https://your-frontend.vercel.app
-ANTHROPIC_API_KEY=your-anthropic-key
+MISTRAL_API_KEY=your-mistral-key
 NODE_ENV=production
 RATE_LIMIT_WINDOW=900000
 RATE_LIMIT_MAX_REQUESTS=100

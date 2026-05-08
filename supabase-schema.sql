@@ -194,3 +194,132 @@ $$ LANGUAGE plpgsql IMMUTABLE;
 -- Uncomment to insert sample data
 -- INSERT INTO user_profiles (id, email, company_name, job_title) VALUES
 --   ('00000000-0000-0000-0000-000000000001', 'test@example.com', 'Acme Corp', 'Software Engineer');
+<<<<<<< Updated upstream
+=======
+
+-- ============================================
+-- Authentication Helper Tables
+-- ============================================
+
+-- Users table (for local auth)
+CREATE TABLE IF NOT EXISTS users (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  name TEXT,
+  company_name TEXT,
+  job_title TEXT,
+  email_verified BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own data" ON users FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own data" ON users FOR UPDATE USING (auth.uid() = id);
+
+-- Email verification tokens
+CREATE TABLE IF NOT EXISTS email_verifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, token)
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_verifications_token ON email_verifications(token);
+
+-- Password reset tokens
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token TEXT NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, token)
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
+
+-- Refresh tokens table
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  token TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  revoked BOOLEAN DEFAULT false,
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
+
+-- ============================================
+-- PHASE 2: Monthly Summaries & Chat
+-- ============================================
+
+-- Monthly Summaries Table
+CREATE TABLE IF NOT EXISTS monthly_summaries (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    month_year DATE NOT NULL,
+    summary_text TEXT NOT NULL,
+    entry_count INTEGER NOT NULL,
+    word_count INTEGER NOT NULL,
+    source_entry_ids UUID[] NOT NULL,
+    generated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, month_year)
+);
+
+CREATE INDEX IF NOT EXISTS idx_monthly_summaries_user_month 
+  ON monthly_summaries(user_id, month_year);
+
+ALTER TABLE monthly_summaries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own monthly summaries" ON monthly_summaries FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own monthly summaries" ON monthly_summaries FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own monthly summaries" ON monthly_summaries FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own monthly summaries" ON monthly_summaries FOR DELETE USING (auth.uid() = user_id);
+
+-- Chat Sessions Table
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL DEFAULT 'New Chat',
+    period_start DATE NOT NULL,
+    period_end DATE NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_user ON chat_sessions(user_id, updated_at DESC);
+
+ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own chat sessions" ON chat_sessions FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own chat sessions" ON chat_sessions FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own chat sessions" ON chat_sessions FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own chat sessions" ON chat_sessions FOR DELETE USING (auth.uid() = user_id);
+
+-- Chat Messages Table
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    session_id UUID NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+    content TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id, created_at ASC);
+
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
+-- We need to join with chat_sessions to check user_id for RLS, or we can just add user_id to chat_messages.
+-- For simplicity, let's add user_id to chat_messages so we don't have to do complex RLS.
+ALTER TABLE chat_messages ADD COLUMN user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE;
+
+CREATE POLICY "Users can view own chat messages" ON chat_messages FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own chat messages" ON chat_messages FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own chat messages" ON chat_messages FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users can delete own chat messages" ON chat_messages FOR DELETE USING (auth.uid() = user_id);
+
+>>>>>>> Stashed changes

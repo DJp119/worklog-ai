@@ -8,7 +8,7 @@ This guide covers deploying Worklog AI to production using Vercel (frontend) and
 - [Railway account](https://railway.app/)
 - [Supabase project](https://supabase.com)
 - [Resend account](https://resend.com) (for email)
-- [Anthropic API key](https://console.anthropic.com)
+- [Mistral API key](https://console.mistral.ai/api-keys/)
 
 ---
 
@@ -80,7 +80,7 @@ In Railway dashboard → Variables:
 |----------|-------|
 | `SUPABASE_URL` | Your Supabase project URL |
 | `SUPABASE_SERVICE_KEY` | Your Supabase service role key |
-| `ANTHROPIC_API_KEY` | `sk-ant-...` |
+| `MISTRAL_API_KEY` | `your-mistral-key` |
 | `RESEND_API_KEY` | `re_...` |
 | `FROM_EMAIL` | `noreply@yourdomain.com` |
 | `JWT_SECRET` | Random secure string |
@@ -265,7 +265,7 @@ appraisalRoutes.get('/test-reminders', async (req, res) => {
 | Railway | $5 credit | Usage-based |
 | Supabase | 500MB DB, 50K MAU | $25/mo Pro |
 | Resend | 3K emails/mo | $20/mo Pro |
-| Anthropic | Pay-per-use | ~$0.01/appraisal |
+| Mistral AI | Pay-per-use | ~$0.01/appraisal |
 
 **Estimated monthly cost:** $0-50 depending on usage
 

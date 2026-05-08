@@ -42,7 +42,7 @@ worklog-ai/
 2. API calls include `Authorization: Bearer <token>` header
 3. Server validates JWT with Supabase, attaches user to request
 4. Server queries Supabase Postgres with RLS (user_id scoping)
-5. AI appraisals use Anthropic Claude API (`claude-sonnet-4-5-20250929`)
+5. AI appraisals use Mistral API
 
 **Auth pattern:** Frontend uses Supabase client SDK; backend middleware (`server/src/middleware/auth.ts`) verifies tokens and creates per-request Supabase clients. The `AuthRequest` interface extends Express Request with `userId`, `user`, and `supabase` properties.
 
@@ -60,7 +60,7 @@ Five tables with RLS (all scoped to `user_id = auth.uid()`):
 - `user_profiles` - extends auth.users with job_title, reminder_day/time
 - `work_log_entries` - weekly logs (accomplishments, challenges, learnings, goals)
 - `appraisal_criteria` - user-defined criteria for AI generation
-- `generated_appraisals` - AI output from Claude
+- `generated_appraisals` - AI output from Mistral
 - `reminder_logs` - audit trail for email reminders
 
 Unique constraint: `work_log_entries(user_id, week_start_date)` prevents duplicate weekly entries.
@@ -74,7 +74,7 @@ Unique constraint: `work_log_entries(user_id, week_start_date)` prevents duplica
 
 **Critical env vars:**
 - Client: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_API_URL`
-- Server: `SUPABASE_SERVICE_KEY`, `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `FRONTEND_URL`, `JWT_SECRET`
+- Server: `SUPABASE_SERVICE_KEY`, `MISTRAL_API_KEY`, `RESEND_API_KEY`, `FRONTEND_URL`, `JWT_SECRET`
 
 **Supabase Auth redirect URLs must include:** `https://<vercel-domain>/**` and `http://localhost:5173/**`
 

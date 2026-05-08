@@ -202,7 +202,7 @@ Content-Type: application/json
 }
 ```
 
-**Expected:** 200 OK with generated appraisal text (requires ANTHROPIC_API_KEY)
+**Expected:** 200 OK with generated appraisal text (requires MISTRAL_API_KEY)
 
 ---
 
@@ -336,7 +336,7 @@ UPDATE users SET email_verified = true WHERE email = 'frontendtest@example.com';
 3. Enter criteria
 4. Click "Generate"
 
-**Expected:** AI-generated appraisal appears (requires Anthropic API key)
+**Expected:** AI-generated appraisal appears (requires Mistral API key)
 
 ---
 
@@ -361,7 +361,7 @@ UPDATE users SET email_verified = true WHERE email = 'frontendtest@example.com';
 - [ ] `SUPABASE_SERVICE_KEY` configured
 - [ ] `JWT_SECRET` set (32+ chars)
 - [ ] `BREVO_API_KEY` set (for emails)
-- [ ] `ANTHROPIC_API_KEY` set (for AI)
+- [ ] `MISTRAL_API_KEY` set (for AI)
 - [ ] `FRONTEND_URL` set (production URL)
 - [ ] Build command: `npm install && npm run build`
 - [ ] Start command: `npm run start`
@@ -438,7 +438,7 @@ UPDATE users SET email_verified = true WHERE email = 'frontendtest@example.com';
 - ✅ CORS configured
 - ✅ All environment variables set
 - ✅ Email sending configured (Brevo)
-- ✅ AI generation working (Anthropic)
+- ✅ AI generation working (Mistral)
 - ✅ End-to-end flow tested in production
 
 ---
