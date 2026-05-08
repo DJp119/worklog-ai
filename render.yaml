@@ -13,17 +13,19 @@ services:
       - key: PORT
         value: 10000
       - key: SUPABASE_URL
-        value: https://zeckjaazpvxrpzylzapi.supabase.co
+        sync: false
       - key: SUPABASE_SERVICE_KEY
-        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYnNlIiwicmVmIjoiemVja2phYXF6cHZ4cnB6eWx6YXBpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjMzNTk5OCwiZXhwIjoyMDkxOTExOTk4fQ.J9YJ4j9OlfDJB5SWO4-Kze400ecWCOd2wJgr_NBkBYM
-      - key: RESEND_API_KEY
-        value: re_fDejhPn2_FcxvEpy6GUEQjDZz6e5bSBXE
-      - key: FROM_EMAIL
-        value: onboarding@resend.dev
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_FROM_EMAIL
+        sync: false
+      - key: BREVO_FROM_NAME
+        sync: false
       - key: JWT_SECRET
-        value: worklog-ai-production-jwt-secret-xyz123
+        sync: false
       - key: FRONTEND_URL
-        value: ""
+        sync: false
       - key: MISTRAL_API_KEY
-        value: ""
+        sync: false
     healthCheckPath: /health
