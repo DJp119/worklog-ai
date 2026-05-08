@@ -15,9 +15,7 @@ services:
       - key: SUPABASE_URL
         value: https://zeckjaazpvxrpzylzapi.supabase.co
       - key: SUPABASE_SERVICE_KEY
-        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InplY2tqYWF6cHZ4cnB6eWx6YXBpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjMzNTk5OCwiZXhwIjoyMDkxOTExOTk4fQ.J9YJ4j9OlfDJB5SWO4-Kze400ecWCOd2wJgr_NBkBYM
-      - key: ANTHROPIC_API_KEY
-        value: ""
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYnNlIiwicmVmIjoiemVja2phYXF6cHZ4cnB6eWx6YXBpIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NjMzNTk5OCwiZXhwIjoyMDkxOTExOTk4fQ.J9YJ4j9OlfDJB5SWO4-Kze400ecWCOd2wJgr_NBkBYM
       - key: RESEND_API_KEY
         value: re_fDejhPn2_FcxvEpy6GUEQjDZz6e5bSBXE
       - key: FROM_EMAIL
@@ -25,5 +23,7 @@ services:
       - key: JWT_SECRET
         value: worklog-ai-production-jwt-secret-xyz123
       - key: FRONTEND_URL
+        value: ""
+      - key: MISTRAL_API_KEY
         value: ""
     healthCheckPath: /health

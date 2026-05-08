@@ -1,5 +1,6 @@
 import { useState, FormEvent, useEffect } from 'react'
-import { createEntry, getEntries, updateEntry } from '../lib/api'
+import { useSearchParams, useNavigate } from 'react-router-dom'
+import { createEntry, getEntries, updateEntry, getEntry, deleteEntry } from '../lib/api'
 import type { WorkLogEntry } from 'shared'
 
 interface LogEntryForm {
@@ -13,9 +14,14 @@ interface LogEntryForm {
 
 export default function LogEntry() {
   const [loading, setLoading] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [existingEntry, setExistingEntry] = useState<WorkLogEntry | null>(null)
+  const [searchParams] = useSearchParams()
+  const editEntryId = searchParams.get('edit')
+  const navigate = useNavigate()
 
   const [form, setForm] = useState<LogEntryForm>({
     week_start_date: '',
@@ -26,17 +32,40 @@ export default function LogEntry() {
     hours_logged: '',
   })
 
-  // Pre-fill current week's start date (Monday)
+  // Either load specific entry by ID, or check for current week's entry
   useEffect(() => {
-    const today = new Date()
-    const dayOfWeek = today.getDay()
-    const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)
-    const monday = new Date(today.setDate(diff))
-    const weekStart = monday.toISOString().split('T')[0]
-    setForm((prev) => ({ ...prev, week_start_date: weekStart }))
+    const loadEntry = async () => {
+      if (editEntryId && editEntryId !== 'null') {
+        // Load specific entry by ID
+        try {
+          const entry = await getEntry(editEntryId)
+          setExistingEntry(entry)
+          setForm({
+            week_start_date: entry.week_start_date,
+            accomplishments: entry.accomplishments,
+            challenges: entry.challenges,
+            learnings: entry.learnings,
+            goals_next_week: entry.goals_next_week,
+            hours_logged: entry.hours_logged?.toString() || '',
+          })
+        } catch (err) {
+          console.error('Failed to load entry:', err)
+          setError('Failed to load the work log entry')
+        }
+      } else {
+        // Pre-fill current week's start date (Monday)
+        const today = new Date()
+        const dayOfWeek = today.getDay()
+        const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)
+        const monday = new Date(today.setDate(diff))
+        const weekStart = monday.toISOString().split('T')[0]
+        setForm((prev) => ({ ...prev, week_start_date: weekStart }))
+        await checkExistingEntry(weekStart)
+      }
+    }
 
-    checkExistingEntry(weekStart)
-  }, [])
+    loadEntry()
+  }, [editEntryId])
 
   async function checkExistingEntry(weekStart: string) {
     try {
@@ -84,24 +113,34 @@ export default function LogEntry() {
         await updateEntry(existingEntry.id, payload)
         setMessage('Work log updated successfully!')
       } else {
-        await createEntry(payload)
+        const newEntry = await createEntry(payload)
+        setExistingEntry(newEntry)
         setMessage('Work log saved successfully!')
-      }
-
-      if (!existingEntry) {
-        setForm({
-          week_start_date: form.week_start_date,
-          accomplishments: '',
-          challenges: '',
-          learnings: '',
-          goals_next_week: '',
-          hours_logged: '',
-        })
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save work log')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!existingEntry) return
+
+    setDeleting(true)
+    setError(null)
+    setMessage(null)
+    setShowDeleteConfirm(false)
+
+    try {
+      await deleteEntry(existingEntry.id)
+      setMessage('Work log deleted successfully!')
+      setExistingEntry(null)
+      navigate('/log', { replace: true })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete work log')
+    } finally {
+      setDeleting(false)
     }
   }
 
@@ -112,21 +151,59 @@ export default function LogEntry() {
   return (
     <div className="max-w-3xl mx-auto">
       <div className="glass-strong rounded-2xl p-8 border border-white/10">
-        <div className="mb-2 flex items-center">
-          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center mr-3 glow-primary">
-            <svg className="w-5 h-5 text-white" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-            </svg>
+        <div className="mb-2 flex items-center justify-between">
+          <div className="flex items-center">
+            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center mr-3 glow-primary">
+              <svg className="w-5 h-5 text-white" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-white">
+                {editEntryId ? 'Edit Work Log Entry' : existingEntry ? 'Update Your Work Log' : 'Log Your Week'}
+              </h1>
+              <p className="text-gray-400 text-sm">
+                {editEntryId
+                  ? 'Edit an existing work log entry'
+                  : existingEntry
+                    ? 'Update your work log for this week'
+                    : 'Take 5 minutes to reflect on your week'}
+              </p>
+            </div>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">
-              {existingEntry ? 'Update Your Work Log' : 'Log Your Week'}
-            </h1>
-            <p className="text-gray-400 text-sm">
-              {existingEntry ? 'Update your work log for this week' : 'Take 5 minutes to reflect on your week'}
-            </p>
-          </div>
+          {existingEntry && (
+            <button
+              onClick={() => setShowDeleteConfirm(!showDeleteConfirm)}
+              className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors"
+              disabled={deleting}
+            >
+              {deleting ? 'Deleting...' : showDeleteConfirm ? 'Cancel' : 'Delete'}
+            </button>
+          )}
         </div>
+
+        {showDeleteConfirm && existingEntry && (
+          <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
+            <p className="text-red-400 text-sm mb-3">
+              Are you sure you want to delete this work log entry? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Yes, Delete'}
+              </button>
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6 mt-8">
           {/* Week Start Date */}
