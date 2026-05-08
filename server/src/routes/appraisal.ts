@@ -117,7 +117,8 @@ Write the self-appraisal:`
       throw apiError
     }
 
-    const generatedText = result.choices?.[0]?.message?.content || ''
+    const content = result.choices?.[0]?.message?.content
+    const generatedText = (typeof content === 'string' ? content : '') || ''
 
     if (!generatedText) {
       console.error('No content generated from Mistral API')
