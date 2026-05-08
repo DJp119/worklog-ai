@@ -70,7 +70,8 @@ Generate the monthly summary:`
       ]
     })
 
-    const summaryText = message.choices?.[0]?.message?.content || ''
+    const content = message.choices?.[0]?.message?.content
+    const summaryText = (typeof content === 'string' ? content : '') || ''
     const wordCount = summaryText.split(/\s+/).length
     const sourceEntryIds = logs.map(l => l.id)
     const monthYearStr = startDate.toISOString().split('T')[0]
