@@ -110,20 +110,24 @@ chatRoutes.delete('/sessions/:id', requireAuth, async (req: AuthRequest, res) =>
  */
 chatRoutes.get('/sessions/:id/messages', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId!
+    const userId = req.userId!.trim()
     const supabase = req.supabase!
-    const { id } = req.params
+    const id = req.params.id.trim()
 
     // Verify session belongs to user
-    const { data: session } = await supabase
+    const { data: session, error: sessionError } = await supabase
       .from('chat_sessions')
       .select('id')
       .eq('id', id)
       .eq('user_id', userId)
       .single()
 
+    if (sessionError) {
+      console.error('Session verify error:', sessionError)
+    }
+
     if (!session) {
-      return res.status(404).json({ success: false, error: 'Session not found' })
+      return res.status(404).json({ success: false, error: 'Session not found', details: sessionError })
     }
 
     const { data, error } = await supabase
@@ -150,9 +154,9 @@ chatRoutes.get('/sessions/:id/messages', requireAuth, async (req: AuthRequest, r
  */
 chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, res) => {
   try {
-    const userId = req.userId!
+    const userId = req.userId!.trim()
     const supabase = req.supabase!
-    const { id } = req.params
+    const id = req.params.id.trim()
     const { content } = req.body
 
     if (!content || typeof content !== 'string') {
@@ -167,8 +171,12 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
       .eq('user_id', userId)
       .single()
 
+    if (sessionError) {
+      console.error('Session verify error in POST:', sessionError)
+    }
+
     if (sessionError || !session) {
-      return res.status(404).json({ success: false, error: 'Session not found' })
+      return res.status(404).json({ success: false, error: 'Session not found', details: sessionError })
     }
 
     // 2. Save user message
