@@ -7,12 +7,7 @@ import Dashboard from './pages/Dashboard'
 import LogEntry from './pages/LogEntry'
 import Appraisal from './pages/Appraisal'
 import Settings from './pages/Settings'
-<<<<<<< Updated upstream
-=======
-import VerifyEmail from './pages/VerifyEmail'
-import ResetPassword from './pages/ResetPassword'
 import Chat from './pages/Chat'
->>>>>>> Stashed changes
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
