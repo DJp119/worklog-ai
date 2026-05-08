@@ -19,7 +19,7 @@ export default function VerifyEmail() {
 
       try {
         // Call your backend to verify the email token
-        const response = await fetch('http://localhost:3001/api/auth/verify-email', {
+        const response = await fetch('https://worklog-ai-7qh6.onrender.com/api/auth/verify-email', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
