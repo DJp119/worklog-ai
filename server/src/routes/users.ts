@@ -54,7 +54,15 @@ userRoutes.get('/profile', async (req: AuthRequest, res: Response) => {
 userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
     try {
         const userId = req.userId!
-        const { name, company_name, job_title, reminder_day, reminder_time, reminder_enabled } = req.body
+        const body = req.body
+
+        // Accept both camelCase (from API client) and snake_case
+        const name = body.name
+        const company_name = body.company_name ?? body.companyName
+        const job_title = body.job_title ?? body.jobTitle
+        const reminder_day = body.reminder_day ?? body.reminderDay
+        const reminder_time = body.reminder_time ?? body.reminderTime
+        const reminder_enabled = body.reminder_enabled ?? body.reminderEnabled
 
         // Validate reminder_day if provided
         if (reminder_day !== undefined && (reminder_day < 0 || reminder_day > 6)) {

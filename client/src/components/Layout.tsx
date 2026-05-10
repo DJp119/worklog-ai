@@ -140,9 +140,6 @@ export function Layout({ children }: LayoutProps) {
               <p className="text-gray-500 text-sm">
                 &copy; {new Date().getFullYear()} Worklog AI
               </p>
-              <p className="text-gray-600 text-xs mt-1">
-                Powered by Mistral AI & Supabase
-              </p>
             </div>
           </div>
         </div>

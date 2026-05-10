@@ -163,3 +163,60 @@ export async function sendPasswordResetEmail(to: string, userId: string, resetTo
 
   return result.success
 }
+
+/**
+ * Send weekly worklog reminder email
+ */
+export async function sendReminderEmail(to: string, userName?: string): Promise<boolean> {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  const logUrl = `${frontendUrl}/log`
+  const settingsUrl = `${frontendUrl}/settings`
+  const greeting = userName ? `Hi ${userName}` : 'Hi there'
+
+  const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f9fafb;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+    <div style="background-color: #ffffff; border-radius: 12px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+      <h1 style="color: #4F46E5; margin-top: 0;">⚡ Time to Log Your Work</h1>
+      <p style="font-size: 16px;">${greeting},</p>
+      <p style="font-size: 16px;">
+        It's time for your weekly work log! Take 5 minutes to reflect on what you accomplished,
+        the challenges you faced, and what you learned.
+      </p>
+      <p style="font-size: 16px;">
+        Consistent logging makes your appraisal season a breeze — no more scrambling to
+        remember what you did months ago.
+      </p>
+      <p style="margin: 30px 0; text-align: center;">
+        <a href="${logUrl}"
+          style="display: inline-block; padding: 14px 36px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+          Log Your Week
+        </a>
+      </p>
+      <p style="margin-top: 30px; color: #666; font-size: 13px; border-top: 1px solid #eee; padding-top: 16px;">
+        You're receiving this because you have weekly reminders enabled.
+        <a href="${settingsUrl}" style="color: #4F46E5; text-decoration: none;">Manage reminder preferences</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+`
+
+  const textBody = `${greeting},\n\nIt's time for your weekly work log! Take 5 minutes to reflect on your week.\n\nLog your work here: ${logUrl}\n\nYou're receiving this because you have weekly reminders enabled. Manage preferences: ${settingsUrl}`
+
+  const result = await sendEmail({
+    to,
+    subject: '⚡ Weekly Reminder: Log Your Work — Worklog AI',
+    htmlBody,
+    textBody,
+  })
+
+  return result.success
+}
