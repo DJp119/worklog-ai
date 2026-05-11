@@ -98,12 +98,17 @@ class ReminderJob {
                     console.error(`Reminder cron: failed for user ${user.id}:`, err)
 
                     // Log the failure
-                    await supabase.from('reminder_logs').insert({
-                        user_id: user.id,
-                        email_address: user.email,
-                        status: 'failed',
-                        error_message: err instanceof Error ? err.message : 'Unknown error',
-                    }).catch(() => {}) // don't let logging failure crash the loop
+                    try {
+                        await supabase.from('reminder_logs').insert({
+                            user_id: user.id,
+                            email_address: user.email,
+                            status: 'failed',
+                            error_message: err instanceof Error ? err.message : 'Unknown error',
+                        })
+                    } catch (logErr) {
+                        // don't let logging failure crash the loop
+                        console.error('Reminder cron: failed to log error:', logErr)
+                    }
                 }
             }
 
