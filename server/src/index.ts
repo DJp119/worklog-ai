@@ -54,7 +54,7 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
 // Trust proxy (Render) for correct client IP in rate limiting
-app.set('trust proxy', true)
+app.set('trust proxy', 1)
 
 // Rate limiting (disabled for development)
 const isDevelopment = process.env.NODE_ENV === 'development'
