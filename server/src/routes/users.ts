@@ -80,6 +80,8 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
 
         updateData.updated_at = new Date().toISOString()
 
+        console.log('[Profile Update] userId:', userId, 'updateData:', JSON.stringify(updateData))
+
         const { data: user, error } = await supabase
             .from('users')
             .update(updateData)
@@ -87,8 +89,14 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
             .select()
             .single()
 
-        if (error || !user) {
-            return res.status(500).json({ success: false, error: 'Failed to update profile' })
+        if (error) {
+            console.error('[Profile Update] Supabase error:', JSON.stringify(error))
+            return res.status(500).json({ success: false, error: 'Failed to update profile', detail: error.message })
+        }
+
+        if (!user) {
+            console.error('[Profile Update] No user returned after update for userId:', userId)
+            return res.status(500).json({ success: false, error: 'Update matched no rows' })
         }
 
         res.json({
