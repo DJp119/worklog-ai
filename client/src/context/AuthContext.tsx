@@ -57,10 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (response.ok) {
             const data = await response.json()
             setUser(data.data)
-            LogRocket.identify(data.data.user.id, {
-              email: data.data.user.email,
-              name: data.data.user.name,
-              jobTitle: data.data.user.jobTitle,
+            LogRocket.identify(data.data.id, {
+              email: data.data.email,
+              name: data.data.name,
+              jobTitle: data.data.jobTitle,
             })
           } else {
             clearAuth()

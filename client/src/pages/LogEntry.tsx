@@ -58,7 +58,10 @@ export default function LogEntry() {
         const dayOfWeek = today.getDay()
         const diff = today.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1)
         const monday = new Date(today.setDate(diff))
-        const weekStart = monday.toISOString().split('T')[0]
+        const year = monday.getFullYear()
+        const month = String(monday.getMonth() + 1).padStart(2, '0')
+        const day = String(monday.getDate()).padStart(2, '0')
+        const weekStart = `${year}-${month}-${day}`
         setForm((prev) => ({ ...prev, week_start_date: weekStart }))
         await checkExistingEntry(weekStart)
       }
