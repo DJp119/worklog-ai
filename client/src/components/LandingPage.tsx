@@ -34,7 +34,6 @@ export default function LandingPage() {
             <p className="text-xl md:text-2xl text-gray-400 max-w-3xl mx-auto mb-12">
               The intelligent worklog system that transforms your weekly reflections into
               <span className="text-white font-medium"> career-defining self-appraisals</span>.
-              Powered by Mistral AI.
             </p>
 
             {/* CTA Buttons */}
