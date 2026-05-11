@@ -116,6 +116,7 @@ app.listen(PORT, () => {
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
   
   // Start background jobs
+  reminderJob.start()
   monthlySummaryJob.start()
   console.log(`Server running on http://localhost:${PORT}`)
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)

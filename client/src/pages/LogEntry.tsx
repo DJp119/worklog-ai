@@ -117,6 +117,11 @@ export default function LogEntry() {
         setExistingEntry(newEntry)
         setMessage('Work log saved successfully!')
       }
+
+      // Redirect to dashboard after a brief delay
+      setTimeout(() => {
+        navigate('/dashboard')
+      }, 1000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save work log')
     } finally {

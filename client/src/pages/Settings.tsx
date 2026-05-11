@@ -1,18 +1,51 @@
 import { useState, useEffect, FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
-import { supabase } from '../lib/supabase'
+import { getProfile, updateProfile } from '../lib/api'
 
 interface Profile {
   company_name: string
   job_title: string
   reminder_day: number
-  reminder_time: string
+  reminder_hour: number // local hour 0-23
   reminder_enabled: boolean
+}
+
+/**
+ * Convert a local hour (0-23) to UTC hour (0-23)
+ */
+function localHourToUtc(localHour: number): string {
+  const now = new Date()
+  // Create a date with the local hour
+  const local = new Date(now.getFullYear(), now.getMonth(), now.getDate(), localHour, 0, 0)
+  const utcHour = local.getUTCHours()
+  return `${utcHour.toString().padStart(2, '0')}:00`
+}
+
+/**
+ * Convert a UTC time string "HH:00" to local hour (0-23)
+ */
+function utcTimeToLocalHour(utcTime: string): number {
+  const utcHour = parseInt(utcTime?.split(':')[0] || '9', 10)
+  const now = new Date()
+  // Create a UTC date with the given hour, then read local hour
+  const utcDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), utcHour, 0, 0))
+  return utcDate.getHours()
+}
+
+/**
+ * Format hour as 12-hour display string
+ */
+function formatHour(hour: number): string {
+  if (hour === 0) return '12 AM'
+  if (hour === 12) return '12 PM'
+  if (hour < 12) return `${hour} AM`
+  return `${hour - 12} PM`
 }
 
 export default function Settings() {
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
+  const [initialLoading, setInitialLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -20,7 +53,7 @@ export default function Settings() {
     company_name: '',
     job_title: '',
     reminder_day: 1,
-    reminder_time: '09:00',
+    reminder_hour: 9,
     reminder_enabled: true,
   })
 
@@ -34,28 +67,20 @@ export default function Settings() {
     if (!user) return
 
     try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select('company_name, job_title, reminder_day, reminder_time, reminder_enabled')
-        .eq('id', user.id)
-        .single()
+      setInitialLoading(true)
+      const data = await getProfile()
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Load profile error:', error)
-        return
-      }
-
-      if (data) {
-        setProfile({
-          company_name: data.company_name || '',
-          job_title: data.job_title || '',
-          reminder_day: data.reminder_day ?? 1,
-          reminder_time: data.reminder_time || '09:00',
-          reminder_enabled: data.reminder_enabled ?? true,
-        })
-      }
+      setProfile({
+        company_name: data.companyName || '',
+        job_title: data.jobTitle || '',
+        reminder_day: data.reminderDay ?? 1,
+        reminder_hour: utcTimeToLocalHour(data.reminderTime || '09:00'),
+        reminder_enabled: data.reminderEnabled ?? true,
+      })
     } catch (err) {
       console.error('Failed to load profile:', err)
+    } finally {
+      setInitialLoading(false)
     }
   }
 
@@ -76,25 +101,13 @@ export default function Settings() {
     setMessage(null)
 
     try {
-      const { error } = await supabase
-        .from('user_profiles')
-        .upsert({
-          id: user.id,
-          email: user.email,
-          company_name: profile.company_name,
-          job_title: profile.job_title,
-          reminder_day: profile.reminder_day,
-          reminder_time: profile.reminder_time,
-          reminder_enabled: profile.reminder_enabled,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'id'
-        })
-
-      if (error) {
-        console.error('Save profile error:', error)
-        throw error
-      }
+      await updateProfile({
+        companyName: profile.company_name,
+        jobTitle: profile.job_title,
+        reminderDay: profile.reminder_day,
+        reminderTime: localHourToUtc(profile.reminder_hour),
+        reminderEnabled: profile.reminder_enabled,
+      })
 
       setMessage('Settings saved successfully!')
     } catch (err) {
@@ -113,6 +126,23 @@ export default function Settings() {
     { value: 5, label: 'Friday' },
     { value: 6, label: 'Saturday' },
   ]
+
+  // Generate hour options (0-23)
+  const hourOptions = Array.from({ length: 24 }, (_, i) => ({
+    value: i,
+    label: formatHour(i),
+  }))
+
+  if (initialLoading) {
+    return (
+      <div className="max-w-2xl mx-auto flex items-center justify-center py-20">
+        <svg className="animate-spin h-8 w-8 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">
@@ -239,16 +269,24 @@ export default function Settings() {
               </div>
 
               <div>
-                <label htmlFor="reminder_time" className="block text-sm font-medium text-gray-300">
+                <label htmlFor="reminder_hour" className="block text-sm font-medium text-gray-300">
                   Reminder Time
                 </label>
-                <input
-                  type="time"
-                  id="reminder_time"
-                  value={profile.reminder_time}
-                  onChange={(e) => handleChange('reminder_time', e.target.value)}
+                <select
+                  id="reminder_hour"
+                  value={profile.reminder_hour}
+                  onChange={(e) => handleChange('reminder_hour', parseInt(e.target.value))}
                   className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                />
+                >
+                  {hourOptions.map((hour) => (
+                    <option key={hour.value} value={hour.value} className="bg-[#0a0a0f]">
+                      {hour.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs text-gray-500">
+                  Times are shown in your local timezone
+                </p>
               </div>
             </>
           )}
@@ -263,23 +301,6 @@ export default function Settings() {
             </button>
           </div>
         </form>
-      </div>
-
-      {/* Account Info */}
-      <div className="glass-strong rounded-xl p-6 border border-white/10">
-        <h2 className="text-lg font-semibold text-white mb-4">Account</h2>
-        <div className="space-y-3">
-          <div className="flex justify-between items-center py-3 border-b border-white/5">
-            <span className="text-sm text-gray-400">Account created</span>
-            <span className="text-sm text-white">
-              {'N/A'}
-            </span>
-          </div>
-          <div className="flex justify-between items-center py-3 border-b border-white/5">
-            <span className="text-sm text-gray-400">User ID</span>
-            <span className="text-sm text-gray-400 font-mono text-xs truncate max-w-xs">{user?.id}</span>
-          </div>
-        </div>
       </div>
 
       {/* Messages */}

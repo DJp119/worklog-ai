@@ -207,6 +207,9 @@ CREATE TABLE IF NOT EXISTS users (
   name TEXT,
   company_name TEXT,
   job_title TEXT,
+  reminder_day INTEGER DEFAULT 1, -- 0-6 (Sunday-Saturday), default Monday
+  reminder_time TEXT DEFAULT '09:00', -- UTC hour in HH:00 format
+  reminder_enabled BOOLEAN DEFAULT true,
   email_verified BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
