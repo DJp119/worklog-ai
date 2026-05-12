@@ -1,4 +1,4 @@
-import { ReactNode } from 'react'
+import { ReactNode, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
@@ -9,6 +9,7 @@ interface LayoutProps {
 export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const handleSignOut = async () => {
     try {
@@ -38,8 +39,8 @@ export function Layout({ children }: LayoutProps) {
               </div>
             </Link>
 
-            {/* Navigation */}
-            <nav className="flex items-center space-x-1">
+            {/* Desktop Navigation */}
+            <nav className="hidden md:flex items-center space-x-1">
               {user ? (
                 <>
                   <Link
@@ -90,8 +91,93 @@ export function Layout({ children }: LayoutProps) {
                 </Link>
               )}
             </nav>
+
+            {/* Mobile menu button */}
+            <div className="md:hidden flex items-center">
+              <button
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                className="text-gray-300 hover:text-white focus:outline-none p-2 rounded-md hover:bg-white/5"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  {isMobileMenuOpen ? (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  ) : (
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                  )}
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Mobile Navigation Menu */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden glass-strong border-t border-white/5">
+            <div className="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+              {user ? (
+                <>
+                  <Link
+                    to="/dashboard"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
+                  >
+                    Dashboard
+                  </Link>
+                  <Link
+                    to="/log"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
+                  >
+                    Log Work
+                  </Link>
+                  <Link
+                    to="/appraisals"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
+                  >
+                    Appraisals
+                  </Link>
+                  <Link
+                    to="/chat"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
+                  >
+                    AI Chat
+                  </Link>
+                  <Link
+                    to="/settings"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
+                  >
+                    Settings
+                  </Link>
+                  <div className="border-t border-white/10 mt-4 pt-4 pb-1">
+                    <div className="px-3 mb-2 text-sm text-gray-400 truncate">
+                      {user.email}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setIsMobileMenuOpen(false)
+                        handleSignOut()
+                      }}
+                      className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
+                    >
+                      Sign Out
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <Link
+                  to="/login"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  className="block px-3 py-2 rounded-md text-base font-medium text-indigo-400 hover:text-indigo-300 hover:bg-white/5"
+                >
+                  Sign In
+                </Link>
+              )}
+            </div>
+          </div>
+        )}
       </header>
 
       {/* Main Content */}

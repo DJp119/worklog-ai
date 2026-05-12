@@ -93,7 +93,7 @@ export default function LogEntry() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
 
-    if (!form.week_start_date || !form.accomplishments || !form.challenges) {
+    if (!form.week_start_date || !form.accomplishments) {
       setError('Please fill in all required fields')
       return
     }
@@ -248,7 +248,7 @@ export default function LogEntry() {
           {/* Challenges */}
           <div>
             <label htmlFor="challenges" className="block text-sm font-medium text-gray-300">
-              Challenges <span className="text-red-400">*</span>
+              Challenges (optional)
             </label>
             <textarea
               id="challenges"
@@ -257,14 +257,13 @@ export default function LogEntry() {
               onChange={(e) => handleChange('challenges', e.target.value)}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
               placeholder="What obstacles did you face? What didn't go as planned?"
-              required
             />
           </div>
 
           {/* Learnings */}
           <div>
             <label htmlFor="learnings" className="block text-sm font-medium text-gray-300">
-              Learnings
+              Learnings (optional)
             </label>
             <textarea
               id="learnings"
@@ -279,7 +278,7 @@ export default function LogEntry() {
           {/* Goals Next Week */}
           <div>
             <label htmlFor="goals_next_week" className="block text-sm font-medium text-gray-300">
-              Goals for Next Week
+              Goals for Next Week (optional)
             </label>
             <textarea
               id="goals_next_week"

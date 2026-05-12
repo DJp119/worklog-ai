@@ -71,7 +71,7 @@ entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
     const supabase = req.supabase!
 
     // Validate required fields
-    const required = ['week_start_date', 'accomplishments', 'challenges', 'learnings', 'goals_next_week']
+    const required = ['week_start_date', 'accomplishments']
     const missing = required.filter(field => !body[field as keyof CreateWorkLogRequest])
 
     if (missing.length > 0) {
