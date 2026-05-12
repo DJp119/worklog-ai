@@ -42,8 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function loadAuthState() {
     try {
-      const savedAccessToken = localStorage.getItem('accessToken')
-      const savedRefreshToken = localStorage.getItem('refreshToken')
+      const savedAccessToken = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')
+      const savedRefreshToken = localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken')
 
       if (savedAccessToken && savedRefreshToken) {
         setAccessToken(savedAccessToken)
@@ -57,10 +57,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (response.ok) {
             const data = await response.json()
             setUser(data.data)
-            LogRocket.identify(data.data.user.id, {
-              email: data.data.user.email,
-              name: data.data.user.name,
-              jobTitle: data.data.user.jobTitle,
+            LogRocket.identify(data.data.id, {
+              email: data.data.email,
+              name: data.data.name,
+              jobTitle: data.data.jobTitle,
             })
           } else {
             clearAuth()
@@ -101,10 +101,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       jobTitle: data.data.user.jobTitle,
     })
 
-    localStorage.setItem('accessToken', newAccessToken)
-    localStorage.setItem('refreshToken', newRefreshToken)
-
-    if (!rememberMe) {
+    if (rememberMe) {
+      localStorage.setItem('accessToken', newAccessToken)
+      localStorage.setItem('refreshToken', newRefreshToken)
+    } else {
       sessionStorage.setItem('accessToken', newAccessToken)
       sessionStorage.setItem('refreshToken', newRefreshToken)
     }
@@ -175,8 +175,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setAccessToken(newAccessToken)
       setRefreshToken(newRefreshToken)
 
-      localStorage.setItem('accessToken', newAccessToken)
-      localStorage.setItem('refreshToken', newRefreshToken)
+      if (localStorage.getItem('refreshToken')) {
+        localStorage.setItem('accessToken', newAccessToken)
+        localStorage.setItem('refreshToken', newRefreshToken)
+      } else {
+        sessionStorage.setItem('accessToken', newAccessToken)
+        sessionStorage.setItem('refreshToken', newRefreshToken)
+      }
     } catch (error) {
       console.error('Token refresh failed:', error)
       clearAuth()
