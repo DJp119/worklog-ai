@@ -4,8 +4,8 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
  * Get auth tokens from localStorage
  */
 function getTokens() {
-  const accessToken = localStorage.getItem('accessToken')
-  const refreshToken = localStorage.getItem('refreshToken')
+  const accessToken = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')
+  const refreshToken = localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken')
   return { accessToken, refreshToken }
 }
 
@@ -23,8 +23,13 @@ async function refreshAccessToken(): Promise<boolean> {
     if (!response.ok) return false
 
     const data = await response.json()
-    localStorage.setItem('accessToken', data.data.accessToken)
-    localStorage.setItem('refreshToken', data.data.refreshToken)
+    if (localStorage.getItem('refreshToken')) {
+      localStorage.setItem('accessToken', data.data.accessToken)
+      localStorage.setItem('refreshToken', data.data.refreshToken)
+    } else {
+      sessionStorage.setItem('accessToken', data.data.accessToken)
+      sessionStorage.setItem('refreshToken', data.data.refreshToken)
+    }
 
     return true
   } catch (error) {
@@ -62,7 +67,7 @@ export async function apiRequest<T>(
   if (response.status === 401) {
     const refreshed = await refreshAccessToken()
     if (refreshed) {
-      const newToken = localStorage.getItem('accessToken')
+      const newToken = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')
       if (newToken) {
         headers.set('Authorization', `Bearer ${newToken}`)
         response = await sendRequest()
@@ -77,6 +82,8 @@ export async function apiRequest<T>(
       // Clear auth and redirect
       localStorage.removeItem('accessToken')
       localStorage.removeItem('refreshToken')
+      sessionStorage.removeItem('accessToken')
+      sessionStorage.removeItem('refreshToken')
       window.location.href = '/login'
     }
     throw new Error(data.error || 'Request failed')
