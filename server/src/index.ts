@@ -11,7 +11,7 @@ import { chatRoutes } from './routes/chat.js'
 import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { isDatabaseConfigured } from './lib/database.js'
-import { getPostHogClient, shutdownPostHog } from './lib/posthog.js'
+import { getPostHogClient, shutdownPostHog, captureException } from './lib/posthog.js'
 
 dotenv.config()
 
@@ -143,6 +143,13 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
+// Global error handler
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('Unhandled error:', err)
+  captureException(err)
+  res.status(500).json({ success: false, error: 'Internal server error' })
+})
+
 // Start server
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`)
@@ -153,7 +160,7 @@ app.listen(PORT, () => {
   if (posthog) {
     console.log('PostHog initialized')
   } else {
-    console.log('PostHog not configured (set POSTHOG_KEY env var)')
+    console.log('PostHog not configured (set POSTHOG_API_KEY env var)')
   }
 
   // Start background jobs

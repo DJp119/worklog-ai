@@ -17,6 +17,7 @@ import {
   requireAuth,
   type JWTPayload,
 } from '../middleware/auth.js'
+import { captureEvent, captureException, identifyUser } from '../lib/posthog.js'
 
 export const authRoutes = Router()
 
@@ -106,6 +107,20 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
       console.warn('Verification email not sent (Brevo not configured or failed)')
     }
 
+    identifyUser(userData.id, {
+      email: userData.email,
+      name: userData.name,
+      company_name,
+      job_title,
+      $set_once: { first_seen: new Date().toISOString() },
+    })
+    captureEvent(userData.id, 'user_signed_up', {
+      email: userData.email,
+      name: userData.name,
+      has_company: !!company_name,
+      has_job_title: !!job_title,
+    })
+
     res.status(201).json({
       success: true,
       message: 'Account created. Please check your email to verify.',
@@ -117,6 +132,7 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
     })
   } catch (error) {
     console.error('Signup error:', error)
+    captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -165,12 +181,15 @@ authRoutes.post('/verify-email', async (req: AuthRequest, res: Response) => {
     // Delete verification token
     await supabase.from('email_verifications').delete().eq('id', verifyData.id)
 
+    captureEvent(userId, 'email_verified')
+
     res.json({
       success: true,
       message: 'Email verified successfully',
     })
   } catch (error) {
     console.error('Email verification error:', error)
+    captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -216,6 +235,16 @@ authRoutes.post('/login', async (req: AuthRequest, res: Response) => {
     const tokenExpiryDays = rememberMe ? 30 : 7
     await createRefreshToken(user.id, refreshToken, tokenExpiryDays)
 
+    identifyUser(user.id, {
+      email: user.email,
+      name: user.name,
+      company_name: user.company_name,
+      job_title: user.job_title,
+    })
+    captureEvent(user.id, 'user_logged_in', {
+      remember_me: !!rememberMe,
+    })
+
     res.json({
       success: true,
       data: {
@@ -233,6 +262,7 @@ authRoutes.post('/login', async (req: AuthRequest, res: Response) => {
     })
   } catch (error) {
     console.error('Login error:', error)
+    captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -246,7 +276,12 @@ authRoutes.post('/logout', async (req: AuthRequest, res: Response) => {
     const { refreshToken } = req.body
 
     if (refreshToken) {
+      const tokenRecord = await validateRefreshToken(refreshToken)
+      const logoutUserId = tokenRecord ? (tokenRecord as any).users?.id : undefined
       await revokeRefreshToken(refreshToken)
+      if (logoutUserId) {
+        captureEvent(logoutUserId, 'user_logged_out')
+      }
     }
 
     res.json({ success: true })
@@ -350,12 +385,17 @@ authRoutes.post('/forgot-password', async (req: AuthRequest, res: Response) => {
       console.warn('Password reset email not sent (Brevo not configured)')
     }
 
+    captureEvent(user.id, 'password_reset_requested', {
+      email_sent: emailSent,
+    })
+
     res.json({
       success: true,
       message: 'If an account exists with this email, a password reset link has been sent.',
     })
   } catch (error) {
     console.error('Forgot password error:', error)
+    captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -412,12 +452,15 @@ authRoutes.post('/reset-password', async (req: AuthRequest, res: Response) => {
     // Delete used reset token
     await supabase.from('password_reset_tokens').delete().eq('id', resetData.user_id)
 
+    captureEvent(resetData.user_id, 'password_reset_completed')
+
     res.json({
       success: true,
       message: 'Password reset successfully',
     })
   } catch (error) {
     console.error('Reset password error:', error)
+    captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

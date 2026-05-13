@@ -1,6 +1,6 @@
 import { PostHog } from 'posthog-node'
 
-const postHogKey = process.env.POSTHOG_KEY || ''
+const postHogKey = process.env.POSTHOG_API_KEY || ''
 const postHogHost = process.env.POSTHOG_HOST || 'https://us.i.posthog.com'
 
 let posthog: PostHog | null = null
@@ -16,8 +16,7 @@ export function getPostHogClient(): PostHog | null {
   if (!posthog) {
     posthog = new PostHog(postHogKey, {
       host: postHogHost,
-      flushAt: 50,
-      flushInterval: 5000,
+      enableExceptionAutocapture: true,
     })
   }
 
@@ -60,6 +59,24 @@ export function identifyUser(distinctId: string, properties?: Record<string, any
     })
   } catch (error) {
     console.error('PostHog identify error:', error)
+  }
+}
+
+/**
+ * Capture an exception/error event
+ */
+export function captureException(
+  error: unknown,
+  distinctId?: string,
+  properties?: Record<string, any>
+): void {
+  const client = getPostHogClient()
+  if (!client) return
+
+  try {
+    client.captureException(error, distinctId, properties)
+  } catch (e) {
+    console.error('PostHog captureException error:', e)
   }
 }
 

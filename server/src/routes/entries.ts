@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import type { WorkLogEntry, CreateWorkLogRequest, ApiResponse } from 'shared'
 import { invalidateMonthlySummary } from '../lib/summaryService.js'
+import { captureEvent, captureException } from '../lib/posthog.js'
 
 export const entriesRoutes = Router()
 
@@ -108,9 +109,19 @@ entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
       })
     }
 
+    captureEvent(userId, 'work_log_created', {
+      entry_id: data?.id,
+      week_start_date: body.week_start_date,
+      has_challenges: !!body.challenges,
+      has_learnings: !!body.learnings,
+      has_goals: !!body.goals_next_week,
+      hours_logged: body.hours_logged ?? null,
+    })
+
     res.status(201).json({ success: true, data })
   } catch (error) {
     console.error('Create entry error:', error)
+    captureException(error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -148,9 +159,15 @@ entriesRoutes.put('/:id', requireAuth, async (req: AuthRequest, res) => {
       })
     }
 
+    captureEvent(userId, 'work_log_updated', {
+      entry_id: id,
+      week_start_date: data?.week_start_date,
+    })
+
     res.json({ success: true, data })
   } catch (error) {
     console.error('Update entry error:', error)
+    captureException(error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -187,9 +204,15 @@ entriesRoutes.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
       })
     }
 
+    captureEvent(userId, 'work_log_deleted', {
+      entry_id: id,
+      week_start_date: deletedData?.week_start_date,
+    })
+
     res.json({ success: true, data: null })
   } catch (error) {
     console.error('Delete entry error:', error)
+    captureException(error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { mistral, chatModel } from '../lib/mistral.js'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import type { GeneratedAppraisal, GenerateAppraisalRequest, ApiResponse } from 'shared'
+import { captureEvent, captureException } from '../lib/posthog.js'
 
 export const appraisalRoutes = Router()
 
@@ -145,6 +146,17 @@ Write the self-appraisal:`
       console.error('Save appraisal error:', saveError)
     }
 
+    const wordCount = generatedText.split(/\s+/).length
+    captureEvent(userId, 'appraisal_generated', {
+      appraisal_id: appraisal?.id,
+      period_start: body.period_start,
+      period_end: body.period_end,
+      work_log_count: workLogs.length,
+      word_count: wordCount,
+      has_company_goals: !!body.company_goals,
+      has_values: !!body.values,
+    })
+
     res.json({
       success: true,
       data: {
@@ -153,12 +165,13 @@ Write the self-appraisal:`
         period_start: body.period_start,
         period_end: body.period_end,
         generated_text: generatedText,
-        word_count: generatedText.split(/\s+/).length,
+        word_count: wordCount,
         created_at: new Date().toISOString(),
       }
     })
   } catch (error) {
     console.error('Generate appraisal error:', error)
+    captureException(error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
