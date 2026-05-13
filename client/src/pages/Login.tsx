@@ -1,5 +1,5 @@
 import { useState, FormEvent } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
@@ -99,17 +99,6 @@ export default function Login() {
                             placeholder="Enter your password"
                         />
                     </div>
-
-                    {isLogin && (
-                        <div className="flex justify-end -mt-2">
-                            <Link
-                                to="/forgot-password"
-                                className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
-                            >
-                                Forgot your password?
-                            </Link>
-                        </div>
-                    )}
 
                     {error && (
                         <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 p-3 rounded-lg">
