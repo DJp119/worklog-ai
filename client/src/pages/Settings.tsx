@@ -6,8 +6,14 @@ interface Profile {
   company_name: string
   job_title: string
   reminder_day: number
-  reminder_hour: number // local hour 0-23
+  reminder_hour: number
   reminder_enabled: boolean
+}
+
+interface PasswordForm {
+  currentPassword: string
+  newPassword: string
+  confirmPassword: string
 }
 
 /**
@@ -43,7 +49,7 @@ function formatHour(hour: number): string {
 }
 
 export default function Settings() {
-  const { user } = useAuth()
+  const { user, logout, accessToken } = useAuth()
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
@@ -56,6 +62,14 @@ export default function Settings() {
     reminder_hour: 9,
     reminder_enabled: true,
   })
+
+  const [passwordForm, setPasswordForm] = useState<PasswordForm>({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  })
+  const [showPassword, setShowPassword] = useState(false)
+  const [passwordLoading, setPasswordLoading] = useState(false)
 
   useEffect(() => {
     if (user) {
@@ -132,6 +146,65 @@ export default function Settings() {
     value: i,
     label: formatHour(i),
   }))
+
+  const handlePasswordChange = (field: keyof PasswordForm, value: string) => {
+    setPasswordForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handlePasswordSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+
+    if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
+      setError('Please fill in all password fields')
+      setPasswordLoading(false)
+      return
+    }
+
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+      setError('New passwords do not match')
+      setPasswordLoading(false)
+      return
+    }
+
+    if (passwordForm.newPassword.length < 8) {
+      setError('Password must be at least 8 characters')
+      setPasswordLoading(false)
+      return
+    }
+
+    setPasswordLoading(true)
+    setMessage(null)
+    setError(null)
+
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+      const response = await fetch(`${API_URL}/api/users/password`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          current_password: passwordForm.currentPassword,
+          new_password: passwordForm.newPassword,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        setMessage('Password changed successfully! Please login with your new password.')
+        setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
+        setTimeout(() => logout(), 3000)
+      } else {
+        setError(data.error || 'Failed to change password')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to change password')
+    } finally {
+      setPasswordLoading(false)
+    }
+  }
 
   if (initialLoading) {
     return (
@@ -227,6 +300,94 @@ export default function Settings() {
         </form>
       </div>
 
+      {/* Change Password Section */}
+      <div className="glass-strong rounded-xl p-6 border border-white/10">
+        <h2 className="text-lg font-semibold text-white mb-4">Change Password</h2>
+        <form onSubmit={handlePasswordSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-300">
+              Current Password
+            </label>
+            <input
+              type="password"
+              id="currentPassword"
+              value={passwordForm.currentPassword}
+              onChange={(e) => handlePasswordChange('currentPassword', e.target.value)}
+              className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              placeholder="Enter current password"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-300">
+              New Password
+            </label>
+            <input
+              type="password"
+              id="newPassword"
+              value={passwordForm.newPassword}
+              onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
+              className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              placeholder="Enter new password (minimum 8 characters)"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300">
+              Confirm New Password
+            </label>
+            <input
+              type="password"
+              id="confirmPassword"
+              value={passwordForm.confirmPassword}
+              onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
+              className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              placeholder="Confirm new password"
+            />
+          </div>
+
+          <div>
+            <label className="flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={showPassword}
+                onChange={(e) => setShowPassword(e.target.checked)}
+                className="h-4 w-4 rounded bg-white/5 border-white/10 text-indigo-500 focus:ring-indigo-500"
+              />
+              <span className="ml-2 text-sm text-gray-400">Show passwords</span>
+            </label>
+          </div>
+
+          <button
+            type="submit"
+            disabled={passwordLoading}
+            className="w-full flex justify-center py-3 px-4 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 hover:from-indigo-600 hover:via-purple-600 hover:to-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all glow-primary"
+          >
+            {passwordLoading ? (
+              <span className="flex items-center">
+                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Changing...
+              </span>
+            ) : (
+              'Change Password'
+            )}
+          </button>
+          {message && (
+            <div className="text-green-400 text-sm bg-green-500/10 border border-green-500/20 p-3 rounded-lg">
+              {message}
+            </div>
+          )}
+          {error && (
+            <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 p-3 rounded-lg">
+              {error}
+            </div>
+          )}
+        </form>
+      </div>
+
       {/* Reminder Settings */}
       <div className="glass-strong rounded-xl p-6 border border-white/10">
         <h2 className="text-lg font-semibold text-white mb-4">Reminder Preferences</h2>
@@ -302,19 +463,6 @@ export default function Settings() {
           </div>
         </form>
       </div>
-
-      {/* Messages */}
-      {message && (
-        <div className="text-green-400 text-sm bg-green-500/10 border border-green-500/20 p-3 rounded-lg">
-          {message}
-        </div>
-      )}
-
-      {error && (
-        <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 p-3 rounded-lg">
-          {error}
-        </div>
-      )}
     </div>
   )
 }
