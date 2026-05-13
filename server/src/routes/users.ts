@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express'
 import { supabase } from '../lib/database.js'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import { hashPassword, comparePassword, validatePasswordStrength } from '../lib/auth-utils.js'
+import { captureEvent, captureException } from '../lib/posthog.js'
 
 export const userRoutes = Router()
 
@@ -99,6 +100,10 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
             return res.status(500).json({ success: false, error: 'Update matched no rows' })
         }
 
+        captureEvent(userId, 'profile_updated', {
+            updated_fields: Object.keys(updateData).filter(k => k !== 'updated_at'),
+        })
+
         res.json({
             success: true,
             data: {
@@ -114,6 +119,7 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
         })
     } catch (error) {
         console.error('Update profile error:', error)
+        captureException(error)
         res.status(500).json({ success: false, error: 'Internal server error' })
     }
 })
@@ -209,12 +215,15 @@ userRoutes.delete('/account', async (req: AuthRequest, res: Response) => {
             return res.status(500).json({ success: false, error: 'Failed to delete account' })
         }
 
+        captureEvent(userId, 'account_deleted')
+
         res.json({
             success: true,
             message: 'Account deleted successfully',
         })
     } catch (error) {
         console.error('Delete account error:', error)
+        captureException(error)
         res.status(500).json({ success: false, error: 'Internal server error' })
     }
 })

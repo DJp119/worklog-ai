@@ -54,7 +54,12 @@
       "Skill(ralph-loop:ralph-loop)",
       "Bash(npx *)",
       "Bash(Get-Content *)",
-      "Bash(Remove-Item *)"
+      "Bash(Remove-Item *)",
+      "WebFetch(domain:forums.developer.nvidia.com)",
+      "WebFetch(domain:aihola.com)",
+      "WebFetch(domain:build.nvidia.com)",
+      "WebFetch(domain:docs.nvidia.com)",
+      "WebFetch(domain:docs.litellm.ai)"
     ]
   },
   "enabledPlugins": {
