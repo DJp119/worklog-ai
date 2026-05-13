@@ -11,6 +11,7 @@ import { chatRoutes } from './routes/chat.js'
 import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { isDatabaseConfigured } from './lib/database.js'
+import { getPostHogClient, shutdownPostHog } from './lib/posthog.js'
 
 dotenv.config()
 
@@ -76,9 +77,41 @@ if (!isDevelopment) {
   app.use('/api/auth', authLimiter)
 }
 
-// Request logging
+// Request logging with PostHog
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`)
+  const startTime = Date.now()
+
+  res.on('finish', () => {
+    const duration = Date.now() - startTime
+    console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`)
+
+    // Capture to PostHog if configured
+    const posthog = getPostHogClient()
+    if (posthog && req.headers.authorization) {
+      // Extract user ID from JWT if available
+      try {
+        const authHeader = req.headers.authorization as string
+        if (authHeader.startsWith('Bearer ')) {
+          const token = authHeader.substring(7)
+          const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString())
+          posthog.capture({
+            distinctId: payload.userId,
+            event: 'api_request',
+            properties: {
+              method: req.method,
+              path: req.path,
+              status: res.statusCode,
+              duration_ms: duration,
+              user_agent: req.headers['user-agent'],
+            },
+          })
+        }
+      } catch (e) {
+        // Ignore JWT parse errors for logging
+      }
+    }
+  })
+
   next()
 })
 
@@ -114,11 +147,33 @@ app.get('/health', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`)
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
-  
+
+  // Initialize PostHog
+  const posthog = getPostHogClient()
+  if (posthog) {
+    console.log('PostHog initialized')
+  } else {
+    console.log('PostHog not configured (set POSTHOG_KEY env var)')
+  }
+
   // Start background jobs
   reminderJob.start()
   monthlySummaryJob.start()
-  console.log(`Server running on http://localhost:${PORT}`)
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
+})
 
+// Graceful shutdown
+process.on('SIGTERM', async () => {
+  console.log('SIGTERM received, shutting down gracefully...')
+  reminderJob.stop()
+  monthlySummaryJob.stop()
+  await shutdownPostHog()
+  process.exit(0)
+})
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, shutting down gracefully...')
+  reminderJob.stop()
+  monthlySummaryJob.stop()
+  await shutdownPostHog()
+  process.exit(0)
 })
