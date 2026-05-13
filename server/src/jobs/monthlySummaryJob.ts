@@ -16,14 +16,17 @@ function getNextMonth(monthStr: string): string {
 }
 
 class MonthlySummaryJob {
+  private cronExpressions: cron.ScheduledTask[] = []
+
   start(): void {
     // Run on 1st of every month at 2:00 AM
-    cron.schedule('0 2 1 * *', () => {
+    const task = cron.schedule('0 2 1 * *', () => {
       console.log('Starting monthly summary generation job...')
       this.generateAllSummaries().catch(err => {
         console.error('Error running monthly summary job:', err)
       })
     })
+    this.cronExpressions.push(task)
     console.log('Monthly summary cron job scheduled (0 2 1 * *)')
   }
 
@@ -72,6 +75,12 @@ class MonthlySummaryJob {
     }
 
     console.log(`Monthly summary job completed. Success: ${successCount}, Failures: ${failureCount}`)
+  }
+
+  stop(): void {
+    this.cronExpressions.forEach(task => task.stop())
+    this.cronExpressions = []
+    console.log('Monthly summary cron job stopped')
   }
 }
 
