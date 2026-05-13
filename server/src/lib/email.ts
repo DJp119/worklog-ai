@@ -60,7 +60,8 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
  * Create email verification link
  */
 export function createEmailVerificationLink(userId: string, emailToken: string): string {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  // FRONTEND_URL may be comma-separated for CORS; use only the first (primary) URL for links
+  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',')[0].trim()
   return `${frontendUrl}/verify-email?token=${emailToken}&userId=${userId}`
 }
 
@@ -68,7 +69,8 @@ export function createEmailVerificationLink(userId: string, emailToken: string):
  * Create password reset link
  */
 export function createPasswordResetLink(userId: string, resetToken: string): string {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  // FRONTEND_URL may be comma-separated for CORS; use only the first (primary) URL for links
+  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',')[0].trim()
   return `${frontendUrl}/reset-password?token=${resetToken}&userId=${userId}`
 }
 
@@ -168,7 +170,8 @@ export async function sendPasswordResetEmail(to: string, userId: string, resetTo
  * Send weekly worklog reminder email
  */
 export async function sendReminderEmail(to: string, userName?: string): Promise<boolean> {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  // FRONTEND_URL may be comma-separated for CORS; use only the first (primary) URL for links
+  const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',')[0].trim()
   const logUrl = `${frontendUrl}/log`
   const settingsUrl = `${frontendUrl}/settings`
   const greeting = userName ? `Hi ${userName}` : 'Hi there'
