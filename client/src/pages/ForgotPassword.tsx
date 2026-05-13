@@ -1,17 +1,13 @@
 import { useState, FormEvent } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { Link } from 'react-router-dom'
 
-export default function Login() {
+export default function ForgotPassword() {
     const [email, setEmail] = useState('')
-    const [password, setPassword] = useState('')
     const [loading, setLoading] = useState(false)
-    const [isLogin, setIsLogin] = useState(true)
     const [message, setMessage] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
 
-    const { login, signup } = useAuth()
-    const navigate = useNavigate()
+    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
@@ -21,27 +17,26 @@ export default function Login() {
             return
         }
 
-        if (!password || password.length < 8) {
-            setError('Password must be at least 8 characters')
-            return
-        }
-
         setLoading(true)
         setError(null)
         setMessage(null)
 
         try {
-            if (isLogin) {
-                await login(email, password)
-                setMessage('Login successful! Redirecting...')
-                setTimeout(() => navigate('/dashboard'), 1500)
+            const response = await fetch(`${API_URL}/api/auth/forgot-password`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email }),
+            })
+
+            const data = await response.json()
+
+            if (response.ok) {
+                setMessage('Password reset link sent! Check your email.')
             } else {
-                await signup(email, password, 'New User', 'Company', 'Developer')
-                setMessage('Account created! Please login with your credentials.')
-                setIsLogin(true)
+                setError(data.error || 'Failed to send reset link')
             }
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Operation failed')
+            setError(err instanceof Error ? err.message : 'Request failed')
         } finally {
             setLoading(false)
         }
@@ -59,14 +54,14 @@ export default function Login() {
                     <div className="flex justify-center mb-4">
                         <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center glow-primary">
                             <svg className="w-8 h-8 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11.536 14 10 15.5V19l-4-4h-4.065a6 6 0 010-8h4.065L8 8l5-5 4 4h-4z" strokeLinecap="round" strokeLinejoin="round"/>
                             </svg>
                         </div>
                     </div>
-                    <h1 className="text-3xl font-bold gradient-text">Worklog AI</h1>
-                    <h2 className="mt-2 text-xl text-white">
-                        {isLogin ? 'Sign in to your account' : 'Create a new account'}
-                    </h2>
+                    <h1 className="text-3xl font-bold gradient-text">Forgot Password</h1>
+                    <p className="mt-2 text-gray-400">
+                        Enter your email to receive a password reset link
+                    </p>
                 </div>
 
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -82,26 +77,6 @@ export default function Login() {
                             onChange={(e) => setEmail(e.target.value)}
                             className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                             placeholder="you@example.com"
-                        />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                        <label htmlFor="password" className="block text-sm font-medium text-gray-300">
-                            Password
-                        </label>
-                        <Link to="/forgot-password" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
-                            Forgot password?
-                        </Link>
-                    </div>
-                    <div>
-                        <input
-                            id="password"
-                            type="password"
-                            required
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            className="block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                            placeholder="Enter your password"
                         />
                     </div>
 
@@ -128,26 +103,21 @@ export default function Login() {
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                Processing...
+                                Sending...
                             </span>
                         ) : (
-                            isLogin ? 'Sign In' : 'Create Account'
+                            'Send Reset Link'
                         )}
                     </button>
                 </form>
 
                 <div className="text-center">
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setIsLogin(!isLogin)
-                            setError(null)
-                            setMessage(null)
-                        }}
+                    <Link
+                        to="/login"
                         className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
                     >
-                        {isLogin ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
-                    </button>
+                        Back to Login
+                    </Link>
                 </div>
             </div>
         </div>
