@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useSearchParams, useNavigate, Link } from 'react-router-dom'
 
 export default function ResetPassword() {
   const [searchParams] = useSearchParams()
@@ -10,6 +10,8 @@ export default function ResetPassword() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
   const token = searchParams.get('token')
   const userId = searchParams.get('userId')
@@ -23,9 +25,6 @@ export default function ResetPassword() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    console.log('=== FORM SUBMITTED ===')
-    console.log('Token:', token)
-    console.log('User ID:', userId)
 
     if (!token || !userId) {
       setStatus('error')
@@ -52,7 +51,7 @@ export default function ResetPassword() {
     setMessage('Resetting password...')
 
     try {
-      const response = await fetch('http://localhost:3001/api/auth/reset-password', {
+      const response = await fetch(`${API_URL}/api/auth/reset-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -64,7 +63,6 @@ export default function ResetPassword() {
       })
 
       const data = await response.json()
-      console.log('Response:', data)
 
       if (response.ok && data.success) {
         setStatus('success')
@@ -74,7 +72,6 @@ export default function ResetPassword() {
         setMessage(data.error || 'Failed to reset password')
       }
     } catch (error) {
-      console.error('Password reset error:', error)
       setStatus('error')
       setMessage('Failed to reset password. Please try again.')
     } finally {
@@ -85,13 +82,13 @@ export default function ResetPassword() {
   // Show error if no token
   if (!token || !userId) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
-        <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', maxWidth: '28rem', width: '100%', textAlign: 'center' }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#111827', marginBottom: '8px' }}>Invalid Link</h2>
-          <p style={{ color: '#6b7280', marginBottom: '24px' }}>{message}</p>
+      <div className="min-h-[80vh] flex items-center justify-center px-4">
+        <div className="glass-strong p-8 rounded-2xl border border-white/10 max-w-md w-full text-center">
+          <h2 className="text-2xl font-bold text-white mb-4">Invalid Link</h2>
+          <p className="text-gray-400 mb-6">{message}</p>
           <button
             onClick={() => navigate('/login')}
-            style={{ backgroundColor: '#4f46e5', color: 'white', padding: '8px 24px', borderRadius: '6px', border: 'none', cursor: 'pointer' }}
+            className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-6 py-3 rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all"
           >
             Go to Login
           </button>
@@ -103,16 +100,16 @@ export default function ResetPassword() {
   // Show success state
   if (status === 'success') {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
-        <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', maxWidth: '28rem', width: '100%', textAlign: 'center' }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#111827', marginBottom: '8px' }}>Password Reset!</h2>
-          <p style={{ color: '#6b7280', marginBottom: '24px' }}>Your password has been reset successfully.</p>
-          <button
-            onClick={() => navigate('/login')}
-            style={{ backgroundColor: '#4f46e5', color: 'white', padding: '8px 24px', borderRadius: '6px', border: 'none', cursor: 'pointer' }}
+      <div className="min-h-[80vh] flex items-center justify-center px-4">
+        <div className="glass-strong p-8 rounded-2xl border border-white/10 max-w-md w-full text-center">
+          <h2 className="text-2xl font-bold text-white mb-4">Password Reset!</h2>
+          <p className="text-gray-400 mb-6">Your password has been reset successfully.</p>
+          <Link
+            to="/login"
+            className="inline-block bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-6 py-3 rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all"
           >
             Go to Login
-          </button>
+          </Link>
         </div>
       </div>
     )
@@ -120,22 +117,26 @@ export default function ResetPassword() {
 
   // Show form
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f9fafb' }}>
-      <div style={{ backgroundColor: 'white', padding: '32px', borderRadius: '8px', boxShadow: '0 4px 6px rgba(0,0,0,0.1)', maxWidth: '28rem', width: '100%' }}>
-        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#111827' }}>Reset Password</h2>
-          <p style={{ color: '#6b7280', marginTop: '8px' }}>Enter your new password</p>
+    <div className="min-h-[80vh] flex items-center justify-center px-4">
+      <div className="glass-strong p-8 rounded-2xl border border-white/10 max-w-md w-full relative z-10">
+        <div className="text-center mb-6">
+          <h2 className="text-2xl font-bold text-white">Reset Password</h2>
+          <p className="text-gray-400 mt-2">Enter your new password</p>
         </div>
 
         {message && (
-          <div style={{ marginBottom: '16px', padding: '12px', borderRadius: '6px', backgroundColor: status === 'error' ? '#fee2e2' : '#dbeafe', color: status === 'error' ? '#991b1b' : '#1e40af' }}>
+          <div className={`mb-4 p-3 rounded-lg text-sm ${
+            status === 'error'
+              ? 'text-red-400 bg-red-500/10 border border-red-500/20'
+              : 'text-green-400 bg-green-500/10 border border-green-500/20'
+          }`}>
             {message}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} noValidate>
-          <div style={{ marginBottom: '16px' }}>
-            <label htmlFor="newPassword" style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#374151', marginBottom: '4px' }}>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="newPassword" className="block text-sm font-medium text-gray-300 mb-1">
               New Password
             </label>
             <input
@@ -143,14 +144,14 @@ export default function ResetPassword() {
               type={showPassword ? 'text' : 'password'}
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              style={{ width: '100%', padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: '6px' }}
+              className="block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
               placeholder="Enter new password"
               autoComplete="new-password"
             />
           </div>
 
-          <div style={{ marginBottom: '16px' }}>
-            <label htmlFor="confirmPassword" style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#374151', marginBottom: '4px' }}>
+          <div>
+            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-1">
               Confirm Password
             </label>
             <input
@@ -158,50 +159,40 @@ export default function ResetPassword() {
               type={showPassword ? 'text' : 'password'}
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              style={{ width: '100%', padding: '8px 16px', border: '1px solid #d1d5db', borderRadius: '6px' }}
+              className="block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
               placeholder="Confirm new password"
               autoComplete="new-password"
             />
           </div>
 
-          <div style={{ marginBottom: '16px' }}>
-            <label style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+          <div>
+            <label className="flex items-center cursor-pointer">
               <input
                 type="checkbox"
                 checked={showPassword}
                 onChange={(e) => setShowPassword(e.target.checked)}
-                style={{ marginRight: '8px' }}
+                className="mr-2"
               />
-              <span style={{ fontSize: '0.875rem', color: '#6b7280' }}>Show password</span>
+              <span className="text-sm text-gray-400">Show password</span>
             </label>
           </div>
 
           <button
             type="submit"
-            disabled={isSubmitting}
-            style={{
-              width: '100%',
-              backgroundColor: isSubmitting ? '#9ca3af' : '#4f46e5',
-              color: 'white',
-              padding: '10px 16px',
-              borderRadius: '6px',
-              border: 'none',
-              cursor: isSubmitting ? 'not-allowed' : 'pointer',
-              fontWeight: 500,
-              opacity: (newPassword && confirmPassword) ? 1 : 0.5
-            }}
+            disabled={isSubmitting || !newPassword || !confirmPassword}
+            className="w-full py-3 px-4 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 hover:from-indigo-600 hover:via-purple-600 hover:to-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             {isSubmitting ? 'Resetting...' : 'Reset Password'}
           </button>
         </form>
 
-        <div style={{ marginTop: '16px', textAlign: 'center' }}>
-          <button
-            onClick={() => navigate('/login')}
-            style={{ background: 'none', border: 'none', color: '#4f46e5', cursor: 'pointer', fontSize: '0.875rem' }}
+        <div className="mt-6 text-center">
+          <Link
+            to="/login"
+            className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
           >
             Back to Login
-          </button>
+          </Link>
         </div>
       </div>
     </div>
