@@ -8,7 +8,7 @@ let posthog: PostHog | null = null
 /**
  * Get PostHog client (lazy initialization)
  */
-export functiongetPostHogClient(): PostHog | null {
+export function getPostHogClient(): PostHog | null {
   if (!postHogKey) {
     return null
   }
