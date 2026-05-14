@@ -12,6 +12,8 @@ import VerifyEmail from './pages/VerifyEmail'
 import ResetPassword from './pages/ResetPassword'
 import Chat from './pages/Chat'
 import Feedback from './pages/Feedback'
+import Terms from './pages/Terms'
+import Privacy from './pages/Privacy'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -89,6 +91,8 @@ function AppRoutes() {
         }
       />
       <Route path="/verify-email" element={<VerifyEmail />} />
+      <Route path="/terms" element={<Layout><Terms /></Layout>} />
+      <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
     </Routes>
   )
 }

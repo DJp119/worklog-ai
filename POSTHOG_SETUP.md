@@ -28,9 +28,11 @@ VITE_POSTHOG_HOST=https://us.i.posthog.com
 
 #### Server (.env)
 ```env
-POSTHOG_KEY=phc_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+POSTHOG_API_KEY=phc_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 POSTHOG_HOST=https://us.i.posthog.com
 ```
+
+(`POSTHOG_KEY` is also accepted for older copies of this guide.)
 
 ### 4. Restart Your Development Servers
 
