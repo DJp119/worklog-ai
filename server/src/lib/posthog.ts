@@ -1,6 +1,7 @@
 import { PostHog } from 'posthog-node'
 
-const postHogKey = process.env.POSTHOG_API_KEY || ''
+const postHogKey =
+  process.env.POSTHOG_API_KEY || process.env.POSTHOG_KEY || ''
 const postHogHost = process.env.POSTHOG_HOST || 'https://us.i.posthog.com'
 
 let posthog: PostHog | null = null

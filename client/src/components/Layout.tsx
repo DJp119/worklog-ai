@@ -238,10 +238,18 @@ export function Layout({ children }: LayoutProps) {
             </div>
 
             {/* Legal */}
-            <div className="text-right">
+            <div className="text-right flex flex-col items-end space-y-2">
               <p className="text-gray-500 text-sm">
                 &copy; {new Date().getFullYear()} Worklog AI
               </p>
+              <div className="flex space-x-4">
+                <Link to="/terms" className="text-gray-400 hover:text-white text-xs transition-colors">
+                  Terms
+                </Link>
+                <Link to="/privacy" className="text-gray-400 hover:text-white text-xs transition-colors">
+                  Privacy
+                </Link>
+              </div>
             </div>
           </div>
         </div>
