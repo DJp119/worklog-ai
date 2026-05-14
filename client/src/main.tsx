@@ -7,8 +7,8 @@ import './index.css'
 import App from './App.tsx'
 
 // Initialize PostHog
-if (typeof window !== 'undefined') {
-  posthog.init(import.meta.env.VITE_POSTHOG_KEY || '', {
+if (typeof window !== 'undefined' && import.meta.env.VITE_POSTHOG_KEY) {
+  posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
     api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://us.i.posthog.com',
     person_profiles: 'identified_only',
     capture_pageview: true,
