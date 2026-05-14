@@ -220,3 +220,38 @@ export async function updateProfile(
     body: JSON.stringify(body),
   })
 }
+
+// ============================================
+// Feedback API
+// ============================================
+
+export interface FeedbackItem {
+  id: string
+  user_id: string
+  category: 'bug' | 'feature' | 'improvement' | 'general'
+  rating: number
+  message: string
+  page_context?: string
+  created_at: string
+}
+
+export interface SubmitFeedbackRequest {
+  category: 'bug' | 'feature' | 'improvement' | 'general'
+  rating: number
+  message: string
+  page_context?: string
+}
+
+export async function submitFeedback(
+  body: SubmitFeedbackRequest
+): Promise<FeedbackItem> {
+  return apiRequest<FeedbackItem>('/api/feedback', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  })
+}
+
+export async function getFeedbackHistory(): Promise<FeedbackItem[]> {
+  return apiRequest<FeedbackItem[]>('/api/feedback')
+}
+

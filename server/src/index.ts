@@ -8,6 +8,7 @@ import { appraisalRoutes } from './routes/appraisal.js'
 import { userRoutes } from './routes/users.js'
 import { summariesRoutes } from './routes/summaries.js'
 import { chatRoutes } from './routes/chat.js'
+import { feedbackRoutes } from './routes/feedback.js'
 import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { isDatabaseConfigured } from './lib/database.js'
@@ -122,6 +123,7 @@ app.use('/api/appraisal', appraisalRoutes)
 app.use('/api/users', userRoutes)
 app.use('/api/summaries', summariesRoutes)
 app.use('/api/chat', chatRoutes)
+app.use('/api/feedback', feedbackRoutes)
 
 // Root route
 app.get('/', (req, res) => {
