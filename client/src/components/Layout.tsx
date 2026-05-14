@@ -73,6 +73,12 @@ export function Layout({ children }: LayoutProps) {
                   >
                     Settings
                   </Link>
+                  <Link
+                    to="/feedback"
+                    className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
+                  >
+                    Feedback
+                  </Link>
                   <div className="w-px h-6 bg-white/10 mx-2"></div>
                   <span className="text-gray-400 text-sm mr-3">{user.email}</span>
                   <button
@@ -151,6 +157,13 @@ export function Layout({ children }: LayoutProps) {
                   >
                     Settings
                   </Link>
+                  <Link
+                    to="/feedback"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
+                  >
+                    Feedback
+                  </Link>
                   <div className="border-t border-white/10 mt-4 pt-4 pb-1">
                     <div className="px-3 mb-2 text-sm text-gray-400 truncate">
                       {user.email}
@@ -218,6 +231,9 @@ export function Layout({ children }: LayoutProps) {
               </Link>
               <Link to="/chat" className="text-gray-400 hover:text-white text-sm transition-colors">
                 AI Chat
+              </Link>
+              <Link to="/feedback" className="text-gray-400 hover:text-white text-sm transition-colors">
+                Feedback
               </Link>
             </div>
 
