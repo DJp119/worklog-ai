@@ -23,7 +23,7 @@ Weekly work log tracker with AI-generated self-appraisals.
 | Email | Supabase Auth SMTP via Resend + Nodemailer |
 | Scheduler | node-cron |
 | Deploy FE | Vercel |
-| Deploy BE | Railway |
+| Deploy BE | Render |
 
 ## Monorepo Structure
 
