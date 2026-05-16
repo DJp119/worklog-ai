@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { mistral, chatModel } from '../lib/mistral.js'
+import { aiProvider } from '../lib/aiProvider.js'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import type { GeneratedAppraisal, GenerateAppraisalRequest, ApiResponse } from 'shared'
 import { captureEvent, captureException } from '../lib/posthog.js'
@@ -83,32 +83,29 @@ INSTRUCTIONS:
 
 Write the self-appraisal:`
 
-    // Call Mistral API
+    // Call AI provider (NVIDIA NIM → Mistral fallback)
     let result
     try {
-      result = await mistral.chat.complete({
-        model: chatModel,
-        messages: [
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        maxTokens: 2048,
-      })
+      const response = await aiProvider.complete([
+        {
+          role: 'user',
+          content: prompt
+        }
+      ])
+      result = { choices: [{ message: { content: response.content } }] }
     } catch (apiError: unknown) {
-      // Handle specific Mistral API errors
+      // Handle provider errors
       if (apiError instanceof Error && 'status' in apiError) {
         const status = (apiError as { status?: number }).status
         if (status === 429) {
-          console.error('Mistral API quota exceeded')
+          console.error('AI provider quota exceeded')
           return res.status(503).json({
             success: false,
             error: 'AI service temporarily unavailable due to quota limits. Please try again tomorrow.'
           })
         }
         if (status === 400 || status === 401 || status === 403) {
-          console.error('Mistral API configuration error:', apiError)
+          console.error('AI provider configuration error:', apiError)
           return res.status(400).json({
             success: false,
             error: 'Invalid API configuration. Please contact support.'

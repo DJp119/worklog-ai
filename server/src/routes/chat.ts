@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
-import { mistral, chatModel } from '../lib/mistral.js'
+import { aiProvider } from '../lib/aiProvider.js'
 import { 
   getSummariesForRange, 
   stitchSummaries, 
@@ -224,27 +224,23 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
       abortController.abort()
     })
 
-    // 7. Call Mistral
+    // 7. Stream response via AI provider (NVIDIA NIM → Mistral fallback)
     let assistantMessage = ''
     try {
       const messages = [
-        { role: 'system', content: systemPrompt },
+        { role: 'system' as const, content: systemPrompt },
         ...fullHistory
-      ]
+      ] as Array<{ role: string; content: string }>
 
-      const stream = await mistral.chat.stream({
-        model: chatModel,
-        messages: messages as any
-      })
+      const stream = aiProvider.stream(messages as any)
 
       for await (const chunk of stream) {
         if (abortController.signal.aborted) {
           break
         }
-        const text = chunk.data.choices[0]?.delta?.content
-        if (text) {
-          assistantMessage += text
-          res.write(`data: ${JSON.stringify({ type: 'delta', text })}\n\n`)
+        if (chunk) {
+          assistantMessage += chunk
+          res.write(`data: ${JSON.stringify({ type: 'delta', text: chunk })}\n\n`)
         }
       }
 

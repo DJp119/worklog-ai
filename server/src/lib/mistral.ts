@@ -13,3 +13,5 @@ export const mistral = new Mistral({
 })
 
 export const chatModel = 'mistral-large-latest'
+
+export { mistral as default }
