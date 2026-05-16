@@ -1,4 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
+import { refreshAccessToken } from './api'
+import { getStoredTokens } from './authStorage'
 
 export function useSSE() {
   const [isStreaming, setIsStreaming] = useState(false)
@@ -16,18 +18,30 @@ export function useSSE() {
     abortControllerRef.current = new AbortController()
 
     try {
-      const accessToken = localStorage.getItem('accessToken')
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
-      const response = await fetch(`${API_URL}/api/chat/sessions/${sessionId}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
-        },
-        body: JSON.stringify({ content }),
-        signal: abortControllerRef.current.signal
-      })
+      const sendRequest = () => {
+        const { accessToken } = getStoredTokens()
+
+        return fetch(`${API_URL}/api/chat/sessions/${sessionId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
+          },
+          body: JSON.stringify({ content }),
+          signal: abortControllerRef.current?.signal
+        })
+      }
+
+      let response = await sendRequest()
+
+      if (response.status === 401) {
+        const refreshed = await refreshAccessToken()
+        if (refreshed) {
+          response = await sendRequest()
+        }
+      }
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
@@ -77,8 +91,8 @@ export function useSSE() {
       }
 
       onComplete()
-    } catch (err: any) {
-      if (err.name === 'AbortError') {
+    } catch (err: unknown) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
         console.log('Stream aborted')
       } else {
         console.error('SSE Error:', err)

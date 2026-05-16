@@ -1,16 +1,9 @@
+import { clearStoredTokens, getStoredTokens, storeStoredTokens } from './authStorage'
+
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
-/**
- * Get auth tokens from localStorage
- */
-function getTokens() {
-  const accessToken = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')
-  const refreshToken = localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken')
-  return { accessToken, refreshToken }
-}
-
-async function refreshAccessToken(): Promise<boolean> {
-  const { refreshToken } = getTokens()
+export async function refreshAccessToken(): Promise<boolean> {
+  const { refreshToken } = getStoredTokens()
   if (!refreshToken) return false
 
   try {
@@ -23,13 +16,10 @@ async function refreshAccessToken(): Promise<boolean> {
     if (!response.ok) return false
 
     const data = await response.json()
-    if (localStorage.getItem('refreshToken')) {
-      localStorage.setItem('accessToken', data.data.accessToken)
-      localStorage.setItem('refreshToken', data.data.refreshToken)
-    } else {
-      sessionStorage.setItem('accessToken', data.data.accessToken)
-      sessionStorage.setItem('refreshToken', data.data.refreshToken)
-    }
+    storeStoredTokens({
+      accessToken: data.data.accessToken,
+      refreshToken: data.data.refreshToken,
+    })
 
     return true
   } catch (error) {
@@ -45,7 +35,7 @@ export async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const { accessToken } = getTokens()
+  const { accessToken } = getStoredTokens()
 
   const headers = new Headers(options.headers)
   if (!headers.has('Content-Type')) {
@@ -80,10 +70,7 @@ export async function apiRequest<T>(
   if (!response.ok) {
     if (response.status === 401) {
       // Clear auth and redirect
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('refreshToken')
-      sessionStorage.removeItem('accessToken')
-      sessionStorage.removeItem('refreshToken')
+      clearStoredTokens()
       window.location.href = '/login'
     }
     throw new Error(data.error || 'Request failed')
