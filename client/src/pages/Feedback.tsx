@@ -122,8 +122,8 @@ export default function Feedback() {
 
       // Reset submitted state after animation
       setTimeout(() => setSubmitted(false), 5000)
-    } catch (err: any) {
-      setError(err.message || 'Failed to submit feedback')
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to submit feedback')
     } finally {
       setIsSubmitting(false)
     }

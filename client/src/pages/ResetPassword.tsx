@@ -71,7 +71,7 @@ export default function ResetPassword() {
         setStatus('error')
         setMessage(data.error || 'Failed to reset password')
       }
-    } catch (error) {
+    } catch {
       setStatus('error')
       setMessage('Failed to reset password. Please try again.')
     } finally {
