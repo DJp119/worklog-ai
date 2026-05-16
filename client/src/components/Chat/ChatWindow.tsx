@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { getChatMessages, type ChatMessage } from '../../lib/chatApi'
 import { useSSE } from '../../lib/useSSE'
 import MessageBubble from './MessageBubble'
@@ -18,26 +18,7 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
 
   const [streamingResponse, setStreamingResponse] = useState('')
 
-  useEffect(() => {
-    loadMessages()
-  }, [sessionId])
-
-  useEffect(() => {
-    scrollToBottom()
-  }, [messages, streamingResponse])
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto'
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
-    }
-  }, [inputValue])
-
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }
-
-  const loadMessages = async () => {
+  const loadMessages = useCallback(async () => {
     setIsLoading(true)
     try {
       const data = await getChatMessages(sessionId)
@@ -47,15 +28,30 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [sessionId])
 
-  const handleSend = async (e?: React.FormEvent) => {
+  useEffect(() => {
+    void loadMessages()
+  }, [loadMessages])
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages, streamingResponse])
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto'
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`
+    }
+  }, [inputValue])
+
+  const handleSend = async (e?: React.SyntheticEvent) => {
     e?.preventDefault()
     if (!inputValue.trim() || isStreaming) return
 
     const userMessageContent = inputValue.trim()
     setInputValue('')
-    
+
     // Optimistically add user message
     const tempUserMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -65,28 +61,33 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
       content: userMessageContent,
       created_at: new Date().toISOString()
     }
-    
+
     setMessages(prev => [...prev, tempUserMessage])
     setStreamingResponse('')
 
-    await streamMessage(
-      sessionId,
-      userMessageContent,
-      (text) => {
-        setStreamingResponse(prev => prev + text)
-      },
-      () => {
-        // When complete, reload messages to get the real IDs from DB
-        loadMessages()
-        setStreamingResponse('')
-      }
-    )
+    try {
+      await streamMessage(
+        sessionId,
+        userMessageContent,
+        (text) => {
+          setStreamingResponse(prev => prev + text)
+        },
+        () => {
+          // When complete, reload messages to get the real IDs from DB
+          void loadMessages()
+          setStreamingResponse('')
+        }
+      )
+    } catch (err) {
+      console.error('Send message error:', err)
+      // Don't reload on error - keep the temp message so user can retry
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      handleSend()
+      void handleSend(e)
     }
   }
 
@@ -112,10 +113,18 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
               </p>
             </div>
             <div className="flex flex-col w-full gap-2 mt-4">
-              <button onClick={() => setInputValue('What were my biggest accomplishments in this period?')} className="text-left text-sm p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5 transition-all">
+              <button
+                type="button"
+                onClick={() => setInputValue('What were my biggest accomplishments in this period?')}
+                className="text-left text-sm p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5 transition-all"
+              >
                 "What were my biggest accomplishments?"
               </button>
-              <button onClick={() => setInputValue('Draft a summary of my leadership impact.')} className="text-left text-sm p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5 transition-all">
+              <button
+                type="button"
+                onClick={() => setInputValue('Draft a summary of my leadership impact.')}
+                className="text-left text-sm p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5 transition-all"
+              >
                 "Draft a summary of my leadership impact."
               </button>
             </div>
@@ -150,7 +159,7 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
 
       {/* Input Area */}
       <div className="p-4 border-t border-white/10 bg-black/40">
-        <form onSubmit={handleSend} className="max-w-4xl mx-auto relative">
+        <div className="max-w-4xl mx-auto relative">
           <textarea
             ref={textareaRef}
             value={inputValue}
@@ -174,7 +183,8 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
             </button>
           ) : (
             <button
-              type="submit"
+              type="button"
+              onClick={handleSend}
               disabled={!inputValue.trim() || isLoading}
               className="absolute right-2 bottom-2 p-2 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:from-indigo-600 hover:to-purple-600 transition-all shadow-lg"
             >
@@ -183,7 +193,7 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
               </svg>
             </button>
           )}
-        </form>
+        </div>
         <div className="text-center mt-2">
           <p className="text-[10px] text-gray-500">
             Mistral AI may produce inaccurate information about your work. Always verify important claims.

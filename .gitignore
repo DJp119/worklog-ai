@@ -34,3 +34,5 @@ coverage/
 # Misc
 .cache/
 .env
+
+.claude/ralph-loop.local.md
