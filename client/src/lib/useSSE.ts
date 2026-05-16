@@ -6,19 +6,19 @@ export function useSSE() {
   const abortControllerRef = useRef<AbortController | null>(null)
 
   const streamMessage = useCallback(async (
-    sessionId: string, 
-    content: string, 
+    sessionId: string,
+    content: string,
     onDelta: (text: string) => void,
     onComplete: () => void
   ) => {
     setIsStreaming(true)
     setError(null)
     abortControllerRef.current = new AbortController()
-    
+
     try {
       const accessToken = localStorage.getItem('accessToken')
       const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
-      
+
       const response = await fetch(`${API_URL}/api/chat/sessions/${sessionId}/messages`, {
         method: 'POST',
         headers: {
@@ -29,13 +29,27 @@ export function useSSE() {
         signal: abortControllerRef.current.signal
       })
 
+      // Handle 401 Unauthorized - re-authenticate
+      if (response.status === 401) {
+        console.error('Authentication required. Please log in again.')
+        // Clear tokens and redirect to login
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        sessionStorage.removeItem('accessToken')
+        sessionStorage.removeItem('refreshToken')
+        window.location.href = '/login'
+        throw new Error('Session expired. Please log in again.')
+      }
+
       if (!response.ok) {
-        throw new Error('Failed to send message')
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
+        console.error('Chat API error:', response.status, errorData)
+        throw new Error(errorData.error || 'Failed to send message')
       }
 
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
-      
+
       if (!reader) throw new Error('No stream supported')
 
       let done = false
@@ -44,14 +58,14 @@ export function useSSE() {
       while (!done) {
         const { value, done: readerDone } = await reader.read()
         done = readerDone
-        
+
         if (value) {
           buffer += decoder.decode(value, { stream: true })
-          
+
           const lines = buffer.split('\n\n')
           // Last element is either empty string (if ends with \n\n) or partial event
           buffer = lines.pop() || ''
-          
+
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               const dataStr = line.slice(6)
@@ -63,6 +77,7 @@ export function useSSE() {
                   // Wait for completion but don't call immediately,
                   // loop will finish.
                 } else if (data.type === 'error') {
+                  console.error('SSE error from server:', data.error)
                   setError(data.error)
                 }
               } catch (e) {
@@ -72,7 +87,7 @@ export function useSSE() {
           }
         }
       }
-      
+
       onComplete()
     } catch (err: any) {
       if (err.name === 'AbortError') {

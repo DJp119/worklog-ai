@@ -126,6 +126,7 @@ export async function requireAuth(
         const authHeader = req.headers.authorization
 
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.log('[Auth] Missing or invalid auth header')
             res.status(401).json({ error: 'Unauthorized: Missing authorization header' })
             return
         }
@@ -134,18 +135,23 @@ export async function requireAuth(
         const payload = verifyToken(token)
 
         if (!payload) {
+            console.log('[Auth] Invalid or expired token')
+            // Log token prefix for debugging (first 10 chars only)
+            console.log('[Auth] Token prefix:', token.substring(0, 10) + '...')
             res.status(401).json({ error: 'Unauthorized: Invalid or expired token' })
             return
         }
 
         // Verify user still exists in database
-        const { data: user } = await supabase
+        const { data: user, error: userError } = await supabase
             .from('users')
             .select('id, email, name')
             .eq('id', payload.userId)
             .single()
 
-        if (!user) {
+        if (userError || !user) {
+            console.log('[Auth] User not found in database:', payload.userId)
+            if (userError) console.log('[Auth] DB error:', userError)
             res.status(401).json({ error: 'Unauthorized: User not found' })
             return
         }

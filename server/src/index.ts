@@ -12,7 +12,7 @@ import { feedbackRoutes } from './routes/feedback.js'
 import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { isDatabaseConfigured } from './lib/database.js'
-import { getPostHogClient, shutdownPostHog, captureException } from './lib/posthog.js'
+import { getPostHogClient, shutdownPostHog, captureException, captureEvent } from './lib/posthog.js'
 
 dotenv.config()
 
@@ -157,10 +157,50 @@ app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`)
   console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
 
+  // Critical environment variable checks
+  console.log('--- Environment Check ---')
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+    console.error('⚠️  WARNING: JWT_SECRET is missing or too short (< 32 chars)')
+    console.error('   Authentication will FAIL in production!')
+  } else {
+    console.log('✓ JWT_SECRET configured')
+  }
+
+  if (!process.env.SUPABASE_SERVICE_KEY) {
+    console.error('⚠️  WARNING: SUPABASE_SERVICE_KEY is missing')
+    console.error('   Database queries will FAIL!')
+  } else {
+    console.log('✓ SUPABASE_SERVICE_KEY configured')
+  }
+
+  if (!process.env.FRONTEND_URL) {
+    console.warn('⚠️  WARNING: FRONTEND_URL not set, CORS may be limited')
+  } else {
+    console.log('✓ FRONTEND_URL configured')
+  }
+
+  // Check AI providers
+  const hasNim = !!process.env.NVIDIA_NIM_API_KEY
+  const hasMistral = !!process.env.MISTRAL_API_KEY
+  if (!hasNim && !hasMistral) {
+    console.error('⚠️  WARNING: No AI provider configured (NVIDIA_NIM_API_KEY or MISTRAL_API_KEY)')
+    console.error('   Chat and appraisal features will FAIL!')
+  } else {
+    if (hasNim) console.log('✓ NVIDIA NIM configured')
+    if (hasMistral) console.log('✓ Mistral AI configured')
+  }
+  console.log('---------------')
+
   // Initialize PostHog
   const posthog = getPostHogClient()
   if (posthog) {
-    console.log('PostHog initialized')
+    console.log('✓ PostHog initialized')
+    captureEvent('system', 'server_started', {
+      has_jwt: !!process.env.JWT_SECRET,
+      has_supabase: !!process.env.SUPABASE_SERVICE_KEY,
+      has_nim: hasNim,
+      has_mistral: hasMistral,
+    })
   } else {
     console.log('PostHog not configured (set POSTHOG_API_KEY env var)')
   }
