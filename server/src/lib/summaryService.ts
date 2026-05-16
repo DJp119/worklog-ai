@@ -1,5 +1,5 @@
 import { supabase } from './supabase.js'
-import { mistral, chatModel } from './mistral.js'
+import { aiProvider } from './aiProvider.js'
 import type { WorkLogEntry, MonthlySummary } from 'shared'
 
 export async function generateMonthlySummary(userId: string, monthYear: string): Promise<MonthlySummary | null> {
@@ -62,15 +62,12 @@ ${formattedLogs}
 
 Generate the monthly summary:`
 
-    const message = await mistral.chat.complete({
-      model: chatModel,
-      messages: [
-        { role: 'system', content: 'You are an AI assistant that creates concise, factual work summaries from weekly logs.' },
-        { role: 'user', content: summaryPrompt }
-      ]
-    })
+    const response = await aiProvider.complete([
+      { role: 'system', content: 'You are an AI assistant that creates concise, factual work summaries from weekly logs.' },
+      { role: 'user', content: summaryPrompt }
+    ])
 
-    const content = message.choices?.[0]?.message?.content
+    const content = response.content
     const summaryText = (typeof content === 'string' ? content : '') || ''
     const wordCount = summaryText.split(/\s+/).length
     const sourceEntryIds = logs.map(l => l.id)
