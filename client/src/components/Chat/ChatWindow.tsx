@@ -55,7 +55,7 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
 
     const userMessageContent = inputValue.trim()
     setInputValue('')
-    
+
     // Optimistically add user message
     const tempUserMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -65,22 +65,27 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
       content: userMessageContent,
       created_at: new Date().toISOString()
     }
-    
+
     setMessages(prev => [...prev, tempUserMessage])
     setStreamingResponse('')
 
-    await streamMessage(
-      sessionId,
-      userMessageContent,
-      (text) => {
-        setStreamingResponse(prev => prev + text)
-      },
-      () => {
-        // When complete, reload messages to get the real IDs from DB
-        loadMessages()
-        setStreamingResponse('')
-      }
-    )
+    try {
+      await streamMessage(
+        sessionId,
+        userMessageContent,
+        (text) => {
+          setStreamingResponse(prev => prev + text)
+        },
+        () => {
+          // When complete, reload messages to get the real IDs from DB
+          loadMessages()
+          setStreamingResponse('')
+        }
+      )
+    } catch (err) {
+      console.error('Send message error:', err)
+      // Don't reload on error - keep the temp message so user can retry
+    }
   }
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -112,10 +117,18 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
               </p>
             </div>
             <div className="flex flex-col w-full gap-2 mt-4">
-              <button onClick={() => setInputValue('What were my biggest accomplishments in this period?')} className="text-left text-sm p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5 transition-all">
+              <button
+                type="button"
+                onClick={() => setInputValue('What were my biggest accomplishments in this period?')}
+                className="text-left text-sm p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5 transition-all"
+              >
                 "What were my biggest accomplishments?"
               </button>
-              <button onClick={() => setInputValue('Draft a summary of my leadership impact.')} className="text-left text-sm p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5 transition-all">
+              <button
+                type="button"
+                onClick={() => setInputValue('Draft a summary of my leadership impact.')}
+                className="text-left text-sm p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5 transition-all"
+              >
                 "Draft a summary of my leadership impact."
               </button>
             </div>

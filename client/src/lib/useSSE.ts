@@ -29,18 +29,6 @@ export function useSSE() {
         signal: abortControllerRef.current.signal
       })
 
-      // Handle 401 Unauthorized - re-authenticate
-      if (response.status === 401) {
-        console.error('Authentication required. Please log in again.')
-        // Clear tokens and redirect to login
-        localStorage.removeItem('accessToken')
-        localStorage.removeItem('refreshToken')
-        sessionStorage.removeItem('accessToken')
-        sessionStorage.removeItem('refreshToken')
-        window.location.href = '/login'
-        throw new Error('Session expired. Please log in again.')
-      }
-
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
         console.error('Chat API error:', response.status, errorData)
