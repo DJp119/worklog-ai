@@ -1,4 +1,5 @@
 import { PostHog } from 'posthog-node'
+import { logger } from './logger.js'
 
 const postHogKey =
   process.env.POSTHOG_API_KEY || process.env.POSTHOG_KEY || ''
@@ -42,7 +43,7 @@ export function captureEvent(
       properties,
     })
   } catch (error) {
-    console.error('PostHog capture error:', error)
+    logger.error('PostHog capture error: {}', error instanceof Error ? error.message : String(error), error)
   }
 }
 
@@ -59,7 +60,7 @@ export function identifyUser(distinctId: string, properties?: Record<string, any
       properties,
     })
   } catch (error) {
-    console.error('PostHog identify error:', error)
+    logger.error('PostHog identify error: {}', error instanceof Error ? error.message : String(error), error)
   }
 }
 
@@ -77,7 +78,7 @@ export function captureException(
   try {
     client.captureException(error, distinctId, properties)
   } catch (e) {
-    console.error('PostHog captureException error:', e)
+    logger.error('PostHog captureException error: {}', e instanceof Error ? e.message : String(e), e)
   }
 }
 

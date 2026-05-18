@@ -3,6 +3,7 @@ import { mistral, chatModel } from '../lib/mistral.js'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import type { GeneratedAppraisal, GenerateAppraisalRequest, ApiResponse } from 'shared'
 import { captureEvent, captureException } from '../lib/posthog.js'
+import { logger } from '../lib/logger.js'
 
 export const appraisalRoutes = Router()
 
@@ -40,7 +41,7 @@ appraisalRoutes.post('/generate', requireAuth, async (req: AuthRequest, res) => 
       .order('week_start_date', { ascending: true })
 
     if (fetchError) {
-      console.error('Fetch work logs error:', fetchError)
+      logger.error('Fetch work logs error: {}', fetchError.message, fetchError)
       return res.status(500).json({ success: false, error: 'Failed to fetch work logs' })
     }
 
@@ -101,14 +102,14 @@ Write the self-appraisal:`
       if (apiError instanceof Error && 'status' in apiError) {
         const status = (apiError as { status?: number }).status
         if (status === 429) {
-          console.error('Mistral API quota exceeded')
+          logger.error('Mistral API quota exceeded')
           return res.status(503).json({
             success: false,
             error: 'AI service temporarily unavailable due to quota limits. Please try again tomorrow.'
           })
         }
         if (status === 400 || status === 401 || status === 403) {
-          console.error('Mistral API configuration error:', apiError)
+          logger.error('Mistral API configuration error: {}', apiError.message, apiError)
           return res.status(400).json({
             success: false,
             error: 'Invalid API configuration. Please contact support.'
@@ -122,7 +123,7 @@ Write the self-appraisal:`
     const generatedText = (typeof content === 'string' ? content : '') || ''
 
     if (!generatedText) {
-      console.error('No content generated from Mistral API')
+      logger.error('No content generated from Mistral API')
       return res.status(500).json({
         success: false,
         error: 'Failed to generate appraisal content'
@@ -143,7 +144,7 @@ Write the self-appraisal:`
       .single()
 
     if (saveError) {
-      console.error('Save appraisal error:', saveError)
+      logger.error('Save appraisal error: {}', saveError.message, saveError)
     }
 
     const wordCount = generatedText.split(/\s+/).length
@@ -170,7 +171,7 @@ Write the self-appraisal:`
       }
     })
   } catch (error) {
-    console.error('Generate appraisal error:', error)
+    logger.error('Generate appraisal error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
@@ -192,13 +193,13 @@ appraisalRoutes.get('/history', requireAuth, async (req: AuthRequest, res) => {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Fetch appraisal history error:', error)
+      logger.error('Fetch appraisal history error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to fetch appraisal history' })
     }
 
     res.json({ success: true, data: data || [] })
   } catch (error) {
-    console.error('Appraisal history error:', error)
+    logger.error('Appraisal history error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -226,7 +227,7 @@ appraisalRoutes.get('/:id', requireAuth, async (req: AuthRequest, res) => {
 
     res.json({ success: true, data })
   } catch (error) {
-    console.error('Fetch appraisal error:', error)
+    logger.error('Fetch appraisal error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })

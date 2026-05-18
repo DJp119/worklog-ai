@@ -3,6 +3,7 @@ import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import type { WorkLogEntry, CreateWorkLogRequest, ApiResponse } from 'shared'
 import { invalidateMonthlySummary } from '../lib/summaryService.js'
 import { captureEvent, captureException } from '../lib/posthog.js'
+import { logger } from '../lib/logger.js'
 
 export const entriesRoutes = Router()
 
@@ -22,13 +23,13 @@ entriesRoutes.get('/', requireAuth, async (req: AuthRequest, res) => {
       .order('week_start_date', { ascending: false })
 
     if (error) {
-      console.error('Fetch entries error:', error)
+      logger.error('Fetch entries error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to fetch entries' })
     }
 
     res.json({ success: true, data: data || [] })
   } catch (error) {
-    console.error('Entries error:', error)
+    logger.error('Entries error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -56,7 +57,7 @@ entriesRoutes.get('/:id', requireAuth, async (req: AuthRequest, res) => {
 
     res.json({ success: true, data })
   } catch (error) {
-    console.error('Fetch entry error:', error)
+    logger.error('Fetch entry error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -97,7 +98,7 @@ entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
       .single()
 
     if (error) {
-      console.error('Create entry error:', error)
+      logger.error('Create entry error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to create entry' })
     }
 
@@ -105,7 +106,7 @@ entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
     if (data && data.week_start_date) {
       // Don't await to avoid slowing down the response
       invalidateMonthlySummary(userId, data.week_start_date).catch(err => {
-        console.error('Failed to invalidate monthly summary on entry create:', err)
+        logger.error('Failed to invalidate monthly summary on entry create: {}', err.message, err)
       })
     }
 
@@ -120,7 +121,7 @@ entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
 
     res.status(201).json({ success: true, data })
   } catch (error) {
-    console.error('Create entry error:', error)
+    logger.error('Create entry error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
@@ -155,7 +156,7 @@ entriesRoutes.put('/:id', requireAuth, async (req: AuthRequest, res) => {
     // Invalidate monthly summary since we modified a log
     if (data && data.week_start_date) {
       invalidateMonthlySummary(userId, data.week_start_date).catch(err => {
-        console.error('Failed to invalidate monthly summary on entry update:', err)
+        logger.error('Failed to invalidate monthly summary on entry update: {}', err.message, err)
       })
     }
 
@@ -166,7 +167,7 @@ entriesRoutes.put('/:id', requireAuth, async (req: AuthRequest, res) => {
 
     res.json({ success: true, data })
   } catch (error) {
-    console.error('Update entry error:', error)
+    logger.error('Update entry error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
@@ -200,7 +201,7 @@ entriesRoutes.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
     // Invalidate monthly summary since we deleted a log
     if (deletedData && deletedData.week_start_date) {
       invalidateMonthlySummary(userId, deletedData.week_start_date).catch(err => {
-        console.error('Failed to invalidate monthly summary on entry delete:', err)
+        logger.error('Failed to invalidate monthly summary on entry delete: {}', err.message, err)
       })
     }
 
@@ -211,7 +212,7 @@ entriesRoutes.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
 
     res.json({ success: true, data: null })
   } catch (error) {
-    console.error('Delete entry error:', error)
+    logger.error('Delete entry error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }

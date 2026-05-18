@@ -7,6 +7,7 @@ import {
   buildSystemPrompt, 
   applySlidingWindow 
 } from '../lib/chatService.js'
+import { logger } from '../lib/logger.js'
 
 export const chatRoutes = Router()
 
@@ -26,13 +27,13 @@ chatRoutes.get('/sessions', requireAuth, async (req: AuthRequest, res) => {
       .order('updated_at', { ascending: false })
 
     if (error) {
-      console.error('Fetch chat sessions error:', error)
+      logger.error('Fetch chat sessions error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to fetch chat sessions' })
     }
 
     res.json({ success: true, data: data || [] })
   } catch (error) {
-    console.error('Chat sessions error:', error)
+    logger.error('Chat sessions error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -65,13 +66,13 @@ chatRoutes.post('/sessions', requireAuth, async (req: AuthRequest, res) => {
       .single()
 
     if (error) {
-      console.error('Create chat session error:', error)
+      logger.error('Create chat session error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to create chat session' })
     }
 
     res.status(201).json({ success: true, data })
   } catch (error) {
-    console.error('Create chat session error:', error)
+    logger.error('Create chat session error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -93,13 +94,13 @@ chatRoutes.delete('/sessions/:id', requireAuth, async (req: AuthRequest, res) =>
       .eq('user_id', userId)
 
     if (error) {
-      console.error('Delete chat session error:', error)
+      logger.error('Delete chat session error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to delete chat session' })
     }
 
     res.json({ success: true, data: null })
   } catch (error) {
-    console.error('Delete chat session error:', error)
+    logger.error('Delete chat session error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -123,7 +124,7 @@ chatRoutes.get('/sessions/:id/messages', requireAuth, async (req: AuthRequest, r
       .single()
 
     if (sessionError) {
-      console.error('Session verify error:', sessionError)
+      logger.error('Session verify error: {}', sessionError.message, sessionError)
     }
 
     if (!session) {
@@ -137,13 +138,13 @@ chatRoutes.get('/sessions/:id/messages', requireAuth, async (req: AuthRequest, r
       .order('created_at', { ascending: true })
 
     if (error) {
-      console.error('Fetch chat messages error:', error)
+      logger.error('Fetch chat messages error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to fetch messages' })
     }
 
     res.json({ success: true, data: data || [] })
   } catch (error) {
-    console.error('Chat messages error:', error)
+    logger.error('Chat messages error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -172,7 +173,7 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
       .single()
 
     if (sessionError) {
-      console.error('Session verify error in POST:', sessionError)
+      logger.error('Session verify error in POST: {}', sessionError.message, sessionError)
     }
 
     if (sessionError || !session) {
@@ -251,9 +252,9 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
       res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
     } catch (aiError: any) {
       if (aiError.name === 'AbortError' || abortController.signal.aborted) {
-        console.log('Stream aborted by client')
+        logger.info('Stream aborted by client')
       } else {
-        console.error('Mistral API error:', aiError)
+        logger.error('Mistral API error: {}', aiError instanceof Error ? aiError.message : String(aiError), aiError)
         res.write(`data: ${JSON.stringify({ type: 'error', error: 'AI generation failed' })}\n\n`)
       }
     }
@@ -271,7 +272,7 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
     res.end()
 
   } catch (error) {
-    console.error('Chat stream error:', error)
+    logger.error('Chat stream error: {}', error instanceof Error ? error.message : String(error), error)
     if (!res.headersSent) {
       res.status(500).json({ success: false, error: 'Internal server error' })
     } else {

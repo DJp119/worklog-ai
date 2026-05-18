@@ -18,6 +18,7 @@ import {
   type JWTPayload,
 } from '../middleware/auth.js'
 import { captureEvent, captureException, identifyUser } from '../lib/posthog.js'
+import { logger } from '../lib/logger.js'
 
 export const authRoutes = Router()
 
@@ -72,7 +73,7 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
         // Unique violation
         return res.status(400).json({ error: 'Email already registered' })
       }
-      console.error('Signup user create error:', userError)
+      logger.error('Signup user create error: {}', userError.message, userError)
       return res.status(500).json({ error: 'Failed to create account' })
     }
 
@@ -90,21 +91,14 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
       })
 
     if (verificationError) {
-      console.error('Verification token error:', verificationError)
+      logger.error('Verification token error: {}', verificationError.message, verificationError)
       // Don't fail signup if token creation fails, but log the error
     }
 
     // Send verification email (don't fail signup if email fails)
-    console.log('=== EMAIL DEBUG ===')
-    console.log('Sending verification email to:', email)
-    console.log('User ID:', userData.id)
-    console.log('BREVO_FROM_EMAIL:', process.env.BREVO_FROM_EMAIL)
-    console.log('BREVO_API_KEY configured:', !!process.env.BREVO_API_KEY)
     const emailSent = await sendVerificationEmail(email, userData.id, emailToken)
-    console.log('Email sent result:', emailSent ? 'SUCCESS' : 'FAILED')
-    console.log('=== END EMAIL DEBUG ===')
     if (!emailSent) {
-      console.warn('Verification email not sent (Brevo not configured or failed)')
+      logger.warn('Verification email not sent (Brevo not configured or failed)')
     }
 
     identifyUser(userData.id, {
@@ -131,7 +125,7 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
       },
     })
   } catch (error) {
-    console.error('Signup error:', error)
+    logger.error('Signup error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
@@ -174,7 +168,7 @@ authRoutes.post('/verify-email', async (req: AuthRequest, res: Response) => {
       .eq('id', userId)
 
     if (updateError) {
-      console.error('Email verification update error:', updateError)
+      logger.error('Email verification update error: {}', updateError.message, updateError)
       return res.status(500).json({ error: 'Failed to verify email' })
     }
 
@@ -188,7 +182,7 @@ authRoutes.post('/verify-email', async (req: AuthRequest, res: Response) => {
       message: 'Email verified successfully',
     })
   } catch (error) {
-    console.error('Email verification error:', error)
+    logger.error('Email verification error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
@@ -261,7 +255,7 @@ authRoutes.post('/login', async (req: AuthRequest, res: Response) => {
       },
     })
   } catch (error) {
-    console.error('Login error:', error)
+    logger.error('Login error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
@@ -286,7 +280,7 @@ authRoutes.post('/logout', async (req: AuthRequest, res: Response) => {
 
     res.json({ success: true })
   } catch (error) {
-    console.error('Logout error:', error)
+    logger.error('Logout error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -323,7 +317,7 @@ authRoutes.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
       },
     })
   } catch (error) {
-    console.error('Get user profile error:', error)
+    logger.error('Get user profile error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -375,14 +369,14 @@ authRoutes.post('/forgot-password', async (req: AuthRequest, res: Response) => {
       })
 
     if (tokenError) {
-      console.error('Password reset token error:', tokenError)
+      logger.error('Password reset token error: {}', tokenError.message, tokenError)
       // Don't fail the request, just log the error
     }
 
     // Send reset email
     const emailSent = await sendPasswordResetEmail(user.email, user.id, resetToken)
     if (!emailSent) {
-      console.warn('Password reset email not sent (Brevo not configured)')
+      logger.warn('Password reset email not sent (Brevo not configured)')
     }
 
     captureEvent(user.id, 'password_reset_requested', {
@@ -394,7 +388,7 @@ authRoutes.post('/forgot-password', async (req: AuthRequest, res: Response) => {
       message: 'If an account exists with this email, a password reset link has been sent.',
     })
   } catch (error) {
-    console.error('Forgot password error:', error)
+    logger.error('Forgot password error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
@@ -445,7 +439,7 @@ authRoutes.post('/reset-password', async (req: AuthRequest, res: Response) => {
       .eq('id', resetData.user_id)
 
     if (updateError) {
-      console.error('Password update error:', updateError)
+      logger.error('Password update error: {}', updateError.message, updateError)
       return res.status(500).json({ error: 'Failed to reset password' })
     }
 
@@ -459,7 +453,7 @@ authRoutes.post('/reset-password', async (req: AuthRequest, res: Response) => {
       message: 'Password reset successfully',
     })
   } catch (error) {
-    console.error('Reset password error:', error)
+    logger.error('Reset password error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
@@ -506,7 +500,7 @@ authRoutes.post('/refresh', async (req: AuthRequest, res: Response) => {
       },
     })
   } catch (error) {
-    console.error('Token refresh error:', error)
+    logger.error('Token refresh error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

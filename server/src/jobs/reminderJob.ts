@@ -1,6 +1,9 @@
 import cron from 'node-cron'
+import { randomUUID } from 'crypto'
 import { supabase } from '../lib/database.js'
 import { sendReminderEmail } from '../lib/email.js'
+import { logger } from '../lib/logger.js'
+import { mdc } from '../lib/mdc.js'
 
 interface ReminderUser {
     id: string
@@ -21,12 +24,12 @@ class ReminderJob {
     start(): void {
         // Run every hour at minute 0
         this.task = cron.schedule('0 * * * *', () => {
-            console.log('Reminder cron: checking for users to remind...')
+            logger.info('Reminder cron: checking for users to remind...')
             this.sendReminders().catch(err => {
-                console.error('Reminder cron error:', err)
+                logger.error('Reminder cron error: {}', err.message, err)
             })
         })
-        console.log('Reminder cron job scheduled (0 * * * * — every hour)')
+        logger.info('Reminder cron job scheduled (0 * * * * — every hour)')
     }
 
     /**
@@ -36,7 +39,7 @@ class ReminderJob {
         if (this.task) {
             this.task.stop()
             this.task = null
-            console.log('Reminder job stopped')
+            logger.info('Reminder job stopped')
         }
     }
 
@@ -45,12 +48,14 @@ class ReminderJob {
      * and send them a reminder email.
      */
     private async sendReminders(): Promise<void> {
-        const now = new Date()
+        const jobRunId = randomUUID()
+        await mdc.run({ jobRunId, jobName: 'reminder' }, async () => {
+            const now = new Date()
         const utcDay = now.getUTCDay()   // 0 = Sunday, 6 = Saturday
         const utcHour = now.getUTCHours()
         const utcTimeStr = `${utcHour.toString().padStart(2, '0')}:00`
 
-        console.log(`Reminder cron: UTC day=${utcDay}, hour=${utcTimeStr}`)
+        logger.with('utcDay', utcDay).with('utcHour', utcTimeStr).info('Reminder cron: checking schedule')
 
         try {
             // Query users with matching reminder preferences
@@ -62,16 +67,16 @@ class ReminderJob {
                 .eq('reminder_time', utcTimeStr)
 
             if (error) {
-                console.error('Reminder cron: DB query error:', error)
+                logger.error('Reminder cron: DB query error: {}', error.message, error)
                 return
             }
 
             if (!users || users.length === 0) {
-                console.log('Reminder cron: no users to remind at this time')
+                logger.info('Reminder cron: no users to remind at this time')
                 return
             }
 
-            console.log(`Reminder cron: found ${users.length} user(s) to remind`)
+            logger.with('userCount', users.length).info('Reminder cron: found users to remind')
 
             let successCount = 0
             let failCount = 0
@@ -95,7 +100,7 @@ class ReminderJob {
                     }
                 } catch (err) {
                     failCount++
-                    console.error(`Reminder cron: failed for user ${user.id}:`, err)
+                    logger.with('targetUserId', user.id).error('Reminder cron: failed for user: {}', err instanceof Error ? err.message : String(err), err)
 
                     // Log the failure
                     try {
@@ -107,15 +112,16 @@ class ReminderJob {
                         })
                     } catch (logErr) {
                         // don't let logging failure crash the loop
-                        console.error('Reminder cron: failed to log error:', logErr)
+                        logger.error('Reminder cron: failed to log error: {}', logErr instanceof Error ? logErr.message : String(logErr), logErr)
                     }
                 }
             }
 
-            console.log(`Reminder cron completed. Sent: ${successCount}, Failed: ${failCount}`)
+            logger.with('successCount', successCount).with('failCount', failCount).info('Reminder cron completed')
         } catch (err) {
-            console.error('Reminder cron: unexpected error:', err)
+            logger.error('Reminder cron: unexpected error: {}', err instanceof Error ? err.message : String(err), err)
         }
+        })
     }
 
     /**

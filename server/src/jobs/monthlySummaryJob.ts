@@ -1,6 +1,9 @@
 import cron from 'node-cron'
+import { randomUUID } from 'crypto'
 import { supabase } from '../lib/supabase.js'
 import { generateMonthlySummary } from '../lib/summaryService.js'
+import { logger } from '../lib/logger.js'
+import { mdc } from '../lib/mdc.js'
 
 function getPreviousMonth(): string {
   const date = new Date()
@@ -21,17 +24,19 @@ class MonthlySummaryJob {
   start(): void {
     // Run on 1st of every month at 2:00 AM
     const task = cron.schedule('0 2 1 * *', () => {
-      console.log('Starting monthly summary generation job...')
+      logger.info('Starting monthly summary generation job...')
       this.generateAllSummaries().catch(err => {
-        console.error('Error running monthly summary job:', err)
+        logger.error('Error running monthly summary job: {}', err.message, err)
       })
     })
     this.cronExpressions.push(task)
-    console.log('Monthly summary cron job scheduled (0 2 1 * *)')
+    logger.info('Monthly summary cron job scheduled (0 2 1 * *)')
   }
 
   async generateAllSummaries(): Promise<void> {
-    const lastMonth = getPreviousMonth() // e.g., '2025-04-01'
+    const jobRunId = randomUUID()
+    await mdc.run({ jobRunId, jobName: 'monthly_summary' }, async () => {
+      const lastMonth = getPreviousMonth() // e.g., '2025-04-01'
     
     // Find users with entries in that month
     const { data: users, error } = await supabase
@@ -41,7 +46,7 @@ class MonthlySummaryJob {
       .lt('week_start_date', getNextMonth(lastMonth))
     
     if (error) {
-      console.error('Failed to fetch users for monthly summary:', error)
+      logger.error('Failed to fetch users for monthly summary: {}', error.message, error)
       return
     }
 
@@ -68,19 +73,20 @@ class MonthlySummaryJob {
             failureCount++
           }
         } catch (err) {
-          console.error(`Failed to generate summary for user ${userId}:`, err)
+          logger.with('targetUserId', userId).error('Failed to generate summary for user: {}', err instanceof Error ? err.message : String(err), err)
           failureCount++
         }
       }
     }
 
-    console.log(`Monthly summary job completed. Success: ${successCount}, Failures: ${failureCount}`)
+    logger.with('successCount', successCount).with('failureCount', failureCount).info('Monthly summary job completed')
+    })
   }
 
   stop(): void {
     this.cronExpressions.forEach(task => task.stop())
     this.cronExpressions = []
-    console.log('Monthly summary cron job stopped')
+    logger.info('Monthly summary cron job stopped')
   }
 }
 

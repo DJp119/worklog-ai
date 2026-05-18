@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import dotenv from 'dotenv'
+import { logger } from './logger.js'
 
 dotenv.config()
 
@@ -23,14 +24,14 @@ const supabaseServiceKey = firstDefined([
 export const isDatabaseConfigured = Boolean(supabaseUrl && supabaseServiceKey)
 
 if (!isDatabaseConfigured) {
-    console.error('Missing database environment variables:')
+    logger.error('Missing database environment variables:')
     if (!supabaseUrl) {
-        console.error(' - Set SUPABASE_URL (or VITE_SUPABASE_URL)')
+        logger.error(' - Set SUPABASE_URL (or VITE_SUPABASE_URL)')
     }
     if (!supabaseServiceKey) {
-        console.error(' - Set SUPABASE_SERVICE_KEY or SUPABASE_SERVICE_ROLE_KEY')
+        logger.error(' - Set SUPABASE_SERVICE_KEY or SUPABASE_SERVICE_ROLE_KEY')
     }
-    console.error('Continuing startup without database. API routes will fail until env vars are set.')
+    logger.error('Continuing startup without database. API routes will fail until env vars are set.')
 }
 
 export const runtimeSupabaseUrl = supabaseUrl || 'https://placeholder.supabase.co'
