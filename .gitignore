@@ -36,3 +36,8 @@ coverage/
 .env
 
 .claude/ralph-loop.local.md
+.agents/skills
+
+.claude
+.codex
+.qwen/skills
