@@ -25,6 +25,7 @@ appraisalRoutes.post('/generate', requireAuth, async (req: AuthRequest, res) => 
 
     // Validate required fields
     if (!body.period_start || !body.period_end || !body.criteria_text) {
+      logger.warn('Appraisal generation failed: Missing required fields')
       return res.status(400).json({
         success: false,
         error: 'Missing required fields: period_start, period_end, criteria_text'
@@ -46,6 +47,7 @@ appraisalRoutes.post('/generate', requireAuth, async (req: AuthRequest, res) => 
     }
 
     if (!workLogs || workLogs.length === 0) {
+      logger.warn('Appraisal generation failed: No work logs found for period {} to {}', body.period_start, body.period_end)
       return res.status(400).json({
         success: false,
         error: 'No work logs found for the specified period'
@@ -83,6 +85,8 @@ INSTRUCTIONS:
 - Structure with clear paragraphs for each major criterion
 
 Write the self-appraisal:`
+
+    logger.info('Starting Mistral API call for appraisal generation')
 
     // Call Mistral API
     let result
@@ -130,6 +134,8 @@ Write the self-appraisal:`
       })
     }
 
+    logger.info('Successfully generated appraisal content from Mistral API')
+
     // Save to database
     const { data: appraisal, error: saveError } = await supabase
       .from('generated_appraisals')
@@ -157,6 +163,8 @@ Write the self-appraisal:`
       has_company_goals: !!body.company_goals,
       has_values: !!body.values,
     })
+
+    logger.with('appraisalId', appraisal?.id).info('Successfully saved generated appraisal')
 
     res.json({
       success: true,
@@ -197,6 +205,8 @@ appraisalRoutes.get('/history', requireAuth, async (req: AuthRequest, res) => {
       return res.status(500).json({ success: false, error: 'Failed to fetch appraisal history' })
     }
 
+    logger.with('count', data?.length || 0).info('Successfully fetched appraisal history')
+
     res.json({ success: true, data: data || [] })
   } catch (error) {
     logger.error('Appraisal history error: {}', error instanceof Error ? error.message : String(error), error)
@@ -222,8 +232,11 @@ appraisalRoutes.get('/:id', requireAuth, async (req: AuthRequest, res) => {
       .single()
 
     if (error) {
+      logger.with('appraisalId', id).warn('Appraisal not found or unauthorized')
       return res.status(404).json({ success: false, error: 'Appraisal not found' })
     }
+
+    logger.with('appraisalId', id).info('Successfully fetched appraisal')
 
     res.json({ success: true, data })
   } catch (error) {

@@ -25,8 +25,11 @@ userRoutes.get('/profile', async (req: AuthRequest, res: Response) => {
             .single()
 
         if (error || !user) {
+            logger.warn('Get profile failed: Profile not found')
             return res.status(404).json({ success: false, error: 'Profile not found' })
         }
+
+        logger.info('Successfully fetched user profile')
 
         res.json({
             success: true,
@@ -68,6 +71,7 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
 
         // Validate reminder_day if provided
         if (reminder_day !== undefined && (reminder_day < 0 || reminder_day > 6)) {
+            logger.warn('Update profile validation failed: reminder_day must be 0-6')
             return res.status(400).json({ success: false, error: 'reminder_day must be 0-6 (Sunday-Saturday)' })
         }
 
@@ -105,6 +109,8 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
             updated_fields: Object.keys(updateData).filter(k => k !== 'updated_at'),
         })
 
+        logger.info('Successfully updated user profile')
+
         res.json({
             success: true,
             data: {
@@ -135,6 +141,7 @@ userRoutes.put('/password', async (req: AuthRequest, res: Response) => {
         const { currentPassword, newPassword } = req.body
 
         if (!currentPassword || !newPassword) {
+            logger.warn('Change password validation failed: Current password and new password required')
             return res.status(400).json({ success: false, error: 'Current password and new password required' })
         }
 
@@ -146,18 +153,21 @@ userRoutes.put('/password', async (req: AuthRequest, res: Response) => {
             .single()
 
         if (!user) {
+            logger.warn('Change password failed: User not found')
             return res.status(404).json({ success: false, error: 'User not found' })
         }
 
         // Verify current password
         const isValid = await comparePassword(currentPassword, user.password_hash)
         if (!isValid) {
+            logger.warn('Change password failed: Current password is incorrect')
             return res.status(401).json({ success: false, error: 'Current password is incorrect' })
         }
 
         // Validate new password
         const passwordValidation = validatePasswordStrength(newPassword)
         if (!passwordValidation.valid) {
+            logger.warn('Change password failed: Password strength requirements not met')
             return res.status(400).json({ success: false, error: passwordValidation.errors.join(', ') })
         }
 
@@ -186,6 +196,8 @@ userRoutes.put('/password', async (req: AuthRequest, res: Response) => {
             })
             .eq('user_id', userId)
             .eq('revoked', false)
+
+        logger.info('Password successfully updated')
 
         res.json({
             success: true,
@@ -217,6 +229,8 @@ userRoutes.delete('/account', async (req: AuthRequest, res: Response) => {
         }
 
         captureEvent(userId, 'account_deleted')
+
+        logger.info('Account deleted successfully')
 
         res.json({
             success: true,
