@@ -27,6 +27,8 @@ entriesRoutes.get('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(500).json({ success: false, error: 'Failed to fetch entries' })
     }
 
+    logger.with('count', data?.length || 0).info('Successfully fetched entries')
+
     res.json({ success: true, data: data || [] })
   } catch (error) {
     logger.error('Entries error: {}', error instanceof Error ? error.message : String(error), error)
@@ -52,8 +54,11 @@ entriesRoutes.get('/:id', requireAuth, async (req: AuthRequest, res) => {
       .single()
 
     if (error) {
+      logger.with('entryId', id).warn('Entry not found or unauthorized')
       return res.status(404).json({ success: false, error: 'Entry not found' })
     }
+
+    logger.with('entryId', id).info('Successfully fetched entry')
 
     res.json({ success: true, data })
   } catch (error) {
@@ -77,6 +82,7 @@ entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
     const missing = required.filter(field => !body[field as keyof CreateWorkLogRequest])
 
     if (missing.length > 0) {
+      logger.warn('Create entry validation failed: Missing fields {}', missing.join(', '))
       return res.status(400).json({
         success: false,
         error: `Missing required fields: ${missing.join(', ')}`
@@ -119,6 +125,8 @@ entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
       hours_logged: body.hours_logged ?? null,
     })
 
+    logger.with('entryId', data?.id).info('Successfully created new entry')
+
     res.status(201).json({ success: true, data })
   } catch (error) {
     logger.error('Create entry error: {}', error instanceof Error ? error.message : String(error), error)
@@ -150,6 +158,7 @@ entriesRoutes.put('/:id', requireAuth, async (req: AuthRequest, res) => {
       .single()
 
     if (error) {
+      logger.with('entryId', id).warn('Update entry failed: Not found or unauthorized')
       return res.status(404).json({ success: false, error: 'Entry not found' })
     }
 
@@ -164,6 +173,8 @@ entriesRoutes.put('/:id', requireAuth, async (req: AuthRequest, res) => {
       entry_id: id,
       week_start_date: data?.week_start_date,
     })
+
+    logger.with('entryId', id).info('Successfully updated entry')
 
     res.json({ success: true, data })
   } catch (error) {
@@ -195,6 +206,7 @@ entriesRoutes.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
       .single()
 
     if (error) {
+      logger.with('entryId', id).warn('Delete entry failed: Not found or unauthorized')
       return res.status(404).json({ success: false, error: 'Entry not found' })
     }
 
@@ -209,6 +221,8 @@ entriesRoutes.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
       entry_id: id,
       week_start_date: deletedData?.week_start_date,
     })
+
+    logger.with('entryId', id).info('Successfully deleted entry')
 
     res.json({ success: true, data: null })
   } catch (error) {

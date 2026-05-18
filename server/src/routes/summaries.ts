@@ -25,6 +25,8 @@ summariesRoutes.get('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(500).json({ success: false, error: 'Failed to fetch summaries' })
     }
 
+    logger.with('count', data?.length || 0).info('Successfully fetched monthly summaries')
+
     res.json({ success: true, data: data || [] })
   } catch (error) {
     logger.error('Summaries error: {}', error instanceof Error ? error.message : String(error), error)
@@ -43,6 +45,7 @@ summariesRoutes.post('/generate', requireAuth, async (req: AuthRequest, res) => 
     const { monthYear } = req.body
 
     if (!monthYear || typeof monthYear !== 'string' || !/^\d{4}-\d{2}-01$/.test(monthYear)) {
+      logger.warn('Generate summary validation failed: Invalid monthYear format')
       return res.status(400).json({ 
         success: false, 
         error: 'Invalid monthYear. Must be YYYY-MM-01 format' 
@@ -53,11 +56,14 @@ summariesRoutes.post('/generate', requireAuth, async (req: AuthRequest, res) => 
 
     if (!summary) {
       // It could be null because there are no logs
+      logger.warn('Generate summary failed: No work logs found for this month')
       return res.status(404).json({ 
         success: false, 
         error: 'No work logs found for this month, or generation failed' 
       })
     }
+
+    logger.info('Successfully generated monthly summary')
 
     res.status(200).json({ success: true, data: summary })
   } catch (error) {

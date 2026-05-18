@@ -31,6 +31,8 @@ chatRoutes.get('/sessions', requireAuth, async (req: AuthRequest, res) => {
       return res.status(500).json({ success: false, error: 'Failed to fetch chat sessions' })
     }
 
+    logger.with('count', data?.length || 0).info('Successfully fetched chat sessions')
+
     res.json({ success: true, data: data || [] })
   } catch (error) {
     logger.error('Chat sessions error: {}', error instanceof Error ? error.message : String(error), error)
@@ -49,6 +51,7 @@ chatRoutes.post('/sessions', requireAuth, async (req: AuthRequest, res) => {
     const { period_start, period_end } = req.body
 
     if (!period_start || !period_end) {
+      logger.warn('Create chat session validation failed: period_start and period_end are required')
       return res.status(400).json({ success: false, error: 'period_start and period_end are required' })
     }
 
@@ -69,6 +72,8 @@ chatRoutes.post('/sessions', requireAuth, async (req: AuthRequest, res) => {
       logger.error('Create chat session error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to create chat session' })
     }
+
+    logger.with('sessionId', data?.id).info('Successfully created chat session')
 
     res.status(201).json({ success: true, data })
   } catch (error) {
@@ -97,6 +102,8 @@ chatRoutes.delete('/sessions/:id', requireAuth, async (req: AuthRequest, res) =>
       logger.error('Delete chat session error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to delete chat session' })
     }
+
+    logger.with('sessionId', id).info('Successfully deleted chat session')
 
     res.json({ success: true, data: null })
   } catch (error) {
@@ -128,6 +135,7 @@ chatRoutes.get('/sessions/:id/messages', requireAuth, async (req: AuthRequest, r
     }
 
     if (!session) {
+      logger.with('sessionId', id).warn('Chat messages fetch failed: Session not found')
       return res.status(404).json({ success: false, error: 'Session not found', details: sessionError })
     }
 
@@ -141,6 +149,8 @@ chatRoutes.get('/sessions/:id/messages', requireAuth, async (req: AuthRequest, r
       logger.error('Fetch chat messages error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to fetch messages' })
     }
+
+    logger.with('count', data?.length || 0).with('sessionId', id).info('Successfully fetched chat messages')
 
     res.json({ success: true, data: data || [] })
   } catch (error) {
@@ -161,6 +171,7 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
     const { content } = req.body
 
     if (!content || typeof content !== 'string') {
+      logger.warn('Chat stream validation failed: Message content is required')
       return res.status(400).json({ success: false, error: 'Message content is required' })
     }
 
@@ -177,6 +188,7 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
     }
 
     if (sessionError || !session) {
+      logger.with('sessionId', id).warn('Chat stream failed: Session not found')
       return res.status(404).json({ success: false, error: 'Session not found', details: sessionError })
     }
 
@@ -233,6 +245,8 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
         ...fullHistory
       ]
 
+      logger.info('Starting Mistral AI chat stream')
+
       const stream = await mistral.chat.stream({
         model: chatModel,
         messages: messages as any
@@ -268,6 +282,8 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
         content: assistantMessage
       })
     }
+
+    logger.info('Chat stream completed successfully')
 
     res.end()
 
