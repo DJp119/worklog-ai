@@ -13,6 +13,8 @@ import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { isDatabaseConfigured } from './lib/database.js'
 import { getPostHogClient, shutdownPostHog, captureException, captureEvent } from './lib/posthog.js'
+import { logger } from './lib/logger.js'
+import { requestIdMiddleware } from './middleware/requestId.js'
 
 dotenv.config()
 
@@ -45,7 +47,7 @@ app.use(cors({
     if (isAllowedVercelOrigin(origin)) {
       return callback(null, true)
     }
-    console.warn(`CORS blocked: ${origin}`)
+    logger.warn('CORS blocked: {}', origin)
     callback(new Error('Not allowed by CORS'))
   },
   credentials: true,
@@ -79,12 +81,20 @@ if (!isDevelopment) {
 }
 
 // Request logging with PostHog
+app.use(requestIdMiddleware)
+
 app.use((req, res, next) => {
+  if (req.url === '/health') return next() // Skip noise
+
   const startTime = Date.now()
+  logger.info('Incoming request: {} {}', req.method, req.path)
 
   res.on('finish', () => {
     const duration = Date.now() - startTime
-    console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`)
+    logger
+      .with('durationMs', duration)
+      .with('statusCode', res.statusCode)
+      .info('Request completed: {} {} → {}', req.method, req.path, res.statusCode)
 
     // Capture to PostHog if configured
     const posthog = getPostHogClient()
@@ -147,54 +157,54 @@ app.get('/health', (req, res) => {
 
 // Global error handler
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error('Unhandled error:', err)
+  logger.with('err', err).error('Unhandled error: {}', err.message)
   captureException(err)
   res.status(500).json({ success: false, error: 'Internal server error' })
 })
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`)
-  console.log(`Environment: ${process.env.NODE_ENV || 'development'}`)
+  logger.info('Server running on http://localhost:{}', PORT)
+  logger.info('Environment: {}', process.env.NODE_ENV || 'development')
 
   // Critical environment variable checks
-  console.log('--- Environment Check ---')
+  logger.info('--- Environment Check ---')
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-    console.error('⚠️  WARNING: JWT_SECRET is missing or too short (< 32 chars)')
-    console.error('   Authentication will FAIL in production!')
+    logger.warn('⚠️ WARNING: JWT_SECRET is missing or too short (< 32 chars)')
+    logger.warn('   Authentication will FAIL in production!')
   } else {
-    console.log('✓ JWT_SECRET configured')
+    logger.info('✓ JWT_SECRET configured')
   }
 
   if (!process.env.SUPABASE_SERVICE_KEY) {
-    console.error('⚠️  WARNING: SUPABASE_SERVICE_KEY is missing')
-    console.error('   Database queries will FAIL!')
+    logger.warn('⚠️ WARNING: SUPABASE_SERVICE_KEY is missing')
+    logger.warn('   Database queries will FAIL!')
   } else {
-    console.log('✓ SUPABASE_SERVICE_KEY configured')
+    logger.info('✓ SUPABASE_SERVICE_KEY configured')
   }
 
   if (!process.env.FRONTEND_URL) {
-    console.warn('⚠️  WARNING: FRONTEND_URL not set, CORS may be limited')
+    logger.warn('⚠️ WARNING: FRONTEND_URL not set, CORS may be limited')
   } else {
-    console.log('✓ FRONTEND_URL configured')
+    logger.info('✓ FRONTEND_URL configured')
   }
 
   // Check AI providers
   const hasNim = !!process.env.NVIDIA_NIM_API_KEY
   const hasMistral = !!process.env.MISTRAL_API_KEY
   if (!hasNim && !hasMistral) {
-    console.error('⚠️  WARNING: No AI provider configured (NVIDIA_NIM_API_KEY or MISTRAL_API_KEY)')
-    console.error('   Chat and appraisal features will FAIL!')
+    logger.warn('⚠️ WARNING: No AI provider configured (NVIDIA_NIM_API_KEY or MISTRAL_API_KEY)')
+    logger.warn('   Chat and appraisal features will FAIL!')
   } else {
-    if (hasNim) console.log('✓ NVIDIA NIM configured')
-    if (hasMistral) console.log('✓ Mistral AI configured')
+    if (hasNim) logger.info('✓ NVIDIA NIM configured')
+    if (hasMistral) logger.info('✓ Mistral AI configured')
   }
-  console.log('---------------')
+  logger.info('---------------')
 
   // Initialize PostHog
   const posthog = getPostHogClient()
   if (posthog) {
-    console.log('✓ PostHog initialized')
+    logger.info('✓ PostHog initialized')
     captureEvent('system', 'server_started', {
       has_jwt: !!process.env.JWT_SECRET,
       has_supabase: !!process.env.SUPABASE_SERVICE_KEY,
@@ -202,7 +212,7 @@ app.listen(PORT, () => {
       has_mistral: hasMistral,
     })
   } else {
-    console.log('PostHog not configured (set POSTHOG_API_KEY env var)')
+    logger.info('PostHog not configured (set POSTHOG_API_KEY env var)')
   }
 
   // Start background jobs
@@ -212,7 +222,7 @@ app.listen(PORT, () => {
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, shutting down gracefully...')
+  logger.info('SIGTERM received, shutting down gracefully...')
   reminderJob.stop()
   monthlySummaryJob.stop()
   await shutdownPostHog()
@@ -220,7 +230,7 @@ process.on('SIGTERM', async () => {
 })
 
 process.on('SIGINT', async () => {
-  console.log('SIGINT received, shutting down gracefully...')
+  logger.info('SIGINT received, shutting down gracefully...')
   reminderJob.stop()
   monthlySummaryJob.stop()
   await shutdownPostHog()

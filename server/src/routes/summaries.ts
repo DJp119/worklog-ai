@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import { generateMonthlySummary } from '../lib/summaryService.js'
+import { logger } from '../lib/logger.js'
 
 export const summariesRoutes = Router()
 
@@ -20,13 +21,13 @@ summariesRoutes.get('/', requireAuth, async (req: AuthRequest, res) => {
       .order('month_year', { ascending: false })
 
     if (error) {
-      console.error('Fetch summaries error:', error)
+      logger.error('Fetch summaries error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to fetch summaries' })
     }
 
     res.json({ success: true, data: data || [] })
   } catch (error) {
-    console.error('Summaries error:', error)
+    logger.error('Summaries error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -60,7 +61,7 @@ summariesRoutes.post('/generate', requireAuth, async (req: AuthRequest, res) => 
 
     res.status(200).json({ success: true, data: summary })
   } catch (error) {
-    console.error('Generate summary error:', error)
+    logger.error('Generate summary error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })

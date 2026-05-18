@@ -1,4 +1,5 @@
 import dotenv from 'dotenv'
+import { logger } from './logger.js'
 
 dotenv.config()
 
@@ -18,12 +19,12 @@ interface SendEmailOptions {
  */
 export async function sendEmail(options: SendEmailOptions): Promise<{ success: boolean; messageId?: string }> {
   if (!BREVO_API_KEY) {
-    console.warn('Brevo API key not configured - email not sent')
+    logger.warn('Brevo API key not configured - email not sent')
     return { success: false }
   }
 
   try {
-    console.log('Sending email via Brevo to:', options.to)
+    logger.with('to', options.to).info('Sending email via Brevo')
     const response = await fetch('https://api.brevo.com/v3/smtp/email', {
       method: 'POST',
       headers: {
@@ -44,14 +45,18 @@ export async function sendEmail(options: SendEmailOptions): Promise<{ success: b
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}))
-      console.error('Brevo API error:', response.status, response.statusText, errorData)
+      logger
+        .with('status', response.status)
+        .with('statusText', response.statusText)
+        .with('errorData', errorData)
+        .error('Brevo API error')
       return { success: false }
     }
 
-    console.log('Email sent successfully via Brevo')
+    logger.info('Email sent successfully via Brevo')
     return { success: true }
   } catch (error) {
-    console.error('Send email error:', error)
+    logger.error('Send email error: {}', error instanceof Error ? error.message : String(error), error)
     return { success: false }
   }
 }

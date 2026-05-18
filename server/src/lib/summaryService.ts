@@ -1,6 +1,7 @@
 import { supabase } from './supabase.js'
 import { mistral, chatModel } from './mistral.js'
 import type { WorkLogEntry, MonthlySummary } from 'shared'
+import { logger } from './logger.js'
 
 export async function generateMonthlySummary(userId: string, monthYear: string): Promise<MonthlySummary | null> {
   try {
@@ -23,7 +24,7 @@ export async function generateMonthlySummary(userId: string, monthYear: string):
       .order('week_start_date', { ascending: true })
 
     if (logsError) {
-      console.error('Error fetching logs for summary:', logsError)
+      logger.error('Error fetching logs for summary: {}', logsError.message, logsError)
       return null
     }
 
@@ -91,14 +92,14 @@ Generate the monthly summary:`
       .single()
 
     if (upsertError) {
-      console.error('Error saving monthly summary:', upsertError)
+      logger.error('Error saving monthly summary: {}', upsertError.message, upsertError)
       return null
     }
 
     return summary as MonthlySummary
 
   } catch (error) {
-    console.error('Failed to generate monthly summary:', error)
+    logger.error('Failed to generate monthly summary: {}', error instanceof Error ? error.message : String(error), error)
     return null
   }
 }
@@ -107,7 +108,7 @@ export async function invalidateMonthlySummary(userId: string, weekStartDate: st
   try {
     const date = new Date(weekStartDate)
     if (isNaN(date.getTime())) {
-      console.warn(`Invalid weekStartDate provided for invalidation: ${weekStartDate}`)
+      logger.warn('Invalid weekStartDate provided for invalidation: {}', weekStartDate)
       return
     }
     
@@ -122,9 +123,9 @@ export async function invalidateMonthlySummary(userId: string, weekStartDate: st
       .eq('month_year', monthYear)
 
     if (error) {
-      console.error('Error invalidating monthly summary:', error)
+      logger.error('Error invalidating monthly summary: {}', error.message, error)
     }
   } catch (error) {
-    console.error('Failed to invalidate monthly summary:', error)
+    logger.error('Failed to invalidate monthly summary: {}', error instanceof Error ? error.message : String(error), error)
   }
 }

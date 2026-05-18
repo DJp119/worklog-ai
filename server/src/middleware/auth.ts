@@ -4,6 +4,8 @@ import { supabase, runtimeSupabaseKey, runtimeSupabaseUrl } from '../lib/databas
 import crypto from 'crypto'
 import { createClient } from '@supabase/supabase-js'
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { logger } from '../lib/logger.js'
+import { getMdcContext } from '../lib/mdc.js'
 
 export interface AuthRequest extends Request {
     userId?: string
@@ -58,7 +60,7 @@ export async function createRefreshToken(userId: string, token: string, expiryDa
         .single()
 
     if (error) {
-        console.error('Create refresh token error:', error)
+        logger.with('err', error).error('Create refresh token error: {}', error.message)
         throw error
     }
 
@@ -126,7 +128,7 @@ export async function requireAuth(
         const authHeader = req.headers.authorization
 
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            console.log('[Auth] Missing or invalid auth header')
+            logger.warn('[Auth] Missing or invalid auth header')
             res.status(401).json({ error: 'Unauthorized: Missing authorization header' })
             return
         }
@@ -135,9 +137,7 @@ export async function requireAuth(
         const payload = verifyToken(token)
 
         if (!payload) {
-            console.log('[Auth] Invalid or expired token')
-            // Log token prefix for debugging (first 10 chars only)
-            console.log('[Auth] Token prefix:', token.substring(0, 10) + '...')
+            logger.with('tokenPrefix', token.substring(0, 10)).warn('[Auth] Invalid or expired token')
             res.status(401).json({ error: 'Unauthorized: Invalid or expired token' })
             return
         }
@@ -150,8 +150,7 @@ export async function requireAuth(
             .single()
 
         if (userError || !user) {
-            console.log('[Auth] User not found in database:', payload.userId)
-            if (userError) console.log('[Auth] DB error:', userError)
+            logger.with('targetUserId', payload.userId).with('err', userError).warn('[Auth] User not found in database')
             res.status(401).json({ error: 'Unauthorized: User not found' })
             return
         }
@@ -161,6 +160,12 @@ export async function requireAuth(
             id: user.id,
             email: user.email,
             name: user.name,
+        }
+
+        // Add userId to MDC! Now every logger.info() call automatically gets userId.
+        const context = getMdcContext()
+        if (context) {
+            context.userId = user.id
         }
 
         // Create a new Supabase client for this request using the service key
@@ -174,7 +179,7 @@ export async function requireAuth(
 
         next()
     } catch (error) {
-        console.error('[Auth] Middleware error:', error)
+        logger.with('err', error).error('[Auth] Middleware error: {}', error instanceof Error ? error.message : String(error))
         res.status(500).json({ error: 'Internal server error' })
     }
 }
@@ -207,6 +212,11 @@ export async function optionalAuth(
                         id: user.id,
                         email: user.email,
                         name: user.name,
+                    }
+
+                    const context = getMdcContext()
+                    if (context) {
+                        context.userId = user.id
                     }
                     req.supabase = createClient(runtimeSupabaseUrl || 'https://placeholder.supabase.co', runtimeSupabaseKey || 'placeholder', {
                         auth: {

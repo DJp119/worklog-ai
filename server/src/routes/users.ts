@@ -3,6 +3,7 @@ import { supabase } from '../lib/database.js'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import { hashPassword, comparePassword, validatePasswordStrength } from '../lib/auth-utils.js'
 import { captureEvent, captureException } from '../lib/posthog.js'
+import { logger } from '../lib/logger.js'
 
 export const userRoutes = Router()
 
@@ -43,7 +44,7 @@ userRoutes.get('/profile', async (req: AuthRequest, res: Response) => {
             },
         })
     } catch (error) {
-        console.error('Get profile error:', error)
+        logger.error('Get profile error: {}', error instanceof Error ? error.message : String(error), error)
         res.status(500).json({ success: false, error: 'Internal server error' })
     }
 })
@@ -81,7 +82,7 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
 
         updateData.updated_at = new Date().toISOString()
 
-        console.log('[Profile Update] userId:', userId, 'updateData:', JSON.stringify(updateData))
+        logger.with('updateData', updateData).info('Updating profile for user')
 
         const { data: user, error } = await supabase
             .from('users')
@@ -91,12 +92,12 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
             .single()
 
         if (error) {
-            console.error('[Profile Update] Supabase error:', JSON.stringify(error))
+            logger.error('Profile update Supabase error: {}', error.message, error)
             return res.status(500).json({ success: false, error: 'Failed to update profile', detail: error.message })
         }
 
         if (!user) {
-            console.error('[Profile Update] No user returned after update for userId:', userId)
+            logger.error('No user returned after update')
             return res.status(500).json({ success: false, error: 'Update matched no rows' })
         }
 
@@ -118,7 +119,7 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
             },
         })
     } catch (error) {
-        console.error('Update profile error:', error)
+        logger.error('Update profile error: {}', error instanceof Error ? error.message : String(error), error)
         captureException(error)
         res.status(500).json({ success: false, error: 'Internal server error' })
     }
@@ -172,7 +173,7 @@ userRoutes.put('/password', async (req: AuthRequest, res: Response) => {
             .eq('id', userId)
 
         if (error) {
-            console.error('Password update error:', error)
+            logger.error('Password update error: {}', error.message, error)
             return res.status(500).json({ success: false, error: 'Failed to update password' })
         }
 
@@ -191,7 +192,7 @@ userRoutes.put('/password', async (req: AuthRequest, res: Response) => {
             message: 'Password updated successfully. Please log in again.',
         })
     } catch (error) {
-        console.error('Change password error:', error)
+        logger.error('Change password error: {}', error instanceof Error ? error.message : String(error), error)
         res.status(500).json({ success: false, error: 'Internal server error' })
     }
 })
@@ -211,7 +212,7 @@ userRoutes.delete('/account', async (req: AuthRequest, res: Response) => {
             .eq('id', userId)
 
         if (error) {
-            console.error('Account deletion error:', error)
+            logger.error('Account deletion error: {}', error.message, error)
             return res.status(500).json({ success: false, error: 'Failed to delete account' })
         }
 
@@ -222,7 +223,7 @@ userRoutes.delete('/account', async (req: AuthRequest, res: Response) => {
             message: 'Account deleted successfully',
         })
     } catch (error) {
-        console.error('Delete account error:', error)
+        logger.error('Delete account error: {}', error instanceof Error ? error.message : String(error), error)
         captureException(error)
         res.status(500).json({ success: false, error: 'Internal server error' })
     }
