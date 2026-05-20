@@ -36,3 +36,26 @@ coverage/
 .env
 
 .claude/ralph-loop.local.md
+
+.env.production.example
+BACKEND_MIGRATION.md
+CLAUDE.md
+DEPLOYMENT.md
+DEPLOYMENT_ENV_CHECKLIST.md
+DOCUMENTATION.md
+POSTHOG_SETUP.md
+QUICK_FIX_CHAT_AUTH.md
+README.md
+SETUP.md
+TESTING_CHECKLIST.md
+nixpacks.toml
+package-lock.json
+package.json
+railway.toml
+render.yaml
+skills-lock.json
+supabase-schema-custom-auth.sql
+supabase-schema.sql
+test-api.sh
+tsconfig.json
+vercel.json
