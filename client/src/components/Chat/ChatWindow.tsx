@@ -196,7 +196,7 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
         </div>
         <div className="text-center mt-2">
           <p className="text-[10px] text-gray-500">
-            Mistral AI may produce inaccurate information about your work. Always verify important claims.
+            May produce inaccurate information about your work. Always verify important claims.
           </p>
         </div>
       </div>

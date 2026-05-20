@@ -137,7 +137,7 @@ export default function LandingPage() {
                 <h3 className="text-xl font-semibold text-white mb-3">AI Appraisal Generation</h3>
                 <p className="text-gray-400 leading-relaxed">
                   Transform your weekly logs into polished, professional self-appraisals.
-                  Mistral AI crafts narratives that highlight your impact and growth.
+                  crafts narratives that highlight your impact and growth.
                 </p>
               </div>
             </div>

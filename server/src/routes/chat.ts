@@ -1,11 +1,11 @@
 import { Router } from 'express'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import { mistral, chatModel } from '../lib/mistral.js'
-import { 
-  getSummariesForRange, 
-  stitchSummaries, 
-  buildSystemPrompt, 
-  applySlidingWindow 
+import {
+  getSummariesForRange,
+  stitchSummaries,
+  buildSystemPrompt,
+  applySlidingWindow
 } from '../lib/chatService.js'
 import { logger } from '../lib/logger.js'
 
@@ -245,7 +245,7 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
         ...fullHistory
       ]
 
-      logger.info('Starting Mistral AI chat stream')
+      logger.info('Starting chat stream')
 
       const stream = await mistral.chat.stream({
         model: chatModel,
