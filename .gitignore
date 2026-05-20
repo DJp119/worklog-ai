@@ -46,3 +46,12 @@ memory/
 
 # Temp files
 all-tracked.txt
+
+# Internal Notes / AI Scratchpads
+CLAUDE.md
+BACKEND_MIGRATION.md
+DEPLOYMENT_ENV_CHECKLIST.md
+TESTING_CHECKLIST.md
+QUICK_FIX_CHAT_AUTH.md
+skills-lock.json
+test-api.sh
