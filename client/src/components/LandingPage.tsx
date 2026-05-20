@@ -268,7 +268,7 @@ export default function LandingPage() {
                 </div>
                 <h3 className="text-xl font-semibold text-white mb-3">Generate Appraisal</h3>
                 <p className="text-gray-400">
-                  Click generate and watch Mistral AI transform your logs into a compelling self-appraisal.
+                  Click generate and watch transform your logs into a compelling self-appraisal.
                 </p>
               </div>
             </div>
