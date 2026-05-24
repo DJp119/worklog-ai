@@ -228,8 +228,8 @@ export interface AIImpactCard {
     impact_level: 'high' | 'medium' | 'low'
     companies_involved: string[]
     future_prediction: string
-    opportunities: string
-    risks: string
+    opportunities: string[]
+    risks: string[]
     tools: string[]
     created_at: string
     updated_at: string
