@@ -115,12 +115,12 @@ export const AIPulseHub: React.FC = () => {
         setLoading(true);
         setError(null);
 
-        // Fetch articles from RSS-sourced API
-        const articlesData = await apiRequest<Article[]>('/api/ai-pulse/articles');
+        // Fetch articles from RSS-sourced API with cache busting
+        const articlesData = await apiRequest<Article[]>(`/api/ai-pulse/articles?t=${Date.now()}`);
         setArticles(articlesData);
 
-        // Fetch impact cards from API
-        const impactsData = await apiRequest<ImpactCard[]>('/api/ai-pulse/impact-cards');
+        // Fetch impact cards from API with cache busting
+        const impactsData = await apiRequest<ImpactCard[]>(`/api/ai-pulse/impact-cards?t=${Date.now()}`);
         setImpactCards(impactsData);
       } catch (err) {
         console.error('Failed to fetch AI Pulse data:', err);
