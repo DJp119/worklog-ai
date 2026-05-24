@@ -115,17 +115,21 @@ export const AIPulseHub: React.FC = () => {
         setLoading(true);
         setError(null);
 
+        const timestamp = Date.now();
+
         // Fetch articles from RSS-sourced API with cache busting
-        const articlesData = await apiRequest<Article[]>(`/api/ai-pulse/articles?t=${Date.now()}`);
+        const articlesData = await apiRequest<Article[]>(`/api/ai-pulse/articles?_t=${timestamp}`);
+        console.log('[AI Pulse] Articles fetched:', articlesData?.length ?? 0, 'articles');
+        console.log('[AI Pulse] First article:', articlesData?.[0]);
         setArticles(articlesData);
 
         // Fetch impact cards from API with cache busting
-        const impactsData = await apiRequest<ImpactCard[]>(`/api/ai-pulse/impact-cards?t=${Date.now()}`);
+        const impactsData = await apiRequest<ImpactCard[]>(`/api/ai-pulse/impact-cards?_t=${timestamp}`);
+        console.log('[AI Pulse] Impact cards fetched:', impactsData?.length ?? 0, 'cards');
         setImpactCards(impactsData);
       } catch (err) {
-        console.error('Failed to fetch AI Pulse data:', err);
+        console.error('[AI Pulse] Failed to fetch data:', err);
         setError('Failed to load content. Please refresh the page.');
-        // Fallback to empty arrays - component will render empty state
         setArticles([]);
         setImpactCards([]);
       } finally {
