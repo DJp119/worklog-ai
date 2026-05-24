@@ -49,8 +49,8 @@ CREATE TABLE IF NOT EXISTS ai_impact_cards (
   impact_level TEXT NOT NULL CHECK (impact_level IN ('high', 'medium', 'low')),
   companies_involved TEXT[] DEFAULT '{}',
   future_prediction TEXT NOT NULL,
-  opportunities TEXT NOT NULL,
-  risks TEXT NOT NULL,
+  opportunities TEXT[] DEFAULT '{}',
+  risks TEXT[] DEFAULT '{}',
   tools TEXT[] DEFAULT '{}',
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

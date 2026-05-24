@@ -5,6 +5,61 @@ import { logger } from '../lib/logger.js'
 
 export const aiPulseRoutes = Router()
 
+/**
+ * Utility to parse PostgreSQL array string representation (e.g. '{"a","b"}')
+ * into a standard JavaScript string array. Bypasses if already an array.
+ */
+function parsePostgresArray(val: any): string[] {
+  if (Array.isArray(val)) {
+    return val
+  }
+  if (typeof val !== 'string') {
+    return []
+  }
+
+  const str = val.trim()
+  if (!str.startsWith('{') || !str.endsWith('}')) {
+    return str ? [str] : []
+  }
+
+  const content = str.slice(1, -1)
+  if (!content) {
+    return []
+  }
+
+  const result: string[] = []
+  let current = ''
+  let inQuotes = false
+  let escaped = false
+
+  for (let i = 0; i < content.length; i++) {
+    const char = content[i]
+
+    if (escaped) {
+      current += char
+      escaped = false
+    } else if (char === '\\') {
+      escaped = true
+    } else if (char === '"') {
+      inQuotes = !inQuotes
+    } else if (char === ',' && !inQuotes) {
+      result.push(current.trim())
+      current = ''
+    } else {
+      current += char
+    }
+  }
+  result.push(current.trim())
+
+  return result.map(item => {
+    if (item.startsWith('"') && item.endsWith('"')) {
+      return item.slice(1, -1)
+    }
+    return item
+  })
+}
+
+
 // ============================================
 // Public Routes (No Auth Required)
 // ============================================
@@ -82,7 +137,15 @@ aiPulseRoutes.get('/impact-cards', async (req: Request, res: Response) => {
       return res.status(500).json({ success: false, error: 'Failed to fetch impact cards' })
     }
 
-    res.json({ success: true, data })
+    const formattedData = (data || []).map(card => ({
+      ...card,
+      companies_involved: parsePostgresArray(card.companies_involved),
+      opportunities: parsePostgresArray(card.opportunities),
+      risks: parsePostgresArray(card.risks),
+      tools: parsePostgresArray(card.tools)
+    }))
+
+    res.json({ success: true, data: formattedData })
   } catch (err: any) {
     console.error('Error in GET /api/ai-pulse/impact-cards:', err)
     res.status(500).json({ success: false, error: err.message })
@@ -104,7 +167,15 @@ aiPulseRoutes.get('/impact-cards/:industry', async (req: Request, res: Response)
       return res.status(404).json({ success: false, error: 'Impact card not found' })
     }
 
-    res.json({ success: true, data })
+    const formattedData = {
+      ...data,
+      companies_involved: parsePostgresArray(data.companies_involved),
+      opportunities: parsePostgresArray(data.opportunities),
+      risks: parsePostgresArray(data.risks),
+      tools: parsePostgresArray(data.tools)
+    }
+
+    res.json({ success: true, data: formattedData })
   } catch (err: any) {
     console.error('Error fetching impact card:', err)
     res.status(500).json({ success: false, error: err.message })

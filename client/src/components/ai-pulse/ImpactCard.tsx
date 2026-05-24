@@ -44,6 +44,55 @@ export const ImpactCard: React.FC<ImpactCardProps> = ({
 }) => {
   const style = impactStyles[impactLevel];
 
+  // Helper to ensure values are arrays, parsing strings if necessary
+  const ensureArray = (val: any): string[] => {
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string') {
+      const trimmed = val.trim();
+      if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+        // Strip braces and split by commas, taking care of outer quotes
+        const inner = trimmed.slice(1, -1).trim();
+        if (!inner) return [];
+        
+        const result: string[] = [];
+        let current = '';
+        let inQuotes = false;
+        let escaped = false;
+        for (let i = 0; i < inner.length; i++) {
+          const char = inner[i];
+          if (escaped) {
+            current += char;
+            escaped = false;
+          } else if (char === '\\') {
+            escaped = true;
+          } else if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim());
+        
+        return result.map(item => {
+          if (item.startsWith('"') && item.endsWith('"')) {
+            return item.slice(1, -1);
+          }
+          return item;
+        });
+      }
+      return [val];
+    }
+    return [];
+  };
+
+  const parsedCompanies = ensureArray(companiesInvolved);
+  const parsedOpportunities = ensureArray(opportunities);
+  const parsedRisks = ensureArray(risks);
+  const parsedTools = ensureArray(tools);
+
   return (
     <div
       className={`relative overflow-hidden rounded-xl border ${style.border} ${style.bg} p-6 hover:scale-[1.02] transition-transform`}
@@ -73,13 +122,13 @@ export const ImpactCard: React.FC<ImpactCardProps> = ({
         </div>
 
         {/* Companies */}
-        {companiesInvolved.length > 0 && (
+        {parsedCompanies.length > 0 && (
           <div className="mb-3">
             <h4 className="text-xs font-semibold text-gray-500 mb-1">
               COMPANIES
             </h4>
             <div className="flex flex-wrap gap-1">
-              {companiesInvolved.map((company) => (
+              {parsedCompanies.map((company) => (
                 <span
                   key={company}
                   className="px-2 py-0.5 bg-white/5 rounded text-xs text-gray-300"
@@ -92,13 +141,13 @@ export const ImpactCard: React.FC<ImpactCardProps> = ({
         )}
 
         {/* Tools */}
-        {tools.length > 0 && (
+        {parsedTools.length > 0 && (
           <div className="mb-3">
             <h4 className="text-xs font-semibold text-gray-500 mb-1">
               TOOLS
             </h4>
             <div className="flex flex-wrap gap-1">
-              {tools.map((tool) => (
+              {parsedTools.map((tool) => (
                 <span
                   key={tool}
                   className="px-2 py-0.5 bg-indigo-500/20 rounded-full text-xs text-indigo-300 border border-indigo-500/30"
@@ -111,13 +160,13 @@ export const ImpactCard: React.FC<ImpactCardProps> = ({
         )}
 
         {/* Opportunities */}
-        {opportunities.length > 0 && (
+        {parsedOpportunities.length > 0 && (
           <div className="mb-3">
             <h4 className="text-xs font-semibold text-gray-500 mb-1">
               OPPORTUNITIES
             </h4>
             <ul className="space-y-1">
-              {opportunities.map((opp, idx) => (
+              {parsedOpportunities.map((opp, idx) => (
                 <li key={idx} className="text-xs text-gray-300 flex items-start gap-1">
                   <span className="text-green-400 mt-0.5">✓</span>
                   <span>{opp}</span>
@@ -128,13 +177,13 @@ export const ImpactCard: React.FC<ImpactCardProps> = ({
         )}
 
         {/* Risks */}
-        {risks.length > 0 && (
+        {parsedRisks.length > 0 && (
           <div className="mb-3">
             <h4 className="text-xs font-semibold text-gray-500 mb-1">
               RISKS
             </h4>
             <ul className="space-y-1">
-              {risks.map((risk, idx) => (
+              {parsedRisks.map((risk, idx) => (
                 <li key={idx} className="text-xs text-gray-300 flex items-start gap-1">
                   <span className="text-red-400 mt-0.5">⚠</span>
                   <span>{risk}</span>
