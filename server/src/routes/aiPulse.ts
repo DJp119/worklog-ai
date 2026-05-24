@@ -71,10 +71,11 @@ aiPulseRoutes.get('/articles', async (req: Request, res: Response) => {
   try {
     const { category, limit = 50, offset = 0 } = req.query
 
+    // Sort by created_at DESC to show newest articles first (regardless of published_at)
     let query = supabase
       .from('ai_articles')
       .select('*')
-      .order('published_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .range(Number(offset), Number(offset) + Number(limit) - 1)
 
     if (category) {
