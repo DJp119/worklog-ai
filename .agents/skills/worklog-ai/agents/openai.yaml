@@ -1,0 +1,6 @@
+interface:
+  display_name: "Worklog Ai"
+  short_description: "Repo-specific patterns and workflows for worklog-ai"
+  default_prompt: "Use the worklog-ai repo skill to follow existing architecture, testing, and workflow conventions."
+policy:
+  allow_implicit_invocation: true
