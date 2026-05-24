@@ -15,8 +15,8 @@ class NewsCollectionJob {
    * Phase 1: Fetches articles from RSS feeds every 6 hours.
    */
   start(): void {
-    // Run every 6 hours at 00, 06, 12, 18
-    this.task = cron.schedule('0 */6 * * *', async () => {
+    // Run every 30 minutes
+    this.task = cron.schedule('*/30 * * * *', async () => {
       if (this.isRunning) {
         logger.info('News collection skipped - already running')
         return
@@ -32,7 +32,7 @@ class NewsCollectionJob {
       }
     })
 
-    logger.info('News collection job scheduled (0 */6 * * * - every 6 hours)')
+    logger.info('News collection job scheduled (*/30 * * * * - every 30 minutes)')
   }
 
   /**

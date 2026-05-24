@@ -97,12 +97,24 @@ export function Layout({ children }: LayoutProps) {
                   </button>
                 </>
               ) : (
-                <Link
-                  to="/login"
-                  className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 transition-all glow-primary"
-                >
-                  Sign In
-                </Link>
+                <div className="flex items-center gap-4">
+                  <Link
+                    to="/ai-pulse"
+                    className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5 flex items-center gap-1.5 relative"
+                  >
+                    AI Pulse
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                  </Link>
+                  <Link
+                    to="/login"
+                    className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 transition-all glow-primary"
+                  >
+                    Sign In
+                  </Link>
+                </div>
               )}
             </nav>
 
@@ -195,13 +207,26 @@ export function Layout({ children }: LayoutProps) {
                   </div>
                 </>
               ) : (
-                <Link
-                  to="/login"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block px-3 py-2 rounded-md text-base font-medium text-indigo-400 hover:text-indigo-300 hover:bg-white/5"
-                >
-                  Sign In
-                </Link>
+                <>
+                  <Link
+                    to="/ai-pulse"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5 flex items-center gap-2"
+                  >
+                    AI Pulse
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                  </Link>
+                  <Link
+                    to="/login"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-indigo-400 hover:text-indigo-300 hover:bg-white/5"
+                  >
+                    Sign In
+                  </Link>
+                </>
               )}
             </div>
           </div>
