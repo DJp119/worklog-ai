@@ -88,6 +88,7 @@ aiPulseRoutes.get('/articles', async (req: Request, res: Response) => {
       return res.status(500).json({ success: false, error: 'Failed to fetch articles' })
     }
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
     res.json({ success: true, data })
   } catch (err: any) {
     console.error('Error in GET /api/ai-pulse/articles:', err)
@@ -111,6 +112,7 @@ aiPulseRoutes.get('/articles/:slug', async (req: Request, res: Response) => {
     }
 
     // View count increment deferred to batch job (save API calls in Phase 0)
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
     res.json({ success: true, data })
   } catch (err: any) {
     console.error('Error fetching article:', err)
@@ -147,6 +149,7 @@ aiPulseRoutes.get('/impact-cards', async (req: Request, res: Response) => {
       tools: parsePostgresArray(card.tools)
     }))
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
     res.json({ success: true, data: formattedData })
   } catch (err: any) {
     console.error('Error in GET /api/ai-pulse/impact-cards:', err)
@@ -177,6 +180,7 @@ aiPulseRoutes.get('/impact-cards/:industry', async (req: Request, res: Response)
       tools: parsePostgresArray(data.tools)
     }
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
     res.json({ success: true, data: formattedData })
   } catch (err: any) {
     console.error('Error fetching impact card:', err)
