@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express'
 import { requireAuth, AuthRequest } from '../middleware/auth.js'
 import { supabase } from '../lib/database.js'
 import { logger } from '../lib/logger.js'
+import { newsCollectionJob } from '../jobs/newsCollectionJob.js'
+
 
 export const aiPulseRoutes = Router()
 
@@ -510,4 +512,29 @@ aiPulseRoutes.get('/og/article/:slug', async (req: Request, res: Response) => {
 aiPulseRoutes.get('/og/article/:slug.png', async (req: Request, res: Response) => {
   // For Phase 1, redirect to the SVG version (Phase 2 will add puppeteer for PNG generation)
   res.redirect(`/api/ai-pulse/og/article/${req.params.slug}`)
+})
+
+// POST /api/ai-pulse/admin/collect-news - Manually trigger RSS news collection (e.g. via CRON job trigger)
+aiPulseRoutes.post('/admin/collect-news', async (req: Request, res: Response) => {
+  try {
+    const authHeader = req.headers.authorization
+    const adminKey = process.env.ADMIN_API_KEY
+
+    // Simple security layer: if ADMIN_API_KEY is configured in env, require it as Bearer token
+    if (adminKey && authHeader !== `Bearer ${adminKey}`) {
+      logger.warn('Unauthorized attempt to trigger manual news collection')
+      return res.status(401).json({ success: false, error: 'Unauthorized' })
+    }
+
+    logger.info('Manual news collection triggered via admin endpoint')
+    // Run collection in background so the request doesn't timeout
+    newsCollectionJob.collectNow().catch((err) => {
+      logger.error('Error running manually triggered news collection: {}', err.message)
+    })
+
+    res.json({ success: true, message: 'News collection job triggered' })
+  } catch (err: any) {
+    logger.error('Failed to trigger manual news collection: {}', err.message)
+    res.status(500).json({ success: false, error: err.message })
+  }
 })

@@ -6,6 +6,45 @@ export default function LandingPage() {
 
   return (
     <div className="bg-futuristic min-h-screen">
+      {/* Floating Header */}
+      <header className="relative w-full z-50">
+        <div className="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
+          <Link to="/" className="flex items-center group">
+            <svg className="h-8 w-8 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span className="ml-2 text-xl font-bold text-white group-hover:text-indigo-400 transition-colors">Worklog AI</span>
+          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              to="/ai-pulse"
+              className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5 flex items-center gap-1.5 relative"
+            >
+              AI Pulse
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+              </span>
+            </Link>
+            {user ? (
+              <Link
+                to="/dashboard"
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-white/10 hover:bg-white/20 text-white transition-all"
+              >
+                Dashboard
+              </Link>
+            ) : (
+              <Link
+                to="/login"
+                className="px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:shadow-lg hover:shadow-indigo-500/20 transition-all glow-primary"
+              >
+                Sign In
+              </Link>
+            )}
+          </div>
+        </div>
+      </header>
+
       {/* Animated Background Orbs */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse-glow"></div>
