@@ -63,9 +63,17 @@ export function Layout({ children }: LayoutProps) {
                   </Link>
                   <Link
                     to="/chat"
-                    className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
+                    className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5 flex items-center gap-1"
                   >
                     AI Chat
+                  </Link>
+                  <Link
+                    to="/ai-pulse"
+                    className="text-indigo-300 hover:text-indigo-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-indigo-500/10 flex items-center gap-1 relative"
+                  >
+                    AI Pulse
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-ping"></span>
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></span>
                   </Link>
                   <Link
                     to="/settings"
@@ -151,6 +159,13 @@ export function Layout({ children }: LayoutProps) {
                     AI Chat
                   </Link>
                   <Link
+                    to="/ai-pulse"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-indigo-300 hover:text-indigo-200 hover:bg-indigo-500/10 flex items-center gap-2"
+                  >
+                    AI Pulse 🔴
+                  </Link>
+                  <Link
                     to="/settings"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
@@ -231,6 +246,9 @@ export function Layout({ children }: LayoutProps) {
               </Link>
               <Link to="/chat" className="text-gray-400 hover:text-white text-sm transition-colors">
                 AI Chat
+              </Link>
+              <Link to="/ai-pulse" className="text-indigo-400 hover:text-indigo-300 text-sm transition-colors font-medium">
+                AI Pulse
               </Link>
               <Link to="/feedback" className="text-gray-400 hover:text-white text-sm transition-colors">
                 Feedback

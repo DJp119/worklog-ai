@@ -9,8 +9,11 @@ import { userRoutes } from './routes/users.js'
 import { summariesRoutes } from './routes/summaries.js'
 import { chatRoutes } from './routes/chat.js'
 import { feedbackRoutes } from './routes/feedback.js'
+import { aiPulseRoutes } from './routes/aiPulse.js'
 import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
+import { newsCollectionJob } from './jobs/newsCollectionJob.js'
+import { weeklyDigestJob } from './jobs/weeklyDigestJob.js'
 import { isDatabaseConfigured } from './lib/database.js'
 import { getPostHogClient, shutdownPostHog, captureException, captureEvent } from './lib/posthog.js'
 import { logger } from './lib/logger.js'
@@ -134,6 +137,7 @@ app.use('/api/users', userRoutes)
 app.use('/api/summaries', summariesRoutes)
 app.use('/api/chat', chatRoutes)
 app.use('/api/feedback', feedbackRoutes)
+app.use('/api/ai-pulse', aiPulseRoutes)
 
 // Root route
 app.get('/', (req, res) => {
@@ -218,6 +222,8 @@ app.listen(PORT, () => {
   // Start background jobs
   reminderJob.start()
   monthlySummaryJob.start()
+  newsCollectionJob.start()
+  weeklyDigestJob.start()
 })
 
 // Graceful shutdown
@@ -225,6 +231,8 @@ process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully...')
   reminderJob.stop()
   monthlySummaryJob.stop()
+  newsCollectionJob.stop()
+  weeklyDigestJob.stop()
   await shutdownPostHog()
   process.exit(0)
 })
@@ -233,6 +241,8 @@ process.on('SIGINT', async () => {
   logger.info('SIGINT received, shutting down gracefully...')
   reminderJob.stop()
   monthlySummaryJob.stop()
+  newsCollectionJob.stop()
+  weeklyDigestJob.stop()
   await shutdownPostHog()
   process.exit(0)
 })

@@ -14,6 +14,7 @@ import Chat from './pages/Chat'
 import Feedback from './pages/Feedback'
 import Terms from './pages/Terms'
 import Privacy from './pages/Privacy'
+import { AIPulseHub } from './pages/ai-pulse/Hub'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
@@ -93,6 +94,7 @@ function AppRoutes() {
       <Route path="/verify-email" element={<VerifyEmail />} />
       <Route path="/terms" element={<Layout><Terms /></Layout>} />
       <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
+      <Route path="/ai-pulse" element={<Layout><AIPulseHub /></Layout>} />
     </Routes>
   )
 }
