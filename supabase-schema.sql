@@ -347,3 +347,124 @@ CREATE POLICY "Users can insert own feedback" ON feedback FOR INSERT WITH CHECK 
 CREATE POLICY "Service role can read all feedback" ON feedback FOR SELECT USING (true);
 CREATE POLICY "Service role can insert feedback" ON feedback FOR INSERT WITH CHECK (true);
 
+-- ============================================
+-- PHASE 4: AI Pulse Hub - AI News & Impact Tracking
+-- ============================================
+
+-- 4.1 AI Articles / News Feed table (publicly accessible for SEO)
+CREATE TABLE IF NOT EXISTS ai_articles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
+  summary TEXT NOT NULL,
+  content TEXT NOT NULL,
+  source_url TEXT,
+  source_name TEXT,
+  category TEXT NOT NULL CHECK (category IN ('news', 'models', 'startups', 'research', 'tools', 'open_source', 'funding', 'india_ai', 'world_ai')),
+  published_at TIMESTAMPTZ NOT NULL,
+  impact_summary TEXT, -- "How this impacts employee performance and work"
+  cta_text TEXT DEFAULT 'Track employee outcomes automatically with ImpactlyAI',
+  cta_link TEXT DEFAULT '/dashboard',
+  thumbnail_url TEXT,
+  views_count INTEGER DEFAULT 0,
+  bookmark_count INTEGER DEFAULT 0,
+  share_count INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_articles_category ON ai_articles(category, published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_articles_published ON ai_articles(published_at DESC);
+CREATE INDEX IF NOT EXISTS idx_ai_articles_slug ON ai_articles(slug);
+
+-- Enable RLS (public read access for SEO)
+ALTER TABLE ai_articles ENABLE ROW LEVEL SECURITY;
+
+-- Public can read all articles (for SEO and unauthenticated users)
+CREATE POLICY "Public can view all articles"
+  ON ai_articles
+  FOR SELECT
+  USING (true);
+
+-- 4.2 AI Impact Cards table (publicly accessible for SEO)
+CREATE TABLE IF NOT EXISTS ai_impact_cards (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slug TEXT UNIQUE NOT NULL,
+  industry TEXT NOT NULL UNIQUE CHECK (industry IN ('jobs', 'healthcare', 'education', 'finance', 'marketing', 'engineering', 'design', 'hr', 'agriculture', 'manufacturing')),
+  industry_display_name TEXT NOT NULL,
+  what_changed TEXT NOT NULL,
+  impact_level TEXT NOT NULL CHECK (impact_level IN ('high', 'medium', 'low')),
+  companies_involved TEXT[] DEFAULT '{}',
+  future_prediction TEXT NOT NULL,
+  opportunities TEXT NOT NULL,
+  risks TEXT NOT NULL,
+  tools TEXT[] DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_impact_cards_industry ON ai_impact_cards(industry);
+
+-- Enable RLS (public read access for SEO)
+ALTER TABLE ai_impact_cards ENABLE ROW LEVEL SECURITY;
+
+-- Public can read all impact cards
+CREATE POLICY "Public can view all impact cards"
+  ON ai_impact_cards
+  FOR SELECT
+  USING (true);
+
+-- 4.3 User bookmarks for AI articles and impact cards
+CREATE TABLE IF NOT EXISTS user_bookmarks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  article_id UUID REFERENCES ai_articles(id) ON DELETE CASCADE,
+  impact_card_id UUID REFERENCES ai_impact_cards(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(user_id, article_id),
+  UNIQUE(user_id, impact_card_id),
+  CONSTRAINT bookmark_target_check CHECK (
+    (article_id IS NOT NULL AND impact_card_id IS NULL) OR
+    (article_id IS NULL AND impact_card_id IS NOT NULL)
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_bookmarks_user ON user_bookmarks(user_id);
+
+-- Enable RLS
+ALTER TABLE user_bookmarks ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own bookmarks"
+  ON user_bookmarks
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own bookmarks"
+  ON user_bookmarks
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own bookmarks"
+  ON user_bookmarks
+  FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- 4.4 Migration jobs and triggers (auto-update timestamps)
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_ai_articles_updated_at
+  BEFORE UPDATE ON ai_articles
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_ai_impact_cards_updated_at
+  BEFORE UPDATE ON ai_impact_cards
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+

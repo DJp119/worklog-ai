@@ -196,3 +196,54 @@ export interface ApiError {
     code: string
     details?: Record<string, string[]>
 }
+
+// AI Pulse types
+export interface AIArticle {
+    id: string
+    title: string
+    slug: string
+    summary: string
+    content: string
+    source_url?: string
+    source_name?: string
+    category: 'news' | 'models' | 'startups' | 'research' | 'tools' | 'open_source' | 'funding' | 'india_ai' | 'world_ai'
+    published_at: string
+    impact_summary?: string
+    cta_text?: string
+    cta_link?: string
+    thumbnail_url?: string
+    views_count: number
+    bookmark_count: number
+    share_count: number
+    created_at: string
+    updated_at: string
+}
+
+export interface AIImpactCard {
+    id: string
+    slug: string
+    industry: 'jobs' | 'healthcare' | 'education' | 'finance' | 'marketing' | 'engineering' | 'design' | 'hr' | 'agriculture' | 'manufacturing'
+    industry_display_name: string
+    what_changed: string
+    impact_level: 'high' | 'medium' | 'low'
+    companies_involved: string[]
+    future_prediction: string
+    opportunities: string
+    risks: string
+    tools: string[]
+    created_at: string
+    updated_at: string
+}
+
+export interface BookmarkRequest {
+    article_id?: string
+    impact_card_id?: string
+}
+
+export interface Bookmark {
+    id: string
+    user_id: string
+    article_id?: string
+    impact_card_id?: string
+    created_at: string
+}
