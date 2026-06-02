@@ -38,11 +38,11 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <Link href="/" className="flex items-center group">
             <svg className="h-7 w-7 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <span className="ml-2 text-lg font-bold text-white group-hover:text-indigo-400 transition-colors">Impactly AI</span>
           </Link>
-          
+
           <nav className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors">Features</a>
             <a href="#playground" className="text-sm text-gray-400 hover:text-white transition-colors">Playground</a>
@@ -132,7 +132,7 @@ export default function Home() {
               <div className="text-[10px] md:text-xs text-gray-500 font-mono tracking-widest uppercase">Private Archives</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl md:text-3xl font-extrabold gradient-text mb-1">Mistral</div>
+              {/* <div className="text-2xl md:text-3xl font-extrabold gradient-text mb-1">Mistral</div> */}
               <div className="text-[10px] md:text-xs text-gray-500 font-mono tracking-widest uppercase">AI Grounding</div>
             </div>
           </div>
@@ -335,7 +335,7 @@ export default function Home() {
               <span>Get Started Free</span>
               <ArrowRight className="w-5 h-5" />
             </a>
-            
+
             <p className="text-[10px] text-gray-500 font-medium tracking-wide mt-4 uppercase">
               🛡️ Zero credit card required • Join in 1 click
             </p>
@@ -348,7 +348,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center group">
             <svg className="h-6 w-6 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <span className="ml-2 text-sm font-bold text-white">Impactly AI</span>
           </div>
