@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
+import Script from "next/script";
 import { Analytics } from '@vercel/analytics/next';
 import "./globals.css";
 
@@ -56,6 +57,19 @@ export default function RootLayout({
       <body
         className={`${jakarta.variable} font-sans bg-[#0a0a0f] text-slate-100 min-h-full flex flex-col antialiased`}
       >
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-HW2VQ27KDY"
+          strategy="afterInteractive"
+        />
+        <Script id="google-analytics" strategy="afterInteractive">
+          {`
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            gtag('js', new Date());
+
+            gtag('config', 'G-HW2VQ27KDY');
+          `}
+        </Script>
         {children}
         <Analytics />
       </body>
