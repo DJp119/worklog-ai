@@ -19,5 +19,9 @@
   },
   "devDependencies": {
     "concurrently": "^9.1.0"
+  },
+  "dependencies": {
+    "posthog-js": "^1.379.1",
+    "posthog-node": "^5.21.2"
   }
 }

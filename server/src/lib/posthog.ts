@@ -2,7 +2,7 @@ import { PostHog } from 'posthog-node'
 import { logger } from './logger.js'
 
 const postHogKey =
-  process.env.POSTHOG_API_KEY || process.env.POSTHOG_KEY || ''
+  process.env.POSTHOG_PROJECT_TOKEN || process.env.POSTHOG_API_KEY || process.env.POSTHOG_KEY || ''
 const postHogHost = process.env.POSTHOG_HOST || 'https://us.i.posthog.com'
 
 let posthog: PostHog | null = null

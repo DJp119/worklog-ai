@@ -1,24 +1,37 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
+import posthog from 'posthog-js'
 import { PostHogProvider } from '@posthog/react'
 import './index.css'
 import App from './App.tsx'
 
-// PostHog configuration
-const posthogApiKey = import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN || import.meta.env.VITE_POSTHOG_KEY
-const posthogHost = import.meta.env.VITE_PUBLIC_POSTHOG_HOST || import.meta.env.VITE_POSTHOG_HOST
+// PostHog initialization — call posthog.init() once at startup
+const posthogApiKey =
+  import.meta.env.VITE_PUBLIC_POSTHOG_PROJECT_TOKEN ||
+  import.meta.env.VITE_POSTHOG_KEY
 
-const posthogOptions = {
-  api_host: posthogHost || 'https://us.i.posthog.com',
-  person_profiles: 'identified_only',
-  capture_pageview: true,
-  autocapture: true,
-} as const
+const posthogHost =
+  import.meta.env.VITE_PUBLIC_POSTHOG_HOST ||
+  import.meta.env.VITE_POSTHOG_HOST ||
+  'https://us.i.posthog.com'
+
+if (posthogApiKey) {
+  posthog.init(posthogApiKey, {
+    api_host: posthogHost,
+    defaults: '2026-01-30',
+    person_profiles: 'identified_only',
+    capture_pageview: true,
+    autocapture: true,
+    loaded: (ph) => {
+      if (import.meta.env.DEV) ph.debug()
+    },
+  })
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <PostHogProvider apiKey={posthogApiKey} options={posthogOptions}>
+    <PostHogProvider client={posthog}>
       <BrowserRouter>
         <App />
       </BrowserRouter>

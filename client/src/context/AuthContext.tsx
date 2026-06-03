@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import LogRocket from 'logrocket'
+import posthog from 'posthog-js'
 
 interface User {
   id: string
@@ -62,6 +63,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               name: data.data.name,
               jobTitle: data.data.jobTitle,
             })
+            // Identify user in PostHog
+            posthog.identify(data.data.id, {
+              email: data.data.email,
+              name: data.data.name,
+              job_title: data.data.jobTitle,
+            })
           } else {
             clearAuth()
           }
@@ -100,6 +107,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       name: data.data.user.name,
       jobTitle: data.data.user.jobTitle,
     })
+    // Identify user in PostHog
+    posthog.identify(data.data.user.id, {
+      email: data.data.user.email,
+      name: data.data.user.name,
+      company_name: data.data.user.companyName,
+      job_title: data.data.user.jobTitle,
+    })
 
     if (rememberMe) {
       localStorage.setItem('accessToken', newAccessToken)
@@ -137,6 +151,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('Logout API error:', error)
       }
     }
+    posthog.reset()  // Clear PostHog identified user on logout
     clearAuth()
   }
 
