@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { usePostHog } from 'posthog-js/react';
+import { usePostHog } from '@posthog/react';
 import { Timeline } from '../../components/ai-pulse/Timeline';
 import { ImpactCard } from '../../components/ai-pulse/ImpactCard';
 import { ShareCard } from '../../components/ai-pulse/ShareCard';
