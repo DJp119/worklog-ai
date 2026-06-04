@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react'
 import { generateAppraisal, getAppraisalHistory } from '../lib/api'
 import type { GeneratedAppraisal } from 'shared'
+import { usePageMeta } from '../hooks/usePageMeta'
 
 interface AppraisalForm {
   period_start: string
@@ -11,6 +12,7 @@ interface AppraisalForm {
 }
 
 export default function Appraisal() {
+  usePageMeta({ title: 'Generate Appraisal', noIndex: true })
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)

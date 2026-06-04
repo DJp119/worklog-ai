@@ -194,7 +194,7 @@ export default function LandingPage() {
       {/* Monochrome Brand Logos Cloud */}
       <section className="border-y border-white/5 bg-black/20 py-8 text-center px-4 relative">
         <p className="text-[10px] md:text-xs text-gray-500 font-semibold tracking-widest uppercase mb-6">
-          Loved by top-performing professionals and leaders at:
+          Built for professionals at companies like:
         </p>
         <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-center gap-10 md:gap-16 opacity-35 hover:opacity-55 transition-opacity duration-300">
           {["google", "meta", "stripe", "netflix", "uber"].map((brand) => (

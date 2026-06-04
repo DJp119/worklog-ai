@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { submitFeedback, getFeedbackHistory, FeedbackItem } from '../lib/api'
+import { usePageMeta } from '../hooks/usePageMeta'
 
 const categories = [
   {
@@ -59,6 +60,7 @@ const categories = [
 const starLabels = ['Poor', 'Fair', 'Good', 'Great', 'Amazing']
 
 export default function Feedback() {
+  usePageMeta({ title: 'Feedback', noIndex: true })
   const [category, setCategory] = useState<'bug' | 'feature' | 'improvement' | 'general' | null>(null)
   const [rating, setRating] = useState(0)
   const [hoverRating, setHoverRating] = useState(0)

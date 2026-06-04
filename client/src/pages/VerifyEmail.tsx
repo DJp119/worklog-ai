@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { usePageMeta } from '../hooks/usePageMeta'
 
 export default function VerifyEmail() {
+  usePageMeta({ title: 'Verify Email', noIndex: true })
   const [searchParams] = useSearchParams()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
   const [message, setMessage] = useState('Verifying your email...')

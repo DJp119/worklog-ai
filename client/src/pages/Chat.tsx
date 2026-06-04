@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react'
 import SessionList from '../components/Chat/SessionList'
 import ChatWindow from '../components/Chat/ChatWindow'
 import { getChatSessions, createChatSession, deleteChatSession, type ChatSession } from '../lib/chatApi'
+import { usePageMeta } from '../hooks/usePageMeta'
 
 export default function Chat() {
+  usePageMeta({ title: 'AI Critique Assistant', noIndex: true })
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)

@@ -2,6 +2,7 @@ import { useState, FormEvent, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { createEntry, getEntries, updateEntry, getEntry, deleteEntry } from '../lib/api'
 import type { WorkLogEntry } from 'shared'
+import { usePageMeta } from '../hooks/usePageMeta'
 
 interface LogEntryForm {
   week_start_date: string
@@ -13,6 +14,7 @@ interface LogEntryForm {
 }
 
 export default function LogEntry() {
+  usePageMeta({ title: 'Weekly Log', noIndex: true })
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
