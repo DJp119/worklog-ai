@@ -1,6 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { Sparkles, Terminal, FileText, ChevronRight, User, RefreshCw, MessageSquare } from "lucide-react";
+import Sparkles from "lucide-react/dist/esm/icons/sparkles.mjs";
+import Terminal from "lucide-react/dist/esm/icons/terminal.mjs";
+import FileText from "lucide-react/dist/esm/icons/file-text.mjs";
+import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.mjs";
+import User from "lucide-react/dist/esm/icons/user.mjs";
+import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.mjs";
+import MessageSquare from "lucide-react/dist/esm/icons/message-square.mjs";
 
 interface Preset {
   role: string;

@@ -1,69 +1,54 @@
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import { ArrowRight, Shield, Award, Calendar, Terminal, Lock, ExternalLink } from 'lucide-react'
-import PlaygroundWidget from './landing/PlaygroundWidget'
-import PainGrid from './landing/PainGrid'
-import FaqAccordion from './landing/FaqAccordion'
+import { useIsLoggedIn } from '../hooks/useIsLoggedIn'
+import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs'
+import Shield from 'lucide-react/dist/esm/icons/shield.mjs'
+import Award from 'lucide-react/dist/esm/icons/award.mjs'
+import Calendar from 'lucide-react/dist/esm/icons/calendar.mjs'
+import Terminal from 'lucide-react/dist/esm/icons/terminal.mjs'
+import Lock from 'lucide-react/dist/esm/icons/lock.mjs'
+import ExternalLink from 'lucide-react/dist/esm/icons/external-link.mjs'
+
+const PainGrid = lazy(() => import('./landing/PainGrid'))
+const PlaygroundWidget = lazy(() => import('./landing/PlaygroundWidget'))
+const FaqAccordion = lazy(() => import('./landing/FaqAccordion'))
+
+function LazyOnVisible({ children, rootMargin = '300px' }: { children: ReactNode; rootMargin?: string }) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const [shouldLoad, setShouldLoad] = useState(false)
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setShouldLoad(true)
+      return
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setShouldLoad(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin }
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [rootMargin])
+
+  return (
+    <div ref={ref}>
+      {shouldLoad ? <Suspense fallback={null}>{children}</Suspense> : null}
+    </div>
+  )
+}
 
 export default function LandingPage() {
-  const { user } = useAuth()
-
-  // Structured schemas (Organization, WebSite, SoftwareApplication).
-  // No fabricated aggregateRating — we don't have real review counts yet.
-  // We also avoid the invalid "operatingSystem: All" — schema.org requires
-  // an array of OS values; "Web" is the correct descriptor for a SaaS.
-  const organizationSchema = {
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    "name": "Impactly AI",
-    "url": "https://impactlyai.com",
-    "logo": "https://impactlyai.com/og-default.png",
-    "description": "Privacy-first AI tool that turns weekly work logs into promotion-ready self-appraisals.",
-    "sameAs": []
-  }
-
-  const websiteSchema = {
-    "@context": "https://schema.org",
-    "@type": "WebSite",
-    "name": "Impactly AI",
-    "url": "https://impactlyai.com",
-    "inLanguage": "en-US",
-    "publisher": { "@type": "Organization", "name": "Impactly AI", "url": "https://impactlyai.com" }
-  }
-
-  const softwareSchema = {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    "name": "Impactly AI",
-    "url": "https://impactlyai.com",
-    "description": "AI-powered self-appraisal generator and weekly work log tracker. Privacy-first with Row-Level Security and no LLM training on user data.",
-    "operatingSystem": "Web",
-    "applicationCategory": "BusinessApplication",
-    "offers": {
-      "@type": "Offer",
-      "price": "0.00",
-      "priceCurrency": "USD",
-      "availability": "https://schema.org/InStock"
-    },
-    "featureList": "Weekly work log, STAR-format self-appraisal generation, AI Critique Assistant, Company values alignment engine, OKR mapping, Customizable tone, Email reminders, AI Pulse Hub, Privacy-first RLS isolation"
-  }
+  const isLoggedIn = useIsLoggedIn()
 
   return (
     <div className="bg-futuristic flex-1 flex flex-col min-h-screen">
-      {/* Schema Injection — Organization, WebSite, SoftwareApplication */}
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
-      />
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }}
-      />
-
       {/* Floating Header */}
       <header className="relative w-full z-50 border-b border-white/5 bg-black/10 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
@@ -92,7 +77,7 @@ export default function LandingPage() {
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
               </span>
             </Link>
-            {user ? (
+            {isLoggedIn ? (
               <Link
                 to="/dashboard"
                 className="px-4 py-2 rounded-lg text-xs md:text-sm font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:shadow-lg hover:shadow-indigo-500/20 transition-all glow-primary"
@@ -121,31 +106,26 @@ export default function LandingPage() {
 
       {/* Hero Section */}
       <section className="relative pt-20 pb-28 px-4 flex flex-col items-center overflow-hidden">
-        {/* Glowing floating blur orbs */}
         <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl animate-pulse-glow"></div>
         <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse-glow" style={{ animationDelay: '2s' }}></div>
 
         <div className="max-w-4xl mx-auto text-center relative z-10">
-          {/* Active Appraisal badge */}
           <div className="inline-flex items-center px-3.5 py-1.5 rounded-full glass mb-8 animate-float">
             <span className="w-2 h-2 bg-indigo-400 rounded-full mr-2.5 animate-pulse"></span>
             <span className="text-xs text-gray-300 font-semibold tracking-wide">AI-Powered Appraisal Workspace 2026</span>
           </div>
 
-          {/* Main Title */}
           <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold mb-6 leading-tight tracking-tight">
             <span className="text-white">Stop Stressing Over Your</span>
             <br />
             <span className="gradient-text text-glow-primary">Annual Self-Appraisal.</span>
           </h1>
 
-          {/* Subtitle */}
           <p className="text-base sm:text-xl md:text-2xl text-gray-400 max-w-3xl mx-auto mb-10 leading-relaxed font-normal">
             Impactly AI captures your weekly achievements, highlights your key metrics,
             and drafts professional, <span className="text-white font-semibold">promotion-ready self-evaluation reviews</span> in one click.
           </p>
 
-          {/* Centered Email Conversion Trigger */}
           <div className="w-full max-w-md mx-auto mb-6 flex flex-col sm:flex-row gap-2.5 p-1.5 glass rounded-2xl border border-white/10 shadow-2xl">
             <input
               type="email"
@@ -169,7 +149,6 @@ export default function LandingPage() {
             <span className="flex items-center gap-1">🔒 Row-Level Security</span>
           </div>
 
-          {/* Quick Stats Grid */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-3xl mx-auto border-t border-white/5 pt-10">
             <div className="text-center">
               <div className="text-2xl md:text-3xl font-extrabold gradient-text mb-1">5 Min</div>
@@ -196,13 +175,13 @@ export default function LandingPage() {
         <p className="text-[10px] md:text-xs text-gray-500 font-semibold tracking-widest uppercase mb-6">
           Built for professionals at companies like:
         </p>
-        <div className="max-w-6xl mx-auto flex flex-wrap items-center justify-center gap-10 md:gap-16 opacity-35 hover:opacity-55 transition-opacity duration-300">
+        <ul className="max-w-6xl mx-auto flex flex-wrap items-center justify-center gap-10 md:gap-16 opacity-35 hover:opacity-55 transition-opacity duration-300 list-none m-0 p-0">
           {["google", "meta", "stripe", "netflix", "uber"].map((brand) => (
-            <span key={brand} className="text-sm font-black font-mono tracking-tighter text-white uppercase select-none">
+            <li key={brand} className="text-sm font-black font-mono tracking-tighter text-white uppercase select-none">
               {brand}
-            </span>
+            </li>
           ))}
-        </div>
+        </ul>
       </section>
 
       {/* Pain Comparison Section */}
@@ -215,7 +194,9 @@ export default function LandingPage() {
             Why do we forget 90% of our impact before our yearly reviews? Compare the traditional hassle to the seamless automated workflow.
           </p>
         </div>
-        <PainGrid />
+        <LazyOnVisible>
+          <PainGrid />
+        </LazyOnVisible>
       </section>
 
       {/* The Interactive AI Appraisal Playground Widget */}
@@ -229,7 +210,9 @@ export default function LandingPage() {
             Experience our specialized grounding models in action. Select a department, click generate, and see bullet points structure themselves.
           </p>
         </div>
-        <PlaygroundWidget />
+        <LazyOnVisible>
+          <PlaygroundWidget />
+        </LazyOnVisible>
       </section>
 
       {/* Key Features Bento Grid */}
@@ -360,12 +343,13 @@ export default function LandingPage() {
             Have questions about accuracy, integration, or privacy? We have answers.
           </p>
         </div>
-        <FaqAccordion />
+        <LazyOnVisible>
+          <FaqAccordion />
+        </LazyOnVisible>
       </section>
 
       {/* Closing CTA Banner */}
       <section className="py-24 relative overflow-hidden border-t border-white/5 bg-gradient-to-b from-transparent to-indigo-950/20 px-4">
-        {/* Soft background orbs */}
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
         <div className="max-w-4xl mx-auto glass-strong rounded-3xl p-8 md:p-14 text-center relative overflow-hidden border border-white/10 shadow-2xl">
@@ -380,7 +364,7 @@ export default function LandingPage() {
               Join high-performing engineers, managers, and designers who never scramble during review season. Secure the recognition and promotion you earned.
             </p>
 
-            {user ? (
+            {isLoggedIn ? (
               <Link
                 to="/dashboard"
                 className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold text-base rounded-xl shadow-xl hover:shadow-indigo-500/20 transition-all cursor-pointer"
@@ -416,7 +400,7 @@ export default function LandingPage() {
           </div>
 
           <div className="flex flex-wrap justify-center gap-8 text-xs text-gray-500">
-            <Link to={user ? "/dashboard" : "/login"} className="hover:text-gray-300 transition-colors flex items-center gap-0.5">
+            <Link to={isLoggedIn ? "/dashboard" : "/login"} className="hover:text-gray-300 transition-colors flex items-center gap-0.5">
               <span>Go to App</span>
               <ExternalLink className="w-3 h-3" />
             </Link>

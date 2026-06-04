@@ -1,9 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import cssInjectedByJs from 'vite-plugin-css-injected-by-js';
 import path from 'path';
 // https://vite.dev/config/
 export default defineConfig({
-    plugins: [react()],
+    plugins: [react(), cssInjectedByJs()],
     resolve: {
         alias: {
             shared: path.resolve(__dirname, '../shared'),
@@ -25,7 +26,6 @@ export default defineConfig({
                 manualChunks: {
                     'react-vendor': ['react', 'react-dom', 'react-router-dom'],
                     'analytics-vendor': ['posthog-js', '@posthog/react', 'logrocket'],
-                    'icons-vendor': ['lucide-react'],
                 },
             },
         },
