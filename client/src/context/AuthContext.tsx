@@ -10,6 +10,17 @@ interface User {
   jobTitle?: string
 }
 
+export class AuthError extends Error {
+  code?: string
+  email?: string
+  constructor(message: string, code?: string, email?: string) {
+    super(message)
+    this.name = 'AuthError'
+    this.code = code
+    this.email = email
+  }
+}
+
 interface AuthContextType {
   user: User | null
   accessToken: string | null
@@ -18,6 +29,7 @@ interface AuthContextType {
   signup: (email: string, password: string, name?: string, companyName?: string, jobTitle?: string) => Promise<void>
   logout: () => Promise<void>
   verifyEmail: (userId: string, token: string) => Promise<void>
+  resendVerificationEmail: (email: string) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -91,7 +103,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.error || 'Login failed')
+      throw new AuthError(error.error || 'Login failed', error.code, error.email)
     }
 
     const data = await response.json()
@@ -168,6 +180,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function resendVerificationEmail(email: string) {
+    const response = await fetch(`${API_URL}/api/auth/resend-verification`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || 'Failed to resend verification email')
+    }
+  }
+
   async function handleRefreshToken() {
     if (!refreshToken) return
 
@@ -223,6 +248,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signup,
         logout,
         verifyEmail,
+        resendVerificationEmail,
       }}
     >
       {children}
