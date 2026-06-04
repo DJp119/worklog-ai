@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { usePostHog } from '@posthog/react';
+import { posthog } from '../../lib/analytics';
 import { Timeline } from '../../components/ai-pulse/Timeline';
 import { ImpactCard } from '../../components/ai-pulse/ImpactCard';
 import { ShareCard } from '../../components/ai-pulse/ShareCard';
@@ -95,7 +95,6 @@ function articleToTimelineEvent(article: Article): TimelineEvent {
 export const AIPulseHub: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const posthog = usePostHog();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showShareCard, setShowShareCard] = useState(false);
   const [articles, setArticles] = useState<Article[]>([]);
