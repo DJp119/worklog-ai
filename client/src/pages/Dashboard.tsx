@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { getEntries } from '../lib/api'
 import type { WorkLogEntry } from 'shared'
+import { usePageMeta } from '../hooks/usePageMeta'
 
 interface DashboardStats {
   totalWeeks: number
@@ -14,6 +15,7 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
+  usePageMeta({ title: 'Dashboard', noIndex: true })
   const [loading, setLoading] = useState(true)
   const [entries, setEntries] = useState<WorkLogEntry[]>([])
   const [stats, setStats] = useState<DashboardStats | null>(null)

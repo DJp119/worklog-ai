@@ -1,6 +1,7 @@
 import { useState, useEffect, FormEvent } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { getProfile, updateProfile } from '../lib/api'
+import { usePageMeta } from '../hooks/usePageMeta'
 
 interface Profile {
   company_name: string
@@ -49,6 +50,7 @@ function formatHour(hour: number): string {
 }
 
 export default function Settings() {
+  usePageMeta({ title: 'Settings', noIndex: true })
   const { user, logout, accessToken } = useAuth()
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)

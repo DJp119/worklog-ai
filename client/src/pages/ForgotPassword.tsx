@@ -1,7 +1,9 @@
 import { useState, FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { usePageMeta } from '../hooks/usePageMeta'
 
 export default function ForgotPassword() {
+    usePageMeta({ title: 'Forgot Password', noIndex: true })
     const [email, setEmail] = useState('')
     const [loading, setLoading] = useState(false)
     const [message, setMessage] = useState<string | null>(null)

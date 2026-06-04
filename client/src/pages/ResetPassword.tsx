@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
+import { usePageMeta } from '../hooks/usePageMeta'
 
 export default function ResetPassword() {
+  usePageMeta({ title: 'Reset Password', noIndex: true })
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
