@@ -13,7 +13,15 @@ const PainGrid = lazy(() => import('./landing/PainGrid'))
 const PlaygroundWidget = lazy(() => import('./landing/PlaygroundWidget'))
 const FaqAccordion = lazy(() => import('./landing/FaqAccordion'))
 
-function LazyOnVisible({ children, rootMargin = '300px' }: { children: ReactNode; rootMargin?: string }) {
+function LazyOnVisible({
+  children,
+  rootMargin = '300px',
+  minHeight = 600,
+}: {
+  children: ReactNode
+  rootMargin?: string
+  minHeight?: number
+}) {
   const ref = useRef<HTMLDivElement | null>(null)
   const [shouldLoad, setShouldLoad] = useState(false)
 
@@ -38,7 +46,7 @@ function LazyOnVisible({ children, rootMargin = '300px' }: { children: ReactNode
   }, [rootMargin])
 
   return (
-    <div ref={ref}>
+    <div ref={ref} style={shouldLoad ? undefined : { minHeight: `${minHeight}px` }}>
       {shouldLoad ? <Suspense fallback={null}>{children}</Suspense> : null}
     </div>
   )
@@ -194,7 +202,7 @@ export default function LandingPage() {
             Why do we forget 90% of our impact before our yearly reviews? Compare the traditional hassle to the seamless automated workflow.
           </p>
         </div>
-        <LazyOnVisible>
+        <LazyOnVisible minHeight={560}>
           <PainGrid />
         </LazyOnVisible>
       </section>
@@ -210,7 +218,7 @@ export default function LandingPage() {
             Experience our specialized grounding models in action. Select a department, click generate, and see bullet points structure themselves.
           </p>
         </div>
-        <LazyOnVisible>
+        <LazyOnVisible minHeight={720}>
           <PlaygroundWidget />
         </LazyOnVisible>
       </section>
@@ -343,7 +351,7 @@ export default function LandingPage() {
             Have questions about accuracy, integration, or privacy? We have answers.
           </p>
         </div>
-        <LazyOnVisible>
+        <LazyOnVisible minHeight={620}>
           <FaqAccordion />
         </LazyOnVisible>
       </section>
