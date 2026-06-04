@@ -1,14 +1,15 @@
 <!doctype html>
 <html lang="en" class="scroll-smooth">
   <head>
-    <!-- Google tag (gtag.js) -->
+    <!-- Google tag (gtag.js) — config call deferred to window.load to avoid blocking first parse -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-HW2VQ27KDY"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-
-      gtag('config', 'G-HW2VQ27KDY');
+      window.addEventListener('load', () => {
+        gtag('config', 'G-HW2VQ27KDY');
+      });
     </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -47,12 +48,7 @@
     <meta name="twitter:image" content="https://impactlyai.com/og-default.webp" />
     <meta name="twitter:image:alt" content="Impactly AI — AI Self-Appraisal Generator & Weekly Work Log" />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link rel="modulepreload" href="/src/main.tsx" />
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" />
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" media="print" onload="this.media='all'" />
-    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap" /></noscript>
 
     <meta name="keywords" content="self appraisal generator,AI self appraisal,performance review generator,work log software,self evaluation examples,employee appraisal software,accomplishment tracker,yearly review AI,brag document software" />
 
@@ -113,55 +109,6 @@
   </head>
   <body class="antialiased">
     <div id="root">
-      <!-- Static pre-render content for SEO crawlers. React hydration replaces this. -->
-      <header>
-        <a href="/">Impactly AI</a>
-        <nav>
-          <a href="#features">Features</a>
-          <a href="#playground">Playground</a>
-          <a href="#privacy">Security</a>
-          <a href="#faq">FAQ</a>
-          <a href="/login">Sign In</a>
-        </nav>
-      </header>
-
-      <main>
-        <h1>Stop Stressing Over Your Annual Self-Appraisal</h1>
-        <p>Impactly AI captures your weekly achievements, highlights your key metrics, and generates promotion-ready, structured self-evaluations automatically. 100% private and secure.</p>
-
-        <h2>Key Features</h2>
-        <ul>
-          <li>Weekly Impact Logging — 5 minutes on Friday to document accomplishments, hurdles, and learnings</li>
-          <li>Criteria and Values Mapping — AI correlates your work logs with company OKRs and core values</li>
-          <li>AI Critique Assistant — Chat with an expert performance coach to refine your appraisal language</li>
-          <li>Enterprise-Grade Security — Row-Level Security (RLS), encrypted at rest and in transit, no LLM training on your data</li>
-        </ul>
-
-        <h2>Your accomplishments belong to you. Period.</h2>
-        <p>Unlike many AI tools, Impactly AI never aggregates your private logs, trains large language models on your entries, or shares corporate documentation. Every check-in is encrypted and locked in your isolated database tenancy.</p>
-
-        <h2>Frequently Asked Questions</h2>
-        <dl>
-          <dt>How does the AI generate my self-appraisal?</dt>
-          <dd>Impactly AI processes your private weekly log entries, correlates them with your company's core values and appraisal goals, and drafts professional self-evaluation responses in STAR format.</dd>
-
-          <dt>Is my corporate work log and appraisal data secure?</dt>
-          <dd>Absolutely. We implement database-level Row Level Security (RLS), encrypt all data in transit and at rest, and never use your private logs to train large language models.</dd>
-
-          <dt>Can I customize the generated tone and appraisal criteria?</dt>
-          <dd>Yes. Set the tone, input department OKRs, paste company values, or select a custom review period to match your corporate requirements.</dd>
-
-          <dt>Is there a free tier available?</dt>
-          <dd>Yes. Unlimited weekly work logs, consistency streaks, and full appraisal reports. No credit card required.</dd>
-        </dl>
-      </main>
-
-      <footer>
-        <a href="/terms">Terms</a>
-        <a href="/privacy">Privacy</a>
-        <p>© 2026 Impactly AI. All rights reserved.</p>
-      </footer>
-    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

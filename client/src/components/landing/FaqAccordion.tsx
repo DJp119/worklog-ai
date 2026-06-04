@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { ChevronDown, HelpCircle } from "lucide-react";
+import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.mjs";
+import HelpCircle from "lucide-react/dist/esm/icons/help-circle.mjs";
 
 export interface FAQItem {
   question: string;

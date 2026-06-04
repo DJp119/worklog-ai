@@ -1,4 +1,11 @@
-import { AlertCircle, CheckCircle2, Search, Zap, Calendar, Heart, ShieldAlert, Award } from "lucide-react";
+import AlertCircle from "lucide-react/dist/esm/icons/alert-circle.mjs";
+import CheckCircle2 from "lucide-react/dist/esm/icons/check-circle-2.mjs";
+import Search from "lucide-react/dist/esm/icons/search.mjs";
+import Zap from "lucide-react/dist/esm/icons/zap.mjs";
+import Calendar from "lucide-react/dist/esm/icons/calendar.mjs";
+import Heart from "lucide-react/dist/esm/icons/heart.mjs";
+import ShieldAlert from "lucide-react/dist/esm/icons/shield-alert.mjs";
+import Award from "lucide-react/dist/esm/icons/award.mjs";
 
 export default function PainGrid() {
   return (
