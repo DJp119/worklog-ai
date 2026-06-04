@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import LogRocket from 'logrocket'
-import posthog from 'posthog-js'
+import { posthog } from '../lib/analytics'
 
 interface User {
   id: string
@@ -70,12 +69,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (response.ok) {
             const data = await response.json()
             setUser(data.data)
-            LogRocket.identify(data.data.id, {
-              email: data.data.email,
-              name: data.data.name,
-              jobTitle: data.data.jobTitle,
-            })
-            // Identify user in PostHog
             posthog.identify(data.data.id, {
               email: data.data.email,
               name: data.data.name,
@@ -114,12 +107,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRefreshToken(newRefreshToken)
     setUser(data.data.user)
 
-    LogRocket.identify(data.data.user.id, {
-      email: data.data.user.email,
-      name: data.data.user.name,
-      jobTitle: data.data.user.jobTitle,
-    })
-    // Identify user in PostHog
     posthog.identify(data.data.user.id, {
       email: data.data.user.email,
       name: data.data.user.name,

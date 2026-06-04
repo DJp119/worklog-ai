@@ -5,7 +5,7 @@ import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), cssInjectedByJs()],
+  plugins: [react(), cssInjectedByJs({ topExecutionPriority: false })],
   resolve: {
     alias: {
       shared: path.resolve(__dirname, '../shared'),
@@ -26,7 +26,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'analytics-vendor': ['posthog-js', '@posthog/react', 'logrocket'],
         },
       },
     },
