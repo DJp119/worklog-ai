@@ -156,6 +156,19 @@ def make_mstile():
     make_favicon_png(150, "mstile-150x150.png")
 
 
+def make_producthunt_logo():
+    """240x240 PNG logo specifically for Product Hunt."""
+    size = 240
+    img = gradient_bg(size, size, INDIGO, PURPLE, 135)
+    draw = ImageDraw.Draw(img)
+    # lightning bolt centered
+    pad = 60
+    draw_lightning(draw, x=pad, y=pad, size=size - 2 * pad)
+    out = os.path.join(OUT_DIR, "producthunt-logo.png")
+    img.save(out, "PNG", optimize=True)
+    print(f"Wrote {out} ({size}x{size})")
+
+
 def make_ico():
     """Multi-resolution ICO with 16, 32, 48 sizes."""
     sizes = [16, 32, 48]
@@ -181,5 +194,7 @@ if __name__ == "__main__":
     make_favicon_png(16, "favicon-16x16.png")
     make_og_image()
     make_mstile()
+    make_producthunt_logo()
     make_ico()
     print("\nAll brand assets generated.")
+

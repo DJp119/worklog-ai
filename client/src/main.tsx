@@ -16,17 +16,24 @@ const posthogHost =
   import.meta.env.VITE_POSTHOG_HOST ||
   'https://us.i.posthog.com'
 
-if (posthogApiKey) {
-  posthog.init(posthogApiKey, {
-    api_host: posthogHost,
-    defaults: '2026-01-30',
-    person_profiles: 'identified_only',
-    capture_pageview: true,
-    autocapture: true,
-    loaded: (ph) => {
-      if (import.meta.env.DEV) ph.debug()
-    },
-  })
+const startPosthog = () => {
+  if (posthogApiKey) {
+    posthog.init(posthogApiKey, {
+      api_host: posthogHost,
+      defaults: '2026-01-30',
+      person_profiles: 'identified_only',
+      capture_pageview: true,
+      autocapture: true,
+      loaded: (ph) => {
+        if (import.meta.env.DEV) ph.debug()
+      },
+    })
+  }
+}
+if ('requestIdleCallback' in window) {
+  window.requestIdleCallback(startPosthog)
+} else {
+  setTimeout(startPosthog, 1)
 }
 
 createRoot(document.getElementById('root')!).render(
