@@ -34,7 +34,7 @@ export function Layout({ children }: LayoutProps) {
                   <svg className="h-8 w-8 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                  <h1 className="ml-2 text-xl font-bold gradient-text">Worklog AI</h1>
+                  <h1 className="ml-2 text-xl font-bold gradient-text">Impactly AI</h1>
                 </div>
               </div>
             </Link>
@@ -251,7 +251,7 @@ export function Layout({ children }: LayoutProps) {
                 <svg className="h-6 w-6 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                <h3 className="ml-2 text-lg font-bold gradient-text">Worklog AI</h3>
+                <h3 className="ml-2 text-lg font-bold gradient-text">Impactly AI</h3>
               </div>
               <p className="text-gray-400 text-sm">
                 AI-powered self-appraisal generation for high performers.
@@ -283,7 +283,7 @@ export function Layout({ children }: LayoutProps) {
             {/* Legal */}
             <div className="text-right flex flex-col items-end space-y-2">
               <p className="text-gray-500 text-sm">
-                &copy; {new Date().getFullYear()} Worklog AI
+                &copy; {new Date().getFullYear()} Impactly AI
               </p>
               <div className="flex space-x-4">
                 <Link to="/terms" className="text-gray-400 hover:text-white text-xs transition-colors">

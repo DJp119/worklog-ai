@@ -1,4 +1,13 @@
+import { usePageMeta } from '../hooks/usePageMeta'
+
 export default function Terms() {
+  usePageMeta({
+    title: 'Terms of Service',
+    description:
+      'Terms governing your use of Impactly AI — the privacy-first AI self-appraisal generator. Read about acceptable use, accounts, billing, and our content policies.',
+    path: '/terms',
+  })
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 p-6">
       <div className="text-center mb-12">

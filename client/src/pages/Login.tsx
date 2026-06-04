@@ -1,8 +1,16 @@
 import { useState, FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { usePageMeta } from '../hooks/usePageMeta'
 
 export default function Login() {
+    usePageMeta({
+      title: 'Sign In',
+      description:
+        'Sign in to Impactly AI to log your weekly achievements and generate promotion-ready self-appraisals. Email or Google/GitHub OAuth. No credit card required.',
+      path: '/login',
+    })
+
     const [email, setEmail] = useState('')
     const [password, setPassword] = useState('')
     const [loading, setLoading] = useState(false)
