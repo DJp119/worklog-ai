@@ -1,6 +1,6 @@
-import { useState, FormEvent } from 'react'
+import { useState, useEffect, FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAuth, AuthError } from '../context/AuthContext'
 import { usePageMeta } from '../hooks/usePageMeta'
 
 export default function Login() {
@@ -17,9 +17,20 @@ export default function Login() {
     const [isLogin, setIsLogin] = useState(true)
     const [message, setMessage] = useState<string | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const [unverifiedEmail, setUnverifiedEmail] = useState<string | null>(null)
+    const [resending, setResending] = useState(false)
+    const [resendMessage, setResendMessage] = useState<string | null>(null)
+    const [resendError, setResendError] = useState<string | null>(null)
+    const [resendCooldown, setResendCooldown] = useState(0)
 
-    const { login, signup } = useAuth()
+    const { login, signup, resendVerificationEmail } = useAuth()
     const navigate = useNavigate()
+
+    useEffect(() => {
+        if (resendCooldown <= 0) return
+        const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000)
+        return () => clearTimeout(timer)
+    }, [resendCooldown])
 
     const handleSubmit = async (e: FormEvent) => {
         e.preventDefault()
@@ -37,6 +48,9 @@ export default function Login() {
         setLoading(true)
         setError(null)
         setMessage(null)
+        setUnverifiedEmail(null)
+        setResendMessage(null)
+        setResendError(null)
 
         try {
             if (isLogin) {
@@ -49,9 +63,36 @@ export default function Login() {
                 setIsLogin(true)
             }
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Operation failed')
+            if (err instanceof AuthError && err.code === 'EMAIL_NOT_VERIFIED' && err.email) {
+                setUnverifiedEmail(err.email)
+                setError(null)
+            } else {
+                setError(err instanceof Error ? err.message : 'Operation failed')
+            }
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleResend = async () => {
+        if (!unverifiedEmail || resending || resendCooldown > 0) return
+
+        setResending(true)
+        setResendError(null)
+        setResendMessage(null)
+
+        try {
+            await resendVerificationEmail(unverifiedEmail)
+            setResendMessage('Verification email sent! Check your inbox.')
+            setResendCooldown(60)
+        } catch (err) {
+            const message = err instanceof Error ? err.message : 'Failed to resend verification email'
+            setResendError(message)
+            if (message.toLowerCase().includes('wait')) {
+                setResendCooldown(60)
+            }
+        } finally {
+            setResending(false)
         }
     }
 
@@ -119,6 +160,55 @@ export default function Login() {
                         </div>
                     )}
 
+                    {unverifiedEmail && (
+                        <div className="text-amber-200 text-sm bg-amber-500/10 border border-amber-500/30 p-4 rounded-lg space-y-3">
+                            <div className="flex items-start gap-2">
+                                <svg className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-3L13.74 4a2 2 0 00-3.48 0L3.34 16a2 2 0 001.73 3z" />
+                                </svg>
+                                <div>
+                                    <p className="font-medium text-amber-100">Email not verified</p>
+                                    <p className="text-amber-200/80 mt-1">
+                                        We sent a verification link to <span className="font-semibold">{unverifiedEmail}</span>. Please check your inbox to activate your account.
+                                    </p>
+                                </div>
+                            </div>
+
+                            {resendMessage && (
+                                <div className="text-green-300 bg-green-500/10 border border-green-500/30 p-2 rounded">
+                                    {resendMessage}
+                                </div>
+                            )}
+
+                            {resendError && (
+                                <div className="text-red-300 bg-red-500/10 border border-red-500/30 p-2 rounded">
+                                    {resendError}
+                                </div>
+                            )}
+
+                            <button
+                                type="button"
+                                onClick={handleResend}
+                                disabled={resending || resendCooldown > 0}
+                                className="w-full flex justify-center items-center py-2 px-4 rounded-lg text-sm font-medium text-white bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                            >
+                                {resending ? (
+                                    <span className="flex items-center">
+                                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        Sending...
+                                    </span>
+                                ) : resendCooldown > 0 ? (
+                                    `Resend in ${resendCooldown}s`
+                                ) : (
+                                    'Resend Verification Email'
+                                )}
+                            </button>
+                        </div>
+                    )}
+
                     {message && (
                         <div className="text-green-400 text-sm bg-green-500/10 border border-green-500/20 p-3 rounded-lg">
                             {message}
@@ -151,6 +241,9 @@ export default function Login() {
                             setIsLogin(!isLogin)
                             setError(null)
                             setMessage(null)
+                            setUnverifiedEmail(null)
+                            setResendMessage(null)
+                            setResendError(null)
                         }}
                         className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
                     >

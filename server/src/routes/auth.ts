@@ -200,6 +200,107 @@ authRoutes.post('/verify-email', async (req: AuthRequest, res: Response) => {
 })
 
 /**
+ * POST /api/auth/resend-verification
+ * Resend verification email with 60s rate limit
+ */
+authRoutes.post('/resend-verification', async (req: AuthRequest, res: Response) => {
+  try {
+    const { email } = req.body
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email required' })
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: 'Valid email required' })
+    }
+
+    // Find user by email
+    const { data: user } = await supabase
+      .from('users')
+      .select('id, email, email_verified')
+      .eq('email', email.toLowerCase())
+      .single()
+
+    // Always return success to prevent email enumeration
+    if (!user) {
+      return res.json({
+        success: true,
+        message: 'If an unverified account exists with this email, a new verification link has been sent.',
+      })
+    }
+
+    // If already verified, also return generic success (no harm done)
+    if (user.email_verified) {
+      return res.json({
+        success: true,
+        message: 'If an unverified account exists with this email, a new verification link has been sent.',
+      })
+    }
+
+    // Rate limit: check for any verification token created in the last 60 seconds
+    const sixtySecondsAgo = new Date(Date.now() - 60 * 1000).toISOString()
+    const { data: recentToken } = await supabase
+      .from('email_verifications')
+      .select('id, created_at')
+      .eq('user_id', user.id)
+      .gte('created_at', sixtySecondsAgo)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (recentToken) {
+      return res.status(429).json({ error: 'Please wait before requesting another verification email' })
+    }
+
+    // Clean up any old expired/unused tokens for this user
+    await supabase
+      .from('email_verifications')
+      .delete()
+      .eq('user_id', user.id)
+
+    // Generate a fresh token with 24h expiry
+    const emailToken = generateToken()
+    const emailExpiresAt = new Date()
+    emailExpiresAt.setHours(emailExpiresAt.getHours() + 24)
+
+    const { error: insertError } = await supabase
+      .from('email_verifications')
+      .insert({
+        user_id: user.id,
+        token: emailToken,
+        expires_at: emailExpiresAt.toISOString(),
+      })
+
+    if (insertError) {
+      logger.error('Resend verification token error: {}', insertError.message, insertError)
+      return res.status(500).json({ error: 'Failed to resend verification email' })
+    }
+
+    // Send the verification email
+    const emailSent = await sendVerificationEmail(user.email, user.id, emailToken)
+    if (!emailSent) {
+      logger.warn('Resend verification email not sent (Brevo not configured or failed)')
+    }
+
+    captureEvent(user.id, 'verification_email_resent', {
+      email_sent: emailSent,
+    })
+
+    logger.info('Verification email resent successfully')
+
+    res.json({
+      success: true,
+      message: 'If an unverified account exists with this email, a new verification link has been sent.',
+    })
+  } catch (error) {
+    logger.error('Resend verification error: {}', error instanceof Error ? error.message : String(error), error)
+    captureException(error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+/**
  * POST /api/auth/login
  * Authenticate user and return tokens
  */
@@ -228,7 +329,11 @@ authRoutes.post('/login', async (req: AuthRequest, res: Response) => {
     // Check if email is verified
     if (!user.email_verified) {
       logger.warn('Login failed: Email not verified')
-      return res.status(403).json({ error: 'Please verify your email before logging in' })
+      return res.status(403).json({
+        error: 'Please verify your email before logging in',
+        code: 'EMAIL_NOT_VERIFIED',
+        email: user.email,
+      })
     }
 
     // Verify password

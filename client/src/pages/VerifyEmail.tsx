@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { usePageMeta } from '../hooks/usePageMeta'
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+
 export default function VerifyEmail() {
   usePageMeta({ title: 'Verify Email', noIndex: true })
   const [searchParams] = useSearchParams()
@@ -21,7 +23,7 @@ export default function VerifyEmail() {
 
       try {
         // Call your backend to verify the email token
-        const response = await fetch('https://worklog-ai-7qh6.onrender.com/api/auth/verify-email', {
+        const response = await fetch(`${API_URL}/api/auth/verify-email`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
