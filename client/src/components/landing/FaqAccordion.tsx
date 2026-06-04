@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { ChevronDown, HelpCircle } from "lucide-react";
 
-interface FAQItem {
+export interface FAQItem {
   question: string;
   answer: string;
 }
 
-const FAQS: FAQItem[] = [
+export const FAQS: FAQItem[] = [
   {
     question: "How does the AI generate my self-appraisal?",
     answer: "Impactly AI processes your private weekly log entries, correlates them with your company's core values and appraisal goals, and drafts professional self-evaluation responses. By referencing your specific, concrete accomplishments throughout the year, the generated review is structured in a logical STAR (Situation, Task, Action, Result) format, ensuring your impact is clear and data-backed."

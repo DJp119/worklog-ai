@@ -13,38 +13,73 @@ const jakarta = Plus_Jakarta_Sans({
 export const viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 5,
 };
 
 export const metadata: Metadata = {
-  title: "Impactly AI | AI Self-Appraisal Generator & Weekly Work Log",
+  metadataBase: new URL("https://impactlyai.com"),
+  title: {
+    default: "Impactly AI | AI Self-Appraisal Generator & Weekly Work Log",
+    template: "%s | Impactly AI",
+  },
   description: "Stop stressing over annual appraisals. Impactly AI captures your weekly achievements, highlights your key metrics, and generates promotion-ready, structured self-evaluations automatically. 100% private and secure.",
-  keywords: [
-    "self appraisal generator",
-    "AI self appraisal",
-    "performance review generator",
-    "work log software",
-    "self evaluation examples",
-    "employee appraisal software",
-    "accomplishment tracker",
-    "yearly review AI",
-    "brag document software"
-  ],
-  authors: [{ name: "Impactly AI Team" }],
-  robots: "index, follow",
+  authors: [{ name: "Impactly AI Team", url: "https://impactlyai.com" }],
+  creator: "Impactly AI",
+  publisher: "Impactly AI",
+  applicationName: "Impactly AI",
+  category: "Productivity",
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-snippet": -1,
+      "max-image-preview": "large",
+      "max-video-preview": -1,
+    },
+  },
+  alternates: {
+    canonical: "/",
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.svg", type: "image/svg+xml" },
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+    other: [{ rel: "mask-icon", url: "/favicon.svg", color: "#6366f1" }],
+  },
+  manifest: "/manifest.json",
   openGraph: {
-    title: "Impactly AI | AI Self-Appraisal Generator & Weekly Work Log",
-    description: "Stop stressing over annual appraisals. Impactly AI captures your weekly achievements, highlights your key metrics, and generates promotion-ready, structured self-evaluations automatically.",
+    type: "website",
+    locale: "en_US",
     url: "https://impactlyai.com",
     siteName: "Impactly AI",
-    locale: "en_US",
-    type: "website",
+    title: "Impactly AI | AI Self-Appraisal Generator & Weekly Work Log",
+    description: "Stop stressing over annual appraisals. Impactly AI captures your weekly achievements, highlights your key metrics, and generates promotion-ready, structured self-evaluations automatically.",
+    images: [
+      {
+        url: "/og-default.png",
+        width: 1200,
+        height: 630,
+        alt: "Impactly AI — AI Self-Appraisal Generator",
+        type: "image/png",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Impactly AI | AI Self-Appraisal Generator & Weekly Work Log",
-    description: "Stop stressing over annual appraisals. Impactly AI captures your weekly achievements, highlights your key metrics, and generates promotion-ready, structured self-evaluations automatically.",
-  }
+    description: "Stop stressing over annual appraisals. Impactly AI captures your weekly achievements and drafts promotion-ready self-evaluations in seconds.",
+    images: ["/og-default.png"],
+    creator: "@impactlyai",
+  },
+  other: {
+    "theme-color": "#0a0a0f",
+    "msapplication-TileColor": "#0a0a0f",
+    "msapplication-TileImage": "/mstile-150x150.png",
+  },
 };
 
 export default function RootLayout({
@@ -54,6 +89,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full scroll-smooth" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://app.impactlyai.com" />
+        <link rel="dns-prefetch" href="https://app.impactlyai.com" />
+      </head>
       <body
         className={`${jakarta.variable} font-sans bg-[#0a0a0f] text-slate-100 min-h-full flex flex-col antialiased`}
       >

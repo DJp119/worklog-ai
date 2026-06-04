@@ -8,28 +8,57 @@ import FaqAccordion from './landing/FaqAccordion'
 export default function LandingPage() {
   const { user } = useAuth()
 
-  // Structured application JSON-LD schema
+  // Structured schemas (Organization, WebSite, SoftwareApplication).
+  // No fabricated aggregateRating — we don't have real review counts yet.
+  // We also avoid the invalid "operatingSystem: All" — schema.org requires
+  // an array of OS values; "Web" is the correct descriptor for a SaaS.
+  const organizationSchema = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "Impactly AI",
+    "url": "https://impactlyai.com",
+    "logo": "https://impactlyai.com/og-default.png",
+    "description": "Privacy-first AI tool that turns weekly work logs into promotion-ready self-appraisals.",
+    "sameAs": []
+  }
+
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Impactly AI",
+    "url": "https://impactlyai.com",
+    "inLanguage": "en-US",
+    "publisher": { "@type": "Organization", "name": "Impactly AI", "url": "https://impactlyai.com" }
+  }
+
   const softwareSchema = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     "name": "Impactly AI",
-    "operatingSystem": "All",
+    "url": "https://impactlyai.com",
+    "description": "AI-powered self-appraisal generator and weekly work log tracker. Privacy-first with Row-Level Security and no LLM training on user data.",
+    "operatingSystem": "Web",
     "applicationCategory": "BusinessApplication",
     "offers": {
       "@type": "Offer",
       "price": "0.00",
-      "priceCurrency": "USD"
+      "priceCurrency": "USD",
+      "availability": "https://schema.org/InStock"
     },
-    "aggregateRating": {
-      "@type": "AggregateRating",
-      "ratingValue": "4.9",
-      "ratingCount": "1280"
-    }
+    "featureList": "Weekly work log, STAR-format self-appraisal generation, AI Critique Assistant, Company values alignment engine, OKR mapping, Customizable tone, Email reminders, AI Pulse Hub, Privacy-first RLS isolation"
   }
 
   return (
     <div className="bg-futuristic flex-1 flex flex-col min-h-screen">
-      {/* Schema Injection */}
+      {/* Schema Injection — Organization, WebSite, SoftwareApplication */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+      />
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }}

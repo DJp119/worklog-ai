@@ -1,8 +1,6 @@
-"use client";
-
-import React, { use } from "react";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowLeft, Sparkles, ArrowRight, Download, CheckCircle2, ChevronRight, Bookmark } from "lucide-react";
+import { ArrowLeft, Sparkles, Download, CheckCircle2, ChevronRight, Bookmark } from "lucide-react";
 import PlaygroundWidget from "@/components/PlaygroundWidget";
 
 interface RoleDetail {
@@ -130,28 +128,264 @@ const ROLE_DATA_MAP: Record<string, RoleDetail> = {
         text: "I took full responsibility for our $250k marketing budget, restructuring ad allocation to improve blended conversion rates. I managed a high-performing creative team of 8 designers and copywriters, successfully rolling out the Q4 brand overhaul which achieved a 30% increase in brand mentions."
       }
     ]
+  },
+  "ui-designer": {
+    roleName: "UI Designer",
+    title: "UI / UX Designer Self-Appraisal Templates & STAR Examples",
+    desc: "Frame your design decisions as measurable business outcomes. STAR-formatted examples covering Figma systems, accessibility wins, and conversion lift for product designers.",
+    bullets: [
+      "Quantifies usability gains, conversion lift, and task completion rates",
+      "Demonstrates design-system contributions and component-library scale",
+      "Shows research-driven decisions backed by user testing",
+      "Covers accessibility (WCAG) and inclusive-design improvements"
+    ],
+    examples: [
+      {
+        level: "Junior UI Designer",
+        focus: "Component Library & Visual Polish",
+        text: "I contributed 14 new components to our shared Figma library, reducing duplicate work across 3 squads. I redesigned the empty states for our onboarding flow, which lifted the activation completion rate by 9% in A/B testing and shipped to 100% of new signups."
+      },
+      {
+        level: "Senior Product Designer",
+        focus: "Research-Driven Conversion Lift",
+        text: "I led the redesign of our pricing page following 18 customer interviews and 3 rounds of usability testing. The shipped variant lifted free-tier signups by 27% and reduced our help-desk pricing questions by 45%, validating the simplified plan-comparison layout."
+      },
+      {
+        level: "Staff / Design Lead",
+        focus: "Design System & Cross-Team Strategy",
+        text: "I owned the v2 rewrite of our design system, migrating 12 product surfaces to a single token-based theming layer. Under my guidance, we hit WCAG AA across the entire app and reduced front-end CSS bundle size by 32%, freeing 200ms of LCP across mobile."
+      }
+    ]
+  },
+  "qa-lead": {
+    roleName: "QA Lead",
+    title: "QA Lead Self-Appraisal Templates & Quality Engineering STAR Examples",
+    desc: "Position your quality work as risk reduction and velocity. STAR examples covering test automation, escape-rate reduction, and shift-left initiatives for QA and SDET leads.",
+    bullets: [
+      "Tracks defect escape rate, test coverage, and CI signal quality",
+      "Quantifies time saved through automation and parallelization",
+      "Demonstrates shift-left initiatives and developer-experience wins",
+      "Shows incident-response leadership and post-mortem quality"
+    ],
+    examples: [
+      {
+        level: "QA Engineer",
+        focus: "Test Coverage & Automation",
+        text: "I authored 240 new end-to-end Playwright tests covering our checkout funnel, lifting critical-path coverage from 58% to 91%. The expanded suite caught 7 regressions before merge in Q3, preventing what historically would have been customer-visible incidents."
+      },
+      {
+        level: "Senior QA Engineer / SDET",
+        focus: "Pipeline Speed & Flake Reduction",
+        text: "I refactored our CI test matrix to run in parallel shards, cutting build time from 22 minutes to 7 minutes. I also drove a quarterly flake-budget initiative, reducing the rolling flake rate from 4.1% to 0.6% — restoring developer trust in the red/green signal."
+      },
+      {
+        level: "QA Lead / Manager",
+        focus: "Quality Strategy & Shift-Left",
+        text: "I established our shift-left quality program, embedding QA engineers in 4 product squads and shipping the first contract-testing framework across our service mesh. Defect escape rate fell 62% year-over-year, and we eliminated 3 of the 4 historical Sev-1 categories."
+      }
+    ]
+  },
+  "data-analyst": {
+    roleName: "Data Analyst",
+    title: "Data Analyst Self-Appraisal Templates & Analytics STAR Examples",
+    desc: "Turn dashboards and SQL into business outcomes. STAR-formatted examples covering experimentation, attribution, and self-serve analytics for data analysts and BI engineers.",
+    bullets: [
+      "Quantifies revenue or cost impact from experiments and analyses",
+      "Shows stakeholder enablement via dashboards and self-serve tooling",
+      "Demonstrates data-quality and model-governance improvements",
+      "Highlights cross-functional partnership with product, growth, and finance"
+    ],
+    examples: [
+      {
+        level: "Data Analyst",
+        focus: "Experimentation & Insight Delivery",
+        text: "I designed and analyzed 11 A/B tests across the onboarding funnel this quarter. Three were rolled out to 100% based on my recommendations and collectively lifted Week-1 retention by 6.2 percentage points, the equivalent of ~$140k in annualized recurring revenue."
+      },
+      {
+        level: "Senior Data Analyst",
+        focus: "Dashboard Enablement & Attribution",
+        text: "I built a self-serve growth dashboard in Looker that replaced 14 recurring ad-hoc requests, freeing roughly 9 analyst-hours per week. My multi-touch attribution model also corrected our paid-channel ROAS calculation, redirecting $60k of monthly budget into higher-performing channels."
+      },
+      {
+        level: "Analytics Lead / Manager",
+        focus: "Data Strategy & Governance",
+        text: "I led the migration of our reporting layer to dbt + Snowflake, instituting tested SQL models and a tier-1/2/3 SLA framework. Query latency dropped 70% and data-incident MTTR fell from 6 hours to under 45 minutes — measurably restoring stakeholder trust in our metrics."
+      }
+    ]
+  },
+  "engineering-manager": {
+    roleName: "Engineering Manager",
+    title: "Engineering Manager Self-Appraisal Templates & Leadership STAR Examples",
+    desc: "Make your management impact visible. STAR-formatted examples covering team velocity, retention, hiring, and technical strategy for engineering managers and tech leads.",
+    bullets: [
+      "Shows team velocity, predictability, and quality outcomes",
+      "Quantifies retention, hiring, and promotion of direct reports",
+      "Demonstrates technical strategy and architectural decision making",
+      "Highlights cross-org partnership with product, design, and exec stakeholders"
+    ],
+    examples: [
+      {
+        level: "Tech Lead Manager",
+        focus: "Team Velocity & Delivery Predictability",
+        text: "I shipped our team's 2026 roadmap on schedule for 4 consecutive quarters, the first such streak in team history. By introducing weekly delivery health reviews and trimming WIP, our cycle time dropped from 9 days to 3.5 days while quality bar (escaped defects per release) held flat."
+      },
+      {
+        level: "Engineering Manager",
+        focus: "People Leadership & Retention",
+        text: "I grew the team from 5 to 9 engineers this year, closing all 4 reqs within target time-to-fill and retaining 100% of existing engineers through a competitive hiring market. Two engineers were promoted under my coaching — one to Senior and one to Staff — both with unanimous calibration support."
+      },
+      {
+        level: "Senior Engineering Manager",
+        focus: "Org Strategy & Architectural Influence",
+        text: "I co-authored our platform's 3-year technical strategy, aligning 6 partner teams on a shared services boundary and migration sequence. I personally led the org-wide post-mortem on our Q2 latency incident, driving 4 cross-team workstreams that brought P99 from 1.4s back under our 600ms SLO."
+      }
+    ]
+  },
+  "devops-engineer": {
+    roleName: "DevOps Engineer",
+    title: "DevOps Engineer Self-Appraisal Templates & Infrastructure STAR Examples",
+    desc: "Translate platform work into reliability and cost outcomes. STAR examples covering CI/CD, observability, incident response, and FinOps for DevOps, SRE, and platform engineers.",
+    bullets: [
+      "Quantifies uptime, deploy frequency, and incident-response improvements",
+      "Demonstrates infrastructure cost savings and FinOps wins",
+      "Shows observability and developer-experience contributions",
+      "Highlights security, compliance, and disaster-recovery readiness"
+    ],
+    examples: [
+      {
+        level: "DevOps Engineer",
+        focus: "CI/CD & Deploy Frequency",
+        text: "I rebuilt our deploy pipeline on GitHub Actions with parallelized container builds and remote layer caching. Deploy frequency rose from 4/week to an average of 18/week, and the mean deploy lead time dropped from 38 minutes to 7 minutes — a measurable DORA improvement."
+      },
+      {
+        level: "Senior SRE",
+        focus: "Reliability & Incident Response",
+        text: "I owned the migration from single-region RDS to multi-AZ with managed read replicas, lifting our database availability SLO from 99.9% to 99.99%. I also rewrote our incident runbook, cutting MTTR for paging events from 47 minutes to 14 minutes during our Q4 traffic spike."
+      },
+      {
+        level: "Platform Lead / Staff SRE",
+        focus: "FinOps & Architectural Influence",
+        text: "I led a cross-team FinOps initiative that right-sized Kubernetes node pools and migrated stateless workloads to Graviton. Monthly cloud spend dropped 31% — about $42k/month — with no measured impact on latency or error rate, and the savings were redirected into our zero-trust networking rollout."
+      }
+    ]
   }
 };
 
-export default function RoleTemplatePage({
+const ROLE_SLUGS = Object.keys(ROLE_DATA_MAP);
+
+function resolveRoleData(role: string): RoleDetail {
+  return (
+    ROLE_DATA_MAP[role] ?? {
+      ...DEFAULT_ROLE,
+      roleName: role
+        .split("-")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+    }
+  );
+}
+
+export async function generateStaticParams() {
+  return ROLE_SLUGS.map((role) => ({ role }));
+}
+
+export async function generateMetadata(
+  { params }: { params: Promise<{ role: string }> }
+): Promise<Metadata> {
+  const { role } = await params;
+  const data = resolveRoleData(role);
+  const canonicalPath = `/templates/self-appraisal/${role}`;
+
+  return {
+    title: data.title,
+    description: data.desc,
+    alternates: { canonical: canonicalPath },
+    openGraph: {
+      title: `${data.title} | Impactly AI`,
+      description: data.desc,
+      url: `https://impactlyai.com${canonicalPath}`,
+      type: "article",
+      images: ["/og-default.png"],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${data.title} | Impactly AI`,
+      description: data.desc,
+      images: ["/og-default.png"],
+    },
+  };
+}
+
+export default async function RoleTemplatePage({
   params,
 }: {
   params: Promise<{ role: string }>;
 }) {
-  // Unwrap parameters via React's use hook (Next.js 15+ standard)
-  const resolvedParams = use(params);
-  const rawRole = resolvedParams.role;
-  const data = ROLE_DATA_MAP[rawRole] || {
-    ...DEFAULT_ROLE,
-    roleName: rawRole
-      .split("-")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" "),
+  const { role } = await params;
+  const data = resolveRoleData(role);
+  const canonical = `https://impactlyai.com/templates/self-appraisal/${role}`;
+
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+      {
+        "@type": "ListItem",
+        "position": 1,
+        "name": "Home",
+        "item": "https://impactlyai.com",
+      },
+      {
+        "@type": "ListItem",
+        "position": 2,
+        "name": "Self-Appraisal Templates",
+        "item": "https://impactlyai.com/templates/self-appraisal",
+      },
+      {
+        "@type": "ListItem",
+        "position": 3,
+        "name": data.roleName,
+        "item": canonical,
+      },
+    ],
+  };
+
+  const articleSchema = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": data.title,
+    "description": data.desc,
+    "mainEntityOfPage": canonical,
+    "url": canonical,
+    "image": "https://impactlyai.com/og-default.png",
+    "author": {
+      "@type": "Organization",
+      "name": "Impactly AI",
+      "url": "https://impactlyai.com",
+    },
+    "publisher": {
+      "@type": "Organization",
+      "name": "Impactly AI",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://impactlyai.com/og-default.png",
+      },
+    },
+    "datePublished": "2026-06-04",
+    "dateModified": "2026-06-04",
   };
 
   return (
     <div className="bg-futuristic min-h-screen flex flex-col">
-      {/* Header */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
+      />
+
       <header className="relative w-full z-50 border-b border-white/5 bg-black/10 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <Link href="/" className="flex items-center group">
@@ -160,7 +394,7 @@ export default function RoleTemplatePage({
             </svg>
             <span className="ml-2 text-lg font-bold text-white group-hover:text-indigo-400 transition-colors">Impactly AI</span>
           </Link>
-          
+
           <a
             href="https://app.impactlyai.com/login"
             className="px-4 py-2 rounded-lg text-xs md:text-sm font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:shadow-lg hover:shadow-indigo-500/20 transition-all glow-primary"
@@ -170,7 +404,6 @@ export default function RoleTemplatePage({
         </div>
       </header>
 
-      {/* Hero Banner / Navigation */}
       <main className="flex-1 py-12 px-4 max-w-7xl mx-auto w-full">
         <div className="mb-8">
           <Link
@@ -182,7 +415,6 @@ export default function RoleTemplatePage({
           </Link>
         </div>
 
-        {/* Intro */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-start mb-20">
           <div className="lg:col-span-7 space-y-6">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-xs text-indigo-300 font-semibold uppercase tracking-wider">
@@ -193,7 +425,7 @@ export default function RoleTemplatePage({
             <h1 className="text-3xl md:text-5xl font-extrabold text-white leading-tight">
               {data.title}
             </h1>
-            
+
             <p className="text-sm md:text-base text-gray-400 leading-relaxed font-normal">
               {data.desc}
             </p>
@@ -210,7 +442,6 @@ export default function RoleTemplatePage({
               </ul>
             </div>
 
-            {/* Actions */}
             <div className="flex flex-wrap gap-4 pt-4">
               <a
                 href="https://app.impactlyai.com/login"
@@ -229,7 +460,6 @@ export default function RoleTemplatePage({
             </div>
           </div>
 
-          {/* Quick Guide Card */}
           <div className="lg:col-span-5 glass rounded-3xl p-6 border border-white/5 relative overflow-hidden">
             <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-bl-full"></div>
             <h3 className="text-base font-bold text-white mb-3">How to write a perfect self-review:</h3>
@@ -251,7 +481,6 @@ export default function RoleTemplatePage({
           </div>
         </div>
 
-        {/* Copy-paste STAR Examples */}
         <section className="mb-20">
           <div className="mb-10 text-center lg:text-left">
             <h2 className="text-2xl md:text-3xl font-extrabold text-white mb-2">
@@ -271,15 +500,15 @@ export default function RoleTemplatePage({
                     <span className="text-[10px] text-gray-500 bg-white/2 px-2 py-0.5 rounded border border-white/5">{ex.focus}</span>
                   </div>
                   <p className="text-xs md:text-sm text-gray-400 leading-relaxed whitespace-pre-line italic">
-                    "{ex.text}"
+                    &quot;{ex.text}&quot;
                   </p>
                 </div>
-                
+
                 <a
                   href="https://app.impactlyai.com/login"
                   className="mt-6 flex items-center justify-center gap-1 w-full py-2.5 bg-white/5 hover:bg-white/10 text-white text-xs font-bold rounded-xl transition-all border border-white/5"
                 >
-                  <span>Copy & Customize in App</span>
+                  <span>Copy &amp; Customize in App</span>
                   <ChevronRight className="w-3.5 h-3.5" />
                 </a>
               </div>
@@ -287,7 +516,6 @@ export default function RoleTemplatePage({
           </div>
         </section>
 
-        {/* Integrated Appraisal Generator Playground */}
         <section id="custom-generator" className="py-16 border-t border-white/5">
           <div className="text-center mb-12">
             <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-2">
@@ -301,7 +529,6 @@ export default function RoleTemplatePage({
         </section>
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-white/5 bg-black/40 py-12 px-6 mt-12">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center">
@@ -311,17 +538,13 @@ export default function RoleTemplatePage({
             <span className="ml-2 text-sm font-bold text-white">Impactly AI</span>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-8 text-xs text-gray-500">
-            <Link href="/" className="hover:text-gray-300 transition-colors">
-              Home
-            </Link>
-            <span>•</span>
-            <a href="https://app.impactlyai.com/login" className="hover:text-gray-300 transition-colors">
-              App Workspace
-            </a>
-            <span>•</span>
-            <span>© 2026 Impactly AI. All rights reserved.</span>
+          <div className="flex flex-wrap justify-center gap-6 text-xs text-gray-500">
+            <Link href="/" className="hover:text-gray-300 transition-colors">Home</Link>
+            <Link href="/privacy" className="hover:text-gray-300 transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-gray-300 transition-colors">Terms</Link>
+            <a href="https://app.impactlyai.com/login" className="hover:text-gray-300 transition-colors">App Workspace</a>
           </div>
+          <span className="text-xs text-gray-500">© 2026 Impactly AI. All rights reserved.</span>
         </div>
       </footer>
     </div>

@@ -1,4 +1,13 @@
+import { usePageMeta } from '../hooks/usePageMeta'
+
 export default function Privacy() {
+  usePageMeta({
+    title: 'Privacy Policy',
+    description:
+      'How Impactly AI collects, uses, and protects your data. Row-Level Security, encryption in transit and at rest, and an explicit no-LLM-training policy on private work logs.',
+    path: '/privacy',
+  })
+
   return (
     <div className="max-w-4xl mx-auto space-y-8 p-6">
       <div className="text-center mb-12">

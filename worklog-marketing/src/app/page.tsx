@@ -1,28 +1,67 @@
-import Image from "next/image";
 import Link from "next/link";
-import { Sparkles, ArrowRight, Shield, Award, Calendar, Zap, Terminal, CheckCircle2, UserCheck, Lock, ExternalLink } from "lucide-react";
+import { ArrowRight, Shield, Award, Calendar, Terminal, Lock, ExternalLink } from "lucide-react";
 import PlaygroundWidget from "@/components/PlaygroundWidget";
 import PainGrid from "@/components/PainGrid";
 import FaqAccordion from "@/components/FaqAccordion";
 
 export default function Home() {
-  // Structured application JSON-LD schema
+  const SITE_URL = "https://impactlyai.com";
+
   const softwareSchema = {
     "@context": "https://schema.org",
     "@type": "SoftwareApplication",
     "name": "Impactly AI",
-    "operatingSystem": "All",
+    "url": SITE_URL,
+    "description":
+      "Privacy-first AI tool that turns weekly work logs into promotion-ready self-appraisals. STAR-formatted, OKR-aligned, no LLM training on user data.",
+    "operatingSystem": "Web",
     "applicationCategory": "BusinessApplication",
+    "image": `${SITE_URL}/og-default.png`,
+    "featureList": [
+      "AI-generated STAR-formatted self-appraisals",
+      "Weekly work log capture (5 minutes / week)",
+      "Custom OKR and company-values alignment",
+      "AI critique assistant for revision",
+      "Automated weekly reminders",
+      "Customizable writing tone (assertive, collaborative, leadership)",
+      "Row-Level Security and per-user data isolation",
+      "Export to STAR reviews, career reflections, AI chat critiques",
+      "Free tier with Google / GitHub OAuth"
+    ],
     "offers": {
       "@type": "Offer",
       "price": "0.00",
-      "priceCurrency": "USD"
+      "priceCurrency": "USD",
+      "availability": "https://schema.org/InStock",
+      "url": "https://app.impactlyai.com/login"
     },
-    "aggregateRating": {
-      "@type": "AggregateRating",
-      "ratingValue": "4.9",
-      "ratingCount": "1280"
-    }
+  };
+
+  const organizationSchema = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "Impactly AI",
+    "url": SITE_URL,
+    "logo": `${SITE_URL}/og-default.png`,
+    "description":
+      "Privacy-first AI tool that turns weekly work logs into promotion-ready self-appraisals.",
+    "sameAs": [],
+  };
+
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "Impactly AI",
+    "url": SITE_URL,
+    "publisher": {
+      "@type": "Organization",
+      "name": "Impactly AI",
+    },
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": `${SITE_URL}/?q={search_term_string}`,
+      "query-input": "required name=search_term_string",
+    },
   };
 
   return (
@@ -31,6 +70,14 @@ export default function Home() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(softwareSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
       />
 
       {/* Floating Header */}
@@ -46,6 +93,8 @@ export default function Home() {
           <nav className="hidden md:flex items-center gap-6">
             <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors">Features</a>
             <a href="#playground" className="text-sm text-gray-400 hover:text-white transition-colors">Playground</a>
+            <Link href="/templates/self-appraisal" className="text-sm text-gray-400 hover:text-white transition-colors">Templates</Link>
+            <Link href="/blog" className="text-sm text-gray-400 hover:text-white transition-colors">Blog</Link>
             <a href="#privacy" className="text-sm text-gray-400 hover:text-white transition-colors">Security</a>
             <a href="#faq" className="text-sm text-gray-400 hover:text-white transition-colors">FAQ</a>
           </nav>
@@ -353,14 +402,32 @@ export default function Home() {
             <span className="ml-2 text-sm font-bold text-white">Impactly AI</span>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-8 text-xs text-gray-500">
+          <div className="flex flex-wrap justify-center gap-6 text-xs text-gray-500">
+            <Link href="/blog" className="hover:text-gray-300 transition-colors">
+              Blog
+            </Link>
+            <Link href="/templates/self-appraisal" className="hover:text-gray-300 transition-colors">
+              Templates
+            </Link>
+            <Link href="/templates/self-appraisal/software-engineer" className="hover:text-gray-300 transition-colors">
+              Engineer Templates
+            </Link>
+            <Link href="/templates/self-appraisal/product-manager" className="hover:text-gray-300 transition-colors">
+              PM Templates
+            </Link>
+            <Link href="/privacy" className="hover:text-gray-300 transition-colors">
+              Privacy
+            </Link>
+            <Link href="/terms" className="hover:text-gray-300 transition-colors">
+              Terms
+            </Link>
             <a href="https://app.impactlyai.com/login" className="hover:text-gray-300 transition-colors flex items-center gap-0.5">
               <span>Go to App</span>
               <ExternalLink className="w-3 h-3" />
             </a>
-            <span>•</span>
-            <span className="select-text">© 2026 Impactly AI. All rights reserved.</span>
           </div>
+
+          <div className="text-xs text-gray-500 select-text">© 2026 Impactly AI. All rights reserved.</div>
         </div>
       </footer>
     </div>
