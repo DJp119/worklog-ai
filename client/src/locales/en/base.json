@@ -168,6 +168,13 @@
 
   "chat.title": "AI Career Coach",
   "chat.subtitle": "Ask anything about your career, performance, or growth",
+  "chat.critiqueTitle": "AI Critique Assistant",
+  "chat.failedCreate": "Failed to create session",
+  "chat.confirmDelete": "Are you sure you want to delete this chat session?",
+  "chat.emptySelect": "Select or create a chat session to start.",
+  "chat.failedCreate": "Failed to create session",
+  "chat.confirmDelete": "Are you sure you want to delete this chat session?",
+  "chat.emptySelect": "Select or create a chat session to start.",
   "chat.placeholder": "Ask a question…",
   "chat.send": "Send",
   "chat.thinking": "Thinking…",
