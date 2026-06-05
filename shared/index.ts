@@ -119,6 +119,7 @@ export interface UserProfile {
     reminder_time: string
     reminder_enabled: boolean
     email_verified: boolean
+    preferred_language?: string | null
     created_at: string
     updated_at: string
 }
@@ -130,6 +131,7 @@ export interface UpdateProfileRequest {
     reminder_day?: number
     reminder_time?: string
     reminder_enabled?: boolean
+    preferred_language?: string | null
 }
 
 // Auth types

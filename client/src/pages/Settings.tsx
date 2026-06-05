@@ -1,7 +1,9 @@
 import { useState, useEffect, FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { getProfile, updateProfile } from '../lib/api'
 import { usePageMeta } from '../hooks/usePageMeta'
+import { supportedLanguages } from '../i18n/useAutoLocale'
 
 interface Profile {
   company_name: string
@@ -9,6 +11,7 @@ interface Profile {
   reminder_day: number
   reminder_hour: number
   reminder_enabled: boolean
+  preferred_language: string
 }
 
 interface PasswordForm {
@@ -51,6 +54,7 @@ function formatHour(hour: number): string {
 
 export default function Settings() {
   usePageMeta({ title: 'Settings', noIndex: true })
+  const { i18n } = useTranslation()
   const { user, logout, accessToken } = useAuth()
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
@@ -63,6 +67,7 @@ export default function Settings() {
     reminder_day: 1,
     reminder_hour: 9,
     reminder_enabled: true,
+    preferred_language: 'auto',
   })
 
   const [passwordForm, setPasswordForm] = useState<PasswordForm>({
@@ -92,6 +97,7 @@ export default function Settings() {
         reminder_day: data.reminderDay ?? 1,
         reminder_hour: utcTimeToLocalHour(data.reminderTime || '09:00'),
         reminder_enabled: data.reminderEnabled ?? true,
+        preferred_language: data.preferredLanguage || 'auto',
       })
     } catch (err) {
       console.error('Failed to load profile:', err)
@@ -102,6 +108,10 @@ export default function Settings() {
 
   const handleChange = (field: keyof Profile, value: string | number | boolean) => {
     setProfile((prev) => ({ ...prev, [field]: value }))
+    if (field === 'preferred_language') {
+      const next = value === 'auto' ? undefined : String(value)
+      void i18n.changeLanguage(next)
+    }
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -123,6 +133,7 @@ export default function Settings() {
         reminderDay: profile.reminder_day,
         reminderTime: localHourToUtc(profile.reminder_hour),
         reminderEnabled: profile.reminder_enabled,
+        preferredLanguage: profile.preferred_language === 'auto' ? null : profile.preferred_language,
       })
 
       setMessage('Settings saved successfully!')
@@ -231,6 +242,38 @@ export default function Settings() {
         <div>
           <h1 className="text-2xl font-bold text-white">Settings</h1>
           <p className="text-gray-400 text-sm">Manage your profile and reminder preferences</p>
+        </div>
+      </div>
+
+      {/* Language & Region */}
+      <div className="glass-strong rounded-xl p-6 border border-white/10">
+        <div className="flex items-center mb-4">
+          <svg className="w-5 h-5 text-indigo-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
+          </svg>
+          <h2 className="text-lg font-semibold text-white">Language &amp; Region</h2>
+        </div>
+        <p className="text-sm text-gray-400 mb-4">
+          Choose the language used across the app. AI-generated appraisals and chat will also be in this language.
+        </p>
+        <div>
+          <label htmlFor="preferred_language" className="block text-sm font-medium text-gray-300 mb-1">
+            Display Language
+          </label>
+          <select
+            id="preferred_language"
+            value={profile.preferred_language}
+            onChange={(e) => handleChange('preferred_language', e.target.value)}
+            className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+          >
+            {supportedLanguages().map((lang) => (
+              <option key={lang.code} value={lang.code} className="bg-[#0a0a0f]">
+                {lang.code === 'auto'
+                  ? 'Automatic (detect from browser)'
+                  : `${lang.name} — ${lang.englishName}`}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

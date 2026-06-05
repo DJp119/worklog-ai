@@ -192,6 +192,7 @@ export interface UserProfile {
   reminderTime: string
   reminderEnabled: boolean
   emailVerified: boolean
+  preferredLanguage?: string | null
   createdAt: string
 }
 
