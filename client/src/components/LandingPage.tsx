@@ -70,10 +70,10 @@ export default function LandingPage() {
           </Link>
 
           <nav className="hidden md:flex items-center gap-6">
-            <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.features.title')}</a>
-            <a href="#playground" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.playground.title')}</a>
-            <a href="#privacy" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.privacy.title')}</a>
-            <a href="#faq" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.faq.title')}</a>
+            <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.nav.features')}</a>
+            <a href="#playground" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.nav.playground')}</a>
+            <a href="#privacy" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.nav.security')}</a>
+            <a href="#faq" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.nav.faq')}</a>
           </nav>
 
           <div className="flex items-center gap-4">

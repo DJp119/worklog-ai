@@ -37,6 +37,10 @@
   "nav.signOut": "Sign Out",
   "nav.signIn": "Sign In",
   "nav.getStarted": "Get Started",
+  "landing.nav.features": "Features",
+  "landing.nav.playground": "Playground",
+  "landing.nav.security": "Security",
+  "landing.nav.faq": "FAQ",
 
   "brand.name": "Impactly AI",
   "brand.tagline": "AI Self-Appraisal Generator",
