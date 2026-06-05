@@ -113,6 +113,20 @@ export default function Settings() {
       void i18n.changeLanguage(value)
     }
 
+    // Persist explicit user choice to localStorage. The global i18n
+    // languageChanged listener used to do this for us; now that the
+    // listener is a no-op for persistence, the switcher is solely
+    // responsible for honoring the user's pick across reloads.
+    try {
+      if (value === 'auto') {
+        localStorage.removeItem('impactly_language')
+      } else {
+        localStorage.setItem('impactly_language', value)
+      }
+    } catch {
+      /* ignore */
+    }
+
     if (!user) return
 
     // Persist to the server immediately — language preference is a one-tap

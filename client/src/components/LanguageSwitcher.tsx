@@ -43,6 +43,15 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
                 type="button"
                 onClick={() => {
                   const next = lang.code === 'auto' ? undefined : lang.code
+                  try {
+                    if (next) {
+                      localStorage.setItem('impactly_language', next)
+                    } else {
+                      localStorage.removeItem('impactly_language')
+                    }
+                  } catch {
+                    /* ignore */
+                  }
                   void i18n.changeLanguage(next)
                   setOpen(false)
                 }}
