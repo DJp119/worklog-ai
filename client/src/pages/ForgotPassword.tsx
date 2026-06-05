@@ -1,9 +1,11 @@
 import { useState, FormEvent } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { usePageMeta } from '../hooks/usePageMeta'
 
 export default function ForgotPassword() {
-    usePageMeta({ title: 'Forgot Password', noIndex: true })
+    const { t } = useTranslation()
+    usePageMeta({ title: t('forgotPassword.title'), noIndex: true })
     const [email, setEmail] = useState('')
     const [loading, setLoading] = useState(false)
     const [message, setMessage] = useState<string | null>(null)
@@ -15,7 +17,7 @@ export default function ForgotPassword() {
         e.preventDefault()
 
         if (!email || !email.includes('@')) {
-            setError('Please enter a valid email address')
+            setError(t('auth.invalidCredentials'))
             return
         }
 
@@ -33,12 +35,12 @@ export default function ForgotPassword() {
             const data = await response.json()
 
             if (response.ok) {
-                setMessage('Password reset link sent! Check your email.')
+                setMessage(t('forgotPassword.sent'))
             } else {
-                setError(data.error || 'Failed to send reset link')
+                setError(data.error || t('errors.generic'))
             }
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Request failed')
+            setError(err instanceof Error ? err.message : t('errors.network'))
         } finally {
             setLoading(false)
         }
@@ -60,16 +62,16 @@ export default function ForgotPassword() {
                             </svg>
                         </div>
                     </div>
-                    <h1 className="text-3xl font-bold gradient-text">Forgot Password</h1>
+                    <h1 className="text-3xl font-bold gradient-text">{t('forgotPassword.title')}</h1>
                     <p className="mt-2 text-gray-400">
-                        Enter your email to receive a password reset link
+                        {t('forgotPassword.subtitle')}
                     </p>
                 </div>
 
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                     <div>
                         <label htmlFor="email" className="block text-sm font-medium text-gray-300">
-                            Email address
+                            {t('auth.email')}
                         </label>
                         <input
                             id="email"
@@ -78,7 +80,7 @@ export default function ForgotPassword() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                            placeholder="you@example.com"
+                            placeholder={t('auth.emailPlaceholder')}
                         />
                     </div>
 
@@ -105,10 +107,10 @@ export default function ForgotPassword() {
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                Sending...
+                                {t('common.loading')}
                             </span>
                         ) : (
-                            'Send Reset Link'
+                            t('forgotPassword.send')
                         )}
                     </button>
                 </form>
@@ -118,7 +120,7 @@ export default function ForgotPassword() {
                         to="/login"
                         className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
                     >
-                        Back to Login
+                        {t('forgotPassword.backToSignIn')}
                     </Link>
                 </div>
             </div>
