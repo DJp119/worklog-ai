@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { getChatMessages, type ChatMessage } from '../../lib/chatApi'
 import { useSSE } from '../../lib/useSSE'
 import MessageBubble from './MessageBubble'
@@ -8,6 +9,7 @@ interface ChatWindowProps {
 }
 
 export default function ChatWindow({ sessionId }: ChatWindowProps) {
+  const { t } = useTranslation()
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(true)
@@ -107,25 +109,25 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
               </svg>
             </div>
             <div>
-              <h3 className="text-xl font-bold text-white mb-2">How can I help?</h3>
+              <h3 className="text-xl font-bold text-white mb-2">{t('chat.greeting')}</h3>
               <p className="text-sm text-gray-400">
-                Ask me about your accomplishments, areas for growth, or to draft your self-appraisal based on your work logs.
+                {t('chat.greetingDesc')}
               </p>
             </div>
             <div className="flex flex-col w-full gap-2 mt-4">
               <button
                 type="button"
-                onClick={() => setInputValue('What were my biggest accomplishments in this period?')}
+                onClick={() => setInputValue(t('chat.suggested1Prompt'))}
                 className="text-left text-sm p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5 transition-all"
               >
-                "What were my biggest accomplishments?"
+                "{t('chat.suggested1Label')}"
               </button>
               <button
                 type="button"
-                onClick={() => setInputValue('Draft a summary of my leadership impact.')}
+                onClick={() => setInputValue(t('chat.suggested2Prompt'))}
                 className="text-left text-sm p-3 rounded-xl bg-white/5 hover:bg-white/10 text-gray-300 border border-white/5 transition-all"
               >
-                "Draft a summary of my leadership impact."
+                "{t('chat.suggested2Label')}"
               </button>
             </div>
           </div>
@@ -148,7 +150,7 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
             )}
             {error && (
               <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm max-w-[80%] mx-auto text-center">
-                <p className="font-semibold mb-1">An error occurred</p>
+                <p className="font-semibold mb-1">{t('chat.errorTitle')}</p>
                 <p>{error}</p>
               </div>
             )}
@@ -165,7 +167,7 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask about your work logs..."
+            placeholder={t('chat.placeholder')}
             className="w-full bg-white/5 border border-white/10 rounded-2xl pl-4 pr-14 py-3 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition-all resize-none overflow-y-auto min-h-[50px] max-h-[200px]"
             rows={1}
             disabled={isStreaming || isLoading}
@@ -175,7 +177,7 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
               type="button"
               onClick={abort}
               className="absolute right-2 bottom-2 p-2 rounded-xl bg-gradient-to-r from-red-500 to-rose-500 text-white hover:from-red-600 hover:to-rose-600 transition-all shadow-lg"
-              title="Stop generation"
+              title={t('chat.stopGeneration')}
             >
               <div className="w-5 h-5 flex items-center justify-center">
                 <div className="w-3 h-3 bg-white rounded-sm"></div>
@@ -196,7 +198,7 @@ export default function ChatWindow({ sessionId }: ChatWindowProps) {
         </div>
         <div className="text-center mt-2">
           <p className="text-[10px] text-gray-500">
-            May produce inaccurate information about your work. Always verify important claims.
+            {t('chat.disclaimer')}
           </p>
         </div>
       </div>
