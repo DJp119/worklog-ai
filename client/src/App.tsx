@@ -42,6 +42,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
+  useAutoLocale()
   const { t } = useTranslation()
   return (
     <Suspense fallback={<Layout><div className="flex items-center justify-center min-h-[60vh]"><div className="text-gray-600">{t('common.loading')}</div></div></Layout>}>
@@ -108,7 +109,6 @@ function AppRoutes() {
 }
 
 export default function App() {
-  useAutoLocale()
   return (
     <AuthProvider>
       <AppRoutes />
