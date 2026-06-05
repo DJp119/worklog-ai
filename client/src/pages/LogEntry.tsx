@@ -1,5 +1,6 @@
 import { useState, FormEvent, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { createEntry, getEntries, updateEntry, getEntry, deleteEntry } from '../lib/api'
 import type { WorkLogEntry } from 'shared'
 import { usePageMeta } from '../hooks/usePageMeta'
@@ -14,7 +15,8 @@ interface LogEntryForm {
 }
 
 export default function LogEntry() {
-  usePageMeta({ title: 'Weekly Log', noIndex: true })
+  const { t } = useTranslation()
+  usePageMeta({ title: t('logEntry.title'), noIndex: true })
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -52,7 +54,7 @@ export default function LogEntry() {
           })
         } catch (err) {
           console.error('Failed to load entry:', err)
-          setError('Failed to load the work log entry')
+          setError(t('errors.generic'))
         }
       } else {
         // Pre-fill current week's start date (Monday)
@@ -96,7 +98,7 @@ export default function LogEntry() {
     e.preventDefault()
 
     if (!form.week_start_date || !form.accomplishments) {
-      setError('Please fill in all required fields')
+      setError(t('logEntry.requiredFields'))
       return
     }
 
@@ -116,11 +118,11 @@ export default function LogEntry() {
 
       if (existingEntry) {
         await updateEntry(existingEntry.id, payload)
-        setMessage('Work log updated successfully!')
+        setMessage(t('logEntry.savedSuccess'))
       } else {
         const newEntry = await createEntry(payload)
         setExistingEntry(newEntry)
-        setMessage('Work log saved successfully!')
+        setMessage(t('logEntry.savedSuccess'))
       }
 
       // Redirect to dashboard after a brief delay
@@ -128,7 +130,7 @@ export default function LogEntry() {
         navigate('/dashboard')
       }, 1000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save work log')
+      setError(err instanceof Error ? err.message : t('errors.generic'))
     } finally {
       setLoading(false)
     }
@@ -144,11 +146,11 @@ export default function LogEntry() {
 
     try {
       await deleteEntry(existingEntry.id)
-      setMessage('Work log deleted successfully!')
+      setMessage(t('logEntry.savedSuccess'))
       setExistingEntry(null)
       navigate('/log', { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to delete work log')
+      setError(err instanceof Error ? err.message : t('errors.generic'))
     } finally {
       setDeleting(false)
     }
@@ -170,14 +172,14 @@ export default function LogEntry() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-white">
-                {editEntryId ? 'Edit Work Log Entry' : existingEntry ? 'Update Your Work Log' : 'Log Your Week'}
+                {editEntryId ? t('logEntry.title') : existingEntry ? t('logEntry.title') : t('logEntry.title')}
               </h1>
               <p className="text-gray-400 text-sm">
                 {editEntryId
-                  ? 'Edit an existing work log entry'
+                  ? t('logEntry.subtitle')
                   : existingEntry
-                    ? 'Update your work log for this week'
-                    : 'Take 5 minutes to reflect on your week'}
+                    ? t('logEntry.subtitle')
+                    : t('logEntry.subtitle')}
               </p>
             </div>
           </div>
@@ -187,7 +189,7 @@ export default function LogEntry() {
               className="text-red-400 hover:text-red-300 text-sm font-medium transition-colors"
               disabled={deleting}
             >
-              {deleting ? 'Deleting...' : showDeleteConfirm ? 'Cancel' : 'Delete'}
+              {deleting ? t('common.loading') : showDeleteConfirm ? t('common.cancel') : t('common.delete')}
             </button>
           )}
         </div>
@@ -195,7 +197,7 @@ export default function LogEntry() {
         {showDeleteConfirm && existingEntry && (
           <div className="mt-4 p-4 bg-red-500/10 border border-red-500/20 rounded-lg">
             <p className="text-red-400 text-sm mb-3">
-              Are you sure you want to delete this work log entry? This action cannot be undone.
+              {t('logEntry.deleteConfirm')}
             </p>
             <div className="flex gap-3">
               <button
@@ -203,13 +205,13 @@ export default function LogEntry() {
                 disabled={deleting}
                 className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50"
               >
-                {deleting ? 'Deleting...' : 'Yes, Delete'}
+                {deleting ? t('common.loading') : t('common.confirm')}
               </button>
               <button
                 onClick={() => setShowDeleteConfirm(false)}
                 className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>
@@ -219,7 +221,7 @@ export default function LogEntry() {
           {/* Week Start Date */}
           <div>
             <label htmlFor="week_start_date" className="block text-sm font-medium text-gray-300">
-              Week Starting
+              {t('logEntry.weekOf', { date: '' }).replace('Week of ', t('common.week'))}
             </label>
             <input
               type="date"
@@ -234,7 +236,7 @@ export default function LogEntry() {
           {/* Accomplishments */}
           <div>
             <label htmlFor="accomplishments" className="block text-sm font-medium text-gray-300">
-              Accomplishments <span className="text-red-400">*</span>
+              {t('logEntry.accomplishments')} <span className="text-red-400">*</span>
             </label>
             <textarea
               id="accomplishments"
@@ -242,7 +244,7 @@ export default function LogEntry() {
               value={form.accomplishments}
               onChange={(e) => handleChange('accomplishments', e.target.value)}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder="What did you accomplish this week? What did you ship? What problems did you solve?"
+              placeholder={t('logEntry.accomplishmentsPlaceholder')}
               required
             />
           </div>
@@ -250,7 +252,7 @@ export default function LogEntry() {
           {/* Challenges */}
           <div>
             <label htmlFor="challenges" className="block text-sm font-medium text-gray-300">
-              Challenges (optional)
+              {t('logEntry.challenges')} <span className="text-gray-500">({t('common.optional')})</span>
             </label>
             <textarea
               id="challenges"
@@ -258,14 +260,14 @@ export default function LogEntry() {
               value={form.challenges}
               onChange={(e) => handleChange('challenges', e.target.value)}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder="What obstacles did you face? What didn't go as planned?"
+              placeholder={t('logEntry.challengesPlaceholder')}
             />
           </div>
 
           {/* Learnings */}
           <div>
             <label htmlFor="learnings" className="block text-sm font-medium text-gray-300">
-              Learnings (optional)
+              {t('logEntry.learnings')} <span className="text-gray-500">({t('common.optional')})</span>
             </label>
             <textarea
               id="learnings"
@@ -273,14 +275,14 @@ export default function LogEntry() {
               value={form.learnings}
               onChange={(e) => handleChange('learnings', e.target.value)}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder="What did you learn? Any new skills, insights, or discoveries?"
+              placeholder={t('logEntry.learningsPlaceholder')}
             />
           </div>
 
           {/* Goals Next Week */}
           <div>
             <label htmlFor="goals_next_week" className="block text-sm font-medium text-gray-300">
-              Goals for Next Week (optional)
+              {t('logEntry.goalsNextWeek')} <span className="text-gray-500">({t('common.optional')})</span>
             </label>
             <textarea
               id="goals_next_week"
@@ -288,14 +290,14 @@ export default function LogEntry() {
               value={form.goals_next_week}
               onChange={(e) => handleChange('goals_next_week', e.target.value)}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder="What are your priorities for next week?"
+              placeholder={t('logEntry.goalsPlaceholder')}
             />
           </div>
 
           {/* Hours Logged */}
           <div>
             <label htmlFor="hours_logged" className="block text-sm font-medium text-gray-300">
-              Hours Logged (optional)
+              {t('logEntry.hours')} <span className="text-gray-500">({t('common.optional')})</span>
             </label>
             <input
               type="number"
@@ -306,7 +308,7 @@ export default function LogEntry() {
               value={form.hours_logged}
               onChange={(e) => handleChange('hours_logged', e.target.value)}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder="e.g., 40"
+              placeholder="40"
             />
           </div>
 
@@ -335,10 +337,10 @@ export default function LogEntry() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Saving...
+                {t('common.saving')}
               </span>
             ) : (
-              existingEntry ? 'Update Log' : 'Save Log'
+              existingEntry ? t('common.save') : t('logEntry.save')
             )}
           </button>
         </form>
