@@ -16,6 +16,7 @@ import {
   revokeRefreshToken,
   validateRefreshToken,
   requireAuth,
+  hashToken,
   type JWTPayload,
 } from '../middleware/auth.js'
 import { captureEvent, captureException, identifyUser } from '../lib/posthog.js'
@@ -92,7 +93,7 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
       .from('email_verifications')
       .insert({
         user_id: userData.id,
-        token: emailToken,
+        token_hash: hashToken(emailToken),
         expires_at: emailExpiresAt.toISOString(),
       })
 
@@ -174,7 +175,7 @@ authRoutes.post('/verify-email', async (req: AuthRequest, res: Response) => {
       .from('email_verifications')
       .select('*')
       .eq('user_id', userId)
-      .eq('token', token)
+      .eq('token_hash', hashToken(token))
       .single()
 
     if (verifyError || !verifyData) {
@@ -513,7 +514,7 @@ authRoutes.post('/forgot-password', async (req: AuthRequest, res: Response) => {
       .from('password_reset_tokens')
       .insert({
         user_id: user.id,
-        token: resetToken,
+        token_hash: hashToken(resetToken),
         expires_at: resetExpiresAt.toISOString(),
       })
 
@@ -567,7 +568,7 @@ authRoutes.post('/reset-password', async (req: AuthRequest, res: Response) => {
     const { data: resetData, error: resetError } = await supabase
       .from('password_reset_tokens')
       .select('id, user_id, expires_at')
-      .eq('token', token)
+      .eq('token_hash', hashToken(token))
       .single()
 
     if (resetError || !resetData) {

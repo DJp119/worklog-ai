@@ -251,3 +251,10 @@ export async function optionalAuth(
         next()
     }
 }
+
+/**
+ * Hash a token using SHA-256 for secure DB storage
+ */
+export function hashToken(token: string): string {
+    return crypto.createHash('sha256').update(token).digest('hex')
+}

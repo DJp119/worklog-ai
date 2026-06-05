@@ -1,6 +1,8 @@
+import dotenv from 'dotenv'
+dotenv.config()
+
 import express from 'express'
 import cors from 'cors'
-import dotenv from 'dotenv'
 import rateLimit from 'express-rate-limit'
 import { authRoutes } from './routes/auth.js'
 import { entriesRoutes } from './routes/entries.js'
@@ -21,7 +23,6 @@ import { logger } from './lib/logger.js'
 import { requestIdMiddleware } from './middleware/requestId.js'
 import { getErrorMessageSync } from './i18n/errors.js'
 
-dotenv.config()
 
 const app = express()
 const PORT = process.env.PORT || 3001
