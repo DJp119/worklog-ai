@@ -149,7 +149,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-gray-400">Loading dashboard...</div>
+        <div className="text-gray-400">{t('common.loading')}</div>
       </div>
     )
   }
@@ -159,15 +159,15 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-gray-400 mt-1">Track your logging progress</p>
+          <h1 className="text-2xl font-bold text-white">{t('dashboard.title')}</h1>
+          <p className="text-gray-400 mt-1">{t('dashboard.subtitle')}</p>
         </div>
         {!currentWeekLogged && (
           <Link
             to="/log"
             className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 transition-all glow-primary"
           >
-            Log This Week
+            {t('dashboard.logThisWeek')}
           </Link>
         )}
       </div>
@@ -183,10 +183,10 @@ export default function Dashboard() {
             </div>
             <div className="ml-4 flex-1">
               <h3 className="text-sm font-medium text-emerald-400">
-                You're all caught up for this week!
+                {t('dashboard.caughtUp')}
               </h3>
               <p className="mt-2 text-sm text-gray-400">
-                Great job keeping your work log up to date. Consistent tracking makes generating your performance appraisals a breeze.
+                {t('dashboard.caughtUpDesc')}
               </p>
             </div>
           </div>
@@ -303,16 +303,16 @@ export default function Dashboard() {
               <svg className="mx-auto h-12 w-12 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
               </svg>
-              <h3 className="mt-4 text-sm font-medium text-white">No entries yet</h3>
+              <h3 className="mt-4 text-sm font-medium text-white">{t('dashboard.noEntries')}</h3>
               <p className="mt-2 text-sm text-gray-400">
-                Get started by logging your first week.
+                {t('dashboard.getStarted')}
               </p>
               <div className="mt-6">
                 <Link
                   to="/log"
                   className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 transition-all"
                 >
-                  Log Your Week
+                  {t('dashboard.logYourWeek')}
                 </Link>
               </div>
             </div>
@@ -322,14 +322,14 @@ export default function Dashboard() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-sm font-medium text-indigo-400">
-                      Week of {formatDate(entry.week_start_date, 'medium')}
+                      {t('dashboard.weekOf', { date: formatDate(entry.week_start_date, 'medium') })}
                     </p>
                     <p className="mt-2 text-sm text-gray-300 line-clamp-2">
                       {entry.accomplishments}
                     </p>
                     {entry.hours_logged && (
                       <p className="mt-2 text-xs text-gray-500">
-                        {entry.hours_logged} hours logged
+                        {t('dashboard.hoursLogged', { hours: entry.hours_logged })}
                       </p>
                     )}
                   </div>
@@ -337,7 +337,7 @@ export default function Dashboard() {
                     to={`/log?edit=${entry.id}`}
                     className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
                   >
-                    View
+                    {t('common.view')}
                   </Link>
                 </div>
               </div>
@@ -350,7 +350,7 @@ export default function Dashboard() {
               to="/log"
               className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
             >
-              View all entries →
+              {t('dashboard.viewAll')}
             </Link>
           </div>
         )}
@@ -360,17 +360,16 @@ export default function Dashboard() {
       {stats && stats.missingWeeks > 0 && (
         <div className="glass rounded-xl p-6 border border-white/5">
           <h2 className="text-lg font-semibold text-white mb-3">
-            Catch Up Needed
+            {t('dashboard.catchUp')}
           </h2>
           <p className="text-sm text-gray-400 mb-4">
-            You're missing {stats.missingWeeks} week{stats.missingWeeks > 1 ? 's' : ''} in the past 3 months.
-            Consider filling in the gaps to have a complete record for your appraisal.
+            {t('dashboard.missingWeeks', { count: stats.missingWeeks })}
           </p>
           <Link
             to="/log"
             className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium glass text-white hover:bg-white/10 transition-all"
           >
-            Log Missing Weeks
+            {t('dashboard.logMissing')}
           </Link>
         </div>
       )}

@@ -83,16 +83,21 @@ class WeeklyDigestJob {
       let failed = 0
 
       for (const profile of profiles || []) {
-        // Get user email + preferred_language
+        // Get user email + preferred_language.
+        // The base schema has preferred_language on users, but the i18n migration
+        // added a canonical copy on user_profiles — and that's where the Settings
+        // page writes. Prefer that, fall back to users.preferred_language.
         const { data: user } = await supabase
           .from('users')
-          .select('email, name, preferred_language')
+          .select('email, name, preferred_language, user_profiles:user_profiles(preferred_language)')
           .eq('id', profile.user_id)
           .single()
 
         if (!user) continue
 
-        const success = await this.sendDigestEmail(user.email, user.name, topArticles, user.preferred_language || 'en')
+        const profilePref = (user as any).user_profiles?.preferred_language
+        const lang = profilePref || user.preferred_language || 'en'
+        const success = await this.sendDigestEmail(user.email, user.name, topArticles, lang)
         if (success) sent++
         else failed++
       }

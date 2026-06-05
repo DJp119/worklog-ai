@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useAuth } from '../context/AuthContext'
 import i18n from './index'
 
 const SCRIPT_TO_FONT: Record<string, string> = {
@@ -27,16 +28,37 @@ function ensureFontLoaded(family: string) {
 }
 
 export function useAutoLocale() {
+  // Hooks must be called at the top level — read auth state here even though
+  // the effect below only needs the user at mount time.
+  const { user, loading } = useAuth()
+
   useEffect(() => {
-    // Re-evaluate language on mount. If the user has not explicitly chosen a language
-    // (no localStorage entry), sync to the current browser language so the UI matches
-    // navigator.language even if it changed since first init.
+    // Wait for auth to settle so we can honor a logged-in user's saved preference.
+    // Anonymous visitors fall through to the localStorage / navigator fallback.
+    if (loading) return
+
     if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('impactly_language')
-      if (!stored) {
-        const detected = (navigator.language || 'en').split('-')[0]
-        if (detected && detected !== i18n.language) {
-          void i18n.changeLanguage(detected)
+      const userPref = user?.preferredLanguage
+      if (userPref) {
+        // Logged-in user with a saved preference: apply it.
+        if (userPref !== i18n.language) {
+          void i18n.changeLanguage(userPref)
+        }
+        try {
+          localStorage.setItem('impactly_language', userPref)
+        } catch {
+          /* ignore */
+        }
+      } else {
+        // No saved preference (or anonymous): if user has never explicitly
+        // chosen a language, sync to the current browser language so the UI
+        // matches navigator.language even if it changed since first init.
+        const stored = localStorage.getItem('impactly_language')
+        if (!stored) {
+          const detected = (navigator.language || 'en').split('-')[0]
+          if (detected && detected !== i18n.language) {
+            void i18n.changeLanguage(detected)
+          }
         }
       }
     }
@@ -46,7 +68,7 @@ export function useAutoLocale() {
     const base = lang.split('-')[0]
     const family = SCRIPT_TO_FONT[base]
     if (family) ensureFontLoaded(family)
-  }, [])
+  }, [user, loading])
 }
 
 export function supportedLanguages(): { code: string; name: string; englishName: string }[] {

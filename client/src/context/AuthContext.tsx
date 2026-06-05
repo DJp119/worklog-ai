@@ -8,6 +8,7 @@ interface User {
   name?: string
   companyName?: string
   jobTitle?: string
+  preferredLanguage?: string | null
 }
 
 export class AuthError extends Error {
@@ -76,6 +77,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               name: data.data.name,
               job_title: data.data.jobTitle,
             })
+            // Apply the user's saved language preference immediately so the
+            // UI lands in their language on first paint, before useAutoLocale
+            // runs. No-op when preference is null (= browser auto-detect).
+            const preferred = data.data?.preferredLanguage
+            if (preferred && typeof window !== 'undefined') {
+              try {
+                window.localStorage.setItem('impactly_language', preferred)
+              } catch {
+                /* quota — ignore */
+              }
+            }
           } else {
             clearAuth()
           }

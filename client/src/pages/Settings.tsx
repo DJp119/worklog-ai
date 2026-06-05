@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { getProfile, updateProfile } from '../lib/api'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { supportedLanguages } from '../i18n/useAutoLocale'
+import { getLocalizedDayNames, formatHourOption } from '../lib/formatters'
 
 interface Profile {
   company_name: string
@@ -25,7 +26,6 @@ interface PasswordForm {
  */
 function localHourToUtc(localHour: number): string {
   const now = new Date()
-  // Create a date with the local hour
   const local = new Date(now.getFullYear(), now.getMonth(), now.getDate(), localHour, 0, 0)
   const utcHour = local.getUTCHours()
   return `${utcHour.toString().padStart(2, '0')}:00`
@@ -37,24 +37,13 @@ function localHourToUtc(localHour: number): string {
 function utcTimeToLocalHour(utcTime: string): number {
   const utcHour = parseInt(utcTime?.split(':')[0] || '9', 10)
   const now = new Date()
-  // Create a UTC date with the given hour, then read local hour
   const utcDate = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), utcHour, 0, 0))
   return utcDate.getHours()
 }
 
-/**
- * Format hour as 12-hour display string
- */
-function formatHour(hour: number): string {
-  if (hour === 0) return '12 AM'
-  if (hour === 12) return '12 PM'
-  if (hour < 12) return `${hour} AM`
-  return `${hour - 12} PM`
-}
-
 export default function Settings() {
   usePageMeta({ title: 'Settings', noIndex: true })
-  const { i18n } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { user, logout, accessToken } = useAuth()
   const [loading, setLoading] = useState(false)
   const [initialLoading, setInitialLoading] = useState(true)
@@ -108,9 +97,15 @@ export default function Settings() {
 
   const handleChange = (field: keyof Profile, value: string | number | boolean) => {
     setProfile((prev) => ({ ...prev, [field]: value }))
-    if (field === 'preferred_language') {
-      const next = value === 'auto' ? undefined : String(value)
-      void i18n.changeLanguage(next)
+  }
+
+  const handleLanguageChange = (value: string) => {
+    setProfile((prev) => ({ ...prev, preferred_language: value }))
+    if (value === 'auto') {
+      const detected = (navigator.language || 'en').split('-')[0]
+      void i18n.changeLanguage(detected)
+    } else {
+      void i18n.changeLanguage(value)
     }
   }
 
@@ -118,7 +113,7 @@ export default function Settings() {
     e.preventDefault()
 
     if (!user) {
-      setError('You must be logged in to save settings')
+      setError(t('settings.errorMustBeLoggedIn'))
       return
     }
 
@@ -136,28 +131,19 @@ export default function Settings() {
         preferredLanguage: profile.preferred_language === 'auto' ? null : profile.preferred_language,
       })
 
-      setMessage('Settings saved successfully!')
+      setMessage(t('settings.savedSuccess'))
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save settings')
+      setError(err instanceof Error ? err.message : t('settings.errorSaveFailed'))
     } finally {
       setLoading(false)
     }
   }
 
-  const dayOptions = [
-    { value: 0, label: 'Sunday' },
-    { value: 1, label: 'Monday' },
-    { value: 2, label: 'Tuesday' },
-    { value: 3, label: 'Wednesday' },
-    { value: 4, label: 'Thursday' },
-    { value: 5, label: 'Friday' },
-    { value: 6, label: 'Saturday' },
-  ]
+  const dayOptions = getLocalizedDayNames()
 
-  // Generate hour options (0-23)
   const hourOptions = Array.from({ length: 24 }, (_, i) => ({
     value: i,
-    label: formatHour(i),
+    label: formatHourOption(i),
   }))
 
   const handlePasswordChange = (field: keyof PasswordForm, value: string) => {
@@ -168,19 +154,19 @@ export default function Settings() {
     e.preventDefault()
 
     if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
-      setError('Please fill in all password fields')
+      setError(t('settings.errorFillAllPasswordFields'))
       setPasswordLoading(false)
       return
     }
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-      setError('New passwords do not match')
+      setError(t('settings.errorPasswordsDontMatch'))
       setPasswordLoading(false)
       return
     }
 
     if (passwordForm.newPassword.length < 8) {
-      setError('Password must be at least 8 characters')
+      setError(t('settings.errorPasswordTooShort'))
       setPasswordLoading(false)
       return
     }
@@ -206,14 +192,14 @@ export default function Settings() {
       const data = await response.json()
 
       if (response.ok && data.success) {
-        setMessage('Password changed successfully! Please login with your new password.')
+        setMessage(t('settings.passwordChanged'))
         setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '' })
         setTimeout(() => logout(), 3000)
       } else {
-        setError(data.error || 'Failed to change password')
+        setError(data.error || t('settings.errorChangePasswordFailed'))
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to change password')
+      setError(err instanceof Error ? err.message : t('settings.errorChangePasswordFailed'))
     } finally {
       setPasswordLoading(false)
     }
@@ -240,8 +226,8 @@ export default function Settings() {
           </svg>
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-white">Settings</h1>
-          <p className="text-gray-400 text-sm">Manage your profile and reminder preferences</p>
+          <h1 className="text-2xl font-bold text-white">{t('settings.title')}</h1>
+          <p className="text-gray-400 text-sm">{t('settings.subtitle')}</p>
         </div>
       </div>
 
@@ -251,25 +237,23 @@ export default function Settings() {
           <svg className="w-5 h-5 text-indigo-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129" />
           </svg>
-          <h2 className="text-lg font-semibold text-white">Language &amp; Region</h2>
+          <h2 className="text-lg font-semibold text-white">{t('settings.language')}</h2>
         </div>
-        <p className="text-sm text-gray-400 mb-4">
-          Choose the language used across the app. AI-generated appraisals and chat will also be in this language.
-        </p>
+        <p className="text-sm text-gray-400 mb-4">{t('settings.languageHelp')}</p>
         <div>
           <label htmlFor="preferred_language" className="block text-sm font-medium text-gray-300 mb-1">
-            Display Language
+            {t('settings.languageLabel')}
           </label>
           <select
             id="preferred_language"
             value={profile.preferred_language}
-            onChange={(e) => handleChange('preferred_language', e.target.value)}
+            onChange={(e) => handleLanguageChange(e.target.value)}
             className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
           >
             {supportedLanguages().map((lang) => (
               <option key={lang.code} value={lang.code} className="bg-[#0a0a0f]">
                 {lang.code === 'auto'
-                  ? 'Automatic (detect from browser)'
+                  ? t('settings.languageAuto')
                   : `${lang.name} — ${lang.englishName}`}
               </option>
             ))}
@@ -279,11 +263,11 @@ export default function Settings() {
 
       {/* Profile Settings */}
       <div className="glass-strong rounded-xl p-6 border border-white/10">
-        <h2 className="text-lg font-semibold text-white mb-4">Profile</h2>
+        <h2 className="text-lg font-semibold text-white mb-4">{t('settings.profile')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-300">
-              Email
+              {t('settings.email')}
             </label>
             <input
               type="email"
@@ -292,12 +276,12 @@ export default function Settings() {
               disabled
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-gray-400 focus:outline-none"
             />
-            <p className="mt-1 text-xs text-gray-500">Email cannot be changed</p>
+            <p className="mt-1 text-xs text-gray-500">{t('settings.emailReadonly')}</p>
           </div>
 
           <div>
             <label htmlFor="company_name" className="block text-sm font-medium text-gray-300">
-              Company Name
+              {t('settings.companyName')}
             </label>
             <input
               type="text"
@@ -305,13 +289,13 @@ export default function Settings() {
               value={profile.company_name}
               onChange={(e) => handleChange('company_name', e.target.value)}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder="Your company name"
+              placeholder={t('settings.companyNamePlaceholder')}
             />
           </div>
 
           <div>
             <label htmlFor="job_title" className="block text-sm font-medium text-gray-300">
-              Job Title
+              {t('settings.jobTitle')}
             </label>
             <input
               type="text"
@@ -319,7 +303,7 @@ export default function Settings() {
               value={profile.job_title}
               onChange={(e) => handleChange('job_title', e.target.value)}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder="e.g., Software Engineer"
+              placeholder={t('settings.jobTitlePlaceholder')}
             />
           </div>
 
@@ -335,10 +319,10 @@ export default function Settings() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  Saving...
+                  {t('common.saving')}
                 </span>
               ) : (
-                'Save Profile'
+                t('settings.saveProfile')
               )}
             </button>
           </div>
@@ -347,47 +331,47 @@ export default function Settings() {
 
       {/* Change Password Section */}
       <div className="glass-strong rounded-xl p-6 border border-white/10">
-        <h2 className="text-lg font-semibold text-white mb-4">Change Password</h2>
+        <h2 className="text-lg font-semibold text-white mb-4">{t('settings.changePassword')}</h2>
         <form onSubmit={handlePasswordSubmit} className="space-y-4">
           <div>
             <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-300">
-              Current Password
+              {t('settings.currentPassword')}
             </label>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               id="currentPassword"
               value={passwordForm.currentPassword}
               onChange={(e) => handlePasswordChange('currentPassword', e.target.value)}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder="Enter current password"
+              placeholder={t('settings.currentPasswordPlaceholder')}
             />
           </div>
 
           <div>
             <label htmlFor="newPassword" className="block text-sm font-medium text-gray-300">
-              New Password
+              {t('settings.newPassword')}
             </label>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               id="newPassword"
               value={passwordForm.newPassword}
               onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder="Enter new password (minimum 8 characters)"
+              placeholder={t('settings.newPasswordPlaceholder')}
             />
           </div>
 
           <div>
             <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300">
-              Confirm New Password
+              {t('settings.confirmPassword')}
             </label>
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               id="confirmPassword"
               value={passwordForm.confirmPassword}
               onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder="Confirm new password"
+              placeholder={t('settings.confirmPasswordPlaceholder')}
             />
           </div>
 
@@ -399,7 +383,7 @@ export default function Settings() {
                 onChange={(e) => setShowPassword(e.target.checked)}
                 className="h-4 w-4 rounded bg-white/5 border-white/10 text-indigo-500 focus:ring-indigo-500"
               />
-              <span className="ml-2 text-sm text-gray-400">Show passwords</span>
+              <span className="ml-2 text-sm text-gray-400">{t('settings.showPasswords')}</span>
             </label>
           </div>
 
@@ -414,10 +398,10 @@ export default function Settings() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Changing...
+                {t('settings.changing')}
               </span>
             ) : (
-              'Change Password'
+              t('settings.changePassword')
             )}
           </button>
           {message && (
@@ -435,7 +419,7 @@ export default function Settings() {
 
       {/* Reminder Settings */}
       <div className="glass-strong rounded-xl p-6 border border-white/10">
-        <h2 className="text-lg font-semibold text-white mb-4">Reminder Preferences</h2>
+        <h2 className="text-lg font-semibold text-white mb-4">{t('settings.reminders')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="flex items-center cursor-pointer">
@@ -446,19 +430,17 @@ export default function Settings() {
                 className="h-5 w-5 rounded bg-white/5 border-white/10 text-indigo-500 focus:ring-indigo-500 focus:ring-offset-0"
               />
               <span className="ml-3 text-sm font-medium text-gray-300">
-                Enable weekly reminders
+                {t('settings.enableReminders')}
               </span>
             </label>
-            <p className="mt-2 text-xs text-gray-500 ml-8">
-              Get a reminder email every week to log your work
-            </p>
+            <p className="mt-2 text-xs text-gray-500 ml-8">{t('settings.reminderDesc')}</p>
           </div>
 
           {profile.reminder_enabled && (
             <>
               <div>
                 <label htmlFor="reminder_day" className="block text-sm font-medium text-gray-300">
-                  Reminder Day
+                  {t('settings.reminderDay')}
                 </label>
                 <select
                   id="reminder_day"
@@ -476,7 +458,7 @@ export default function Settings() {
 
               <div>
                 <label htmlFor="reminder_hour" className="block text-sm font-medium text-gray-300">
-                  Reminder Time
+                  {t('settings.reminderTime')}
                 </label>
                 <select
                   id="reminder_hour"
@@ -490,9 +472,7 @@ export default function Settings() {
                     </option>
                   ))}
                 </select>
-                <p className="mt-1 text-xs text-gray-500">
-                  Times are shown in your local timezone
-                </p>
+                <p className="mt-1 text-xs text-gray-500">{t('settings.localTimezone')}</p>
               </div>
             </>
           )}
@@ -503,7 +483,7 @@ export default function Settings() {
               disabled={loading}
               className="w-full flex justify-center py-3 px-4 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 hover:from-indigo-600 hover:via-purple-600 hover:to-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all glow-primary"
             >
-              {loading ? 'Saving...' : 'Save Preferences'}
+              {loading ? t('common.saving') : t('settings.savePreferences')}
             </button>
           </div>
         </form>

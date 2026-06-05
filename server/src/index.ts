@@ -19,6 +19,7 @@ import { isDatabaseConfigured } from './lib/database.js'
 import { getPostHogClient, shutdownPostHog, captureException, captureEvent } from './lib/posthog.js'
 import { logger } from './lib/logger.js'
 import { requestIdMiddleware } from './middleware/requestId.js'
+import { getErrorMessageSync } from './i18n/errors.js'
 
 dotenv.config()
 
@@ -71,7 +72,7 @@ if (!isDevelopment) {
   const limiter = rateLimit({
     windowMs: parseInt(process.env.RATE_LIMIT_WINDOW || '900000'), // 15 minutes
     max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'),
-    message: { error: 'Too many requests, please try again later' },
+    message: { error: getErrorMessageSync('rateLimited') },
   })
   app.use(limiter)
 
@@ -79,7 +80,7 @@ if (!isDevelopment) {
   const authLimiter = rateLimit({
     windowMs: 60 * 60 * 1000, // 1 hour
     max: 20, // 20 auth attempts per hour
-    message: { error: 'Too many auth attempts, please try again later' },
+    message: { error: getErrorMessageSync('tooManyAuthAttempts') },
   })
   app.use('/api/auth', authLimiter)
 }
@@ -165,7 +166,7 @@ app.get('/health', (req, res) => {
 app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   logger.with('err', err).error('Unhandled error: {}', err.message)
   captureException(err)
-  res.status(500).json({ success: false, error: 'Internal server error' })
+  res.status(500).json({ success: false, error: getErrorMessageSync('internal') })
 })
 
 // Start server

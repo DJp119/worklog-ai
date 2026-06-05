@@ -7,6 +7,7 @@ import {
   buildSystemPrompt,
   applySlidingWindow
 } from '../lib/chatService.js'
+import { resolveUserLanguage } from '../lib/userLanguage.js'
 import { logger } from '../lib/logger.js'
 
 export const chatRoutes = Router()
@@ -215,7 +216,8 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
     // 4. Get monthly summaries
     const summaries = await getSummariesForRange(userId, session.period_start, session.period_end)
     const stitchedSummaries = stitchSummaries(summaries)
-    const systemPrompt = buildSystemPrompt(stitchedSummaries, profile || {})
+    const requestLang = await resolveUserLanguage(req, profile?.preferred_language)
+    const systemPrompt = buildSystemPrompt(stitchedSummaries, profile || {}, requestLang)
 
     // 5. Get message history
     const { data: history } = await supabase

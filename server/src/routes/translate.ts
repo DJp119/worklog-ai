@@ -1,7 +1,8 @@
 import { Router } from 'express'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
-import { dirname, join, resolve } from 'path'
+import { dirname, resolve } from 'path'
+import { supabase } from '../lib/database.js'
 import { logger } from '../lib/logger.js'
 
 export const translateRoutes = Router()
@@ -55,8 +56,14 @@ const SUPPORTED_LANGUAGES: { code: string; name: string; englishName: string; rt
 
 const RTL_LANGS = new Set(['ar', 'he', 'ur', 'fa', 'ps', 'sd', 'yi', 'ku'])
 const TRANSLATION_VERSION = 1
+const NAMESPACE = 'all'
+
+// Short-lived in-memory cache avoids hitting Supabase for every request
+// for the same language within a single process lifetime. The authoritative
+// cache is the `translation_cache` table, which survives restarts and is
+// shared across all server instances.
 const inMemoryCache = new Map<string, { data: Record<string, string>; at: number }>()
-const CACHE_TTL_MS = 1000 * 60 * 60
+const CACHE_TTL_MS = 1000 * 60 * 5
 
 function normalizeLang(code: string): string {
   return code.split('-')[0].toLowerCase()
@@ -81,19 +88,74 @@ translateRoutes.get('/:languageCode', async (req, res) => {
   }
 
   try {
+    const fromDb = await loadCachedTranslations(lang)
+    if (fromDb) {
+      inMemoryCache.set(cacheKey, { data: fromDb, at: Date.now() })
+      res.json({ success: true, data: { translations: fromDb, source: 'db', version: TRANSLATION_VERSION } })
+      return
+    }
+
     const translations = await translateStrings(Object.values(enBase), lang)
-    const map: Record<string, string> = {}
+    const built: Record<string, string> = {}
     Object.keys(enBase).forEach((key, i) => {
       const translated = translations[i]
-      map[key] = typeof translated === 'string' && translated.trim() ? translated : enBase[key]
+      built[key] = typeof translated === 'string' && translated.trim() ? translated : enBase[key]
     })
-    inMemoryCache.set(cacheKey, { data: map, at: Date.now() })
-    res.json({ success: true, data: { translations: map, source: 'google', version: TRANSLATION_VERSION } })
+
+    inMemoryCache.set(cacheKey, { data: built, at: Date.now() })
+    void persistTranslations(lang, built)
+    res.json({ success: true, data: { translations: built, source: 'google', version: TRANSLATION_VERSION } })
   } catch (err) {
     logger.with('err', err).warn('Translation fetch failed for {}: {}', lang, (err as Error).message)
     res.json({ success: true, data: { translations: enBase, source: 'fallback', version: TRANSLATION_VERSION } })
   }
 })
+
+async function loadCachedTranslations(lang: string): Promise<Record<string, string> | null> {
+  try {
+    const { data, error } = await supabase
+      .from('translation_cache')
+      .select('translations')
+      .eq('language_code', lang)
+      .eq('namespace', NAMESPACE)
+      .eq('version', TRANSLATION_VERSION)
+      .maybeSingle()
+    if (error) {
+      logger.with('err', error).warn('translation_cache read failed for {}', lang)
+      return null
+    }
+    const translations = data?.translations
+    if (translations && typeof translations === 'object' && Object.keys(translations).length > 0) {
+      return translations as Record<string, string>
+    }
+    return null
+  } catch (err) {
+    logger.with('err', err).warn('translation_cache read threw for {}', lang)
+    return null
+  }
+}
+
+async function persistTranslations(lang: string, translations: Record<string, string>): Promise<void> {
+  try {
+    const { error } = await supabase
+      .from('translation_cache')
+      .upsert(
+        {
+          language_code: lang,
+          namespace: NAMESPACE,
+          translations,
+          version: TRANSLATION_VERSION,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'language_code,namespace,version' }
+      )
+    if (error) {
+      logger.with('err', error).warn('translation_cache write failed for {}', lang)
+    }
+  } catch (err) {
+    logger.with('err', err).warn('translation_cache write threw for {}', lang)
+  }
+}
 
 async function translateStrings(texts: string[], targetLang: string): Promise<string[]> {
   const apiKey = process.env.GOOGLE_TRANSLATE_API_KEY

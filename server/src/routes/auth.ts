@@ -20,6 +20,7 @@ import {
 } from '../middleware/auth.js'
 import { captureEvent, captureException, identifyUser } from '../lib/posthog.js'
 import { logger } from '../lib/logger.js'
+import { getErrorMessage, getErrorMessageSync } from '../i18n/errors.js'
 
 export const authRoutes = Router()
 
@@ -41,12 +42,12 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
     // Validate inputs
     if (!email || !password) {
       logger.warn('Signup validation failed: Email and password required')
-      return res.status(400).json({ error: 'Email and password required' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'emailPasswordRequired') })
     }
 
     if (!isValidEmail(email)) {
       logger.warn('Signup validation failed: Invalid email format')
-      return res.status(400).json({ error: 'Valid email required' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'validEmailRequired') })
     }
 
     const passwordValidation = validatePasswordStrength(password)
@@ -76,10 +77,10 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
       if (userError.code === '23505') {
         // Unique violation
         logger.warn('Signup failed: Email already registered')
-        return res.status(400).json({ error: 'Email already registered' })
+        return res.status(400).json({ error: await getErrorMessage(req, 'emailAlreadyRegistered') })
       }
       logger.error('Signup user create error: {}', userError.message, userError)
-      return res.status(500).json({ error: 'Failed to create account' })
+      return res.status(500).json({ error: getErrorMessageSync('failedToCreateAccount') })
     }
 
     // Generate email verification token
@@ -148,7 +149,7 @@ authRoutes.post('/verify-email', async (req: AuthRequest, res: Response) => {
 
     if (!userId || !token) {
       logger.warn('Email verification failed: User ID and token required')
-      return res.status(400).json({ error: 'User ID and token required' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'userIdAndTokenRequired') })
     }
 
     // Find verification record
@@ -161,14 +162,14 @@ authRoutes.post('/verify-email', async (req: AuthRequest, res: Response) => {
 
     if (verifyError || !verifyData) {
       logger.warn('Email verification failed: Invalid or expired token')
-      return res.status(400).json({ error: 'Invalid or expired verification token' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'invalidOrExpiredToken') })
     }
 
     // Check if token is expired
     const expiresAt = new Date(verifyData.expires_at)
     if (expiresAt < new Date()) {
       logger.warn('Email verification failed: Token has expired')
-      return res.status(400).json({ error: 'Verification token has expired' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'tokenExpired') })
     }
 
     // Mark user as verified
@@ -179,7 +180,7 @@ authRoutes.post('/verify-email', async (req: AuthRequest, res: Response) => {
 
     if (updateError) {
       logger.error('Email verification update error: {}', updateError.message, updateError)
-      return res.status(500).json({ error: 'Failed to verify email' })
+      return res.status(500).json({ error: getErrorMessageSync('failedToVerifyEmail') })
     }
 
     // Delete verification token
@@ -209,11 +210,11 @@ authRoutes.post('/resend-verification', async (req: AuthRequest, res: Response) 
     const { email } = req.body
 
     if (!email) {
-      return res.status(400).json({ error: 'Email required' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'emailPasswordRequired') })
     }
 
     if (!isValidEmail(email)) {
-      return res.status(400).json({ error: 'Valid email required' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'validEmailRequired') })
     }
 
     // Find user by email
@@ -251,7 +252,7 @@ authRoutes.post('/resend-verification', async (req: AuthRequest, res: Response) 
       .maybeSingle()
 
     if (recentToken) {
-      return res.status(429).json({ error: 'Please wait before requesting another verification email' })
+      return res.status(429).json({ error: await getErrorMessage(req, 'pleaseWaitVerification') })
     }
 
     // Clean up any old expired/unused tokens for this user
@@ -275,7 +276,7 @@ authRoutes.post('/resend-verification', async (req: AuthRequest, res: Response) 
 
     if (insertError) {
       logger.error('Resend verification token error: {}', insertError.message, insertError)
-      return res.status(500).json({ error: 'Failed to resend verification email' })
+      return res.status(500).json({ error: getErrorMessageSync('failedToResendVerification') })
     }
 
     // Send the verification email
@@ -311,7 +312,7 @@ authRoutes.post('/login', async (req: AuthRequest, res: Response) => {
 
     if (!email || !password) {
       logger.warn('Login validation failed: Email and password required')
-      return res.status(400).json({ error: 'Email and password required' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'emailPasswordRequired') })
     }
 
     // Find user by email
@@ -324,14 +325,14 @@ authRoutes.post('/login', async (req: AuthRequest, res: Response) => {
     if (!user) {
       // Generic error to prevent email enumeration
       logger.warn('Login failed: Invalid email or password (user not found)')
-      return res.status(401).json({ error: 'Invalid email or password' })
+      return res.status(401).json({ error: await getErrorMessage(req, 'invalidCredentials') })
     }
 
     // Check if email is verified
     if (!user.email_verified) {
       logger.warn('Login failed: Email not verified')
       return res.status(403).json({
-        error: 'Please verify your email before logging in',
+        error: await getErrorMessage(req, 'emailNotVerified'),
         code: 'EMAIL_NOT_VERIFIED',
         email: user.email,
       })
@@ -341,7 +342,7 @@ authRoutes.post('/login', async (req: AuthRequest, res: Response) => {
     const isValid = await comparePassword(password, user.password_hash)
     if (!isValid) {
       logger.warn('Login failed: Invalid email or password (wrong password)')
-      return res.status(401).json({ error: 'Invalid email or password' })
+      return res.status(401).json({ error: await getErrorMessage(req, 'invalidCredentials') })
     }
 
     // Generate tokens
@@ -425,8 +426,14 @@ authRoutes.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
       .single()
 
     if (error || !user) {
-      return res.status(404).json({ error: 'User not found' })
+      return res.status(404).json({ error: await getErrorMessage(req, 'userNotFound') })
     }
+
+    const { data: profileRow } = await supabase
+      .from('user_profiles')
+      .select('preferred_language')
+      .eq('id', userId)
+      .maybeSingle()
 
     res.json({
       success: true,
@@ -437,6 +444,7 @@ authRoutes.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
         companyName: user.company_name,
         jobTitle: user.job_title,
         emailVerified: user.email_verified,
+        preferredLanguage: profileRow?.preferred_language ?? null,
         createdAt: user.created_at,
       },
     })
@@ -455,7 +463,7 @@ authRoutes.post('/forgot-password', async (req: AuthRequest, res: Response) => {
     const { email } = req.body
 
     if (!email) {
-      return res.status(400).json({ error: 'Email required' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'emailPasswordRequired') })
     }
 
     // Find user by email
@@ -529,7 +537,7 @@ authRoutes.post('/reset-password', async (req: AuthRequest, res: Response) => {
     const { token, newPassword } = req.body
 
     if (!token || !newPassword) {
-      return res.status(400).json({ error: 'Token and new password required' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'currentAndNewPasswordRequired') })
     }
 
     // Validate new password strength
@@ -546,13 +554,13 @@ authRoutes.post('/reset-password', async (req: AuthRequest, res: Response) => {
       .single()
 
     if (resetError || !resetData) {
-      return res.status(400).json({ error: 'Invalid or expired reset token' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'invalidOrExpiredToken') })
     }
 
     // Check if token is expired
     const expiresAt = new Date(resetData.expires_at)
     if (expiresAt < new Date()) {
-      return res.status(400).json({ error: 'Reset token has expired' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'tokenExpired') })
     }
 
     // Hash new password
@@ -597,20 +605,20 @@ authRoutes.post('/refresh', async (req: AuthRequest, res: Response) => {
 
     if (!refreshToken) {
       logger.warn('Token refresh failed: Refresh token required')
-      return res.status(400).json({ error: 'Refresh token required' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'refreshTokenRequired') })
     }
 
     // Validate refresh token
     const tokenRecord = await validateRefreshToken(refreshToken)
     if (!tokenRecord) {
       logger.warn('Token refresh failed: Invalid or expired refresh token')
-      return res.status(401).json({ error: 'Invalid or expired refresh token' })
+      return res.status(401).json({ error: await getErrorMessage(req, 'invalidRefreshToken') })
     }
 
     // Get user from token record (already joined in validateRefreshToken)
     const user = (tokenRecord as any).users
     if (!user) {
-      return res.status(404).json({ error: 'User not found' })
+      return res.status(404).json({ error: await getErrorMessage(req, 'userNotFound') })
     }
 
     // Revoke old refresh token
