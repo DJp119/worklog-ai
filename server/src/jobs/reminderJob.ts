@@ -9,7 +9,9 @@ interface ReminderUser {
     id: string
     email: string
     name: string | null
+    preferred_language: string | null
 }
+
 
 class ReminderJob {
     private task: cron.ScheduledTask | null = null
@@ -58,10 +60,13 @@ class ReminderJob {
         logger.with('utcDay', utcDay).with('utcHour', utcTimeStr).info('Reminder cron: checking schedule')
 
         try {
-            // Query users with matching reminder preferences
+            // Query users with matching reminder preferences.
+            // preferred_language lives in user_profiles (per the i18n migration);
+            // the base schema also added a redundant column on users, but the
+            // Settings page writes to user_profiles, so that is the source of truth.
             const { data: users, error } = await supabase
                 .from('users')
-                .select('id, email, name')
+                .select('id, email, name, preferred_language, user_profiles:user_profiles(preferred_language)')
                 .eq('reminder_enabled', true)
                 .eq('reminder_day', utcDay)
                 .eq('reminder_time', utcTimeStr)
@@ -83,7 +88,12 @@ class ReminderJob {
 
             for (const user of users as ReminderUser[]) {
                 try {
-                    const sent = await sendReminderEmail(user.email, user.name || undefined)
+                    // Prefer user_profiles.preferred_language (canonical, written by Settings);
+                    // fall back to users.preferred_language for backward compat with the
+                    // pre-migration redundant column.
+                    const profilePref = (user as any).user_profiles?.preferred_language
+                    const lang = profilePref || user.preferred_language || 'en'
+                    const sent = await sendReminderEmail(user.email, user.name || undefined, lang)
 
                     // Log the reminder attempt
                     await supabase.from('reminder_logs').insert({

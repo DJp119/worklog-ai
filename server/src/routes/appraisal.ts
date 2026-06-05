@@ -4,6 +4,7 @@ import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import type { GeneratedAppraisal, GenerateAppraisalRequest, ApiResponse } from 'shared'
 import { captureEvent, captureException } from '../lib/posthog.js'
 import { logger } from '../lib/logger.js'
+import { resolveUserLanguage, languageInstruction } from '../lib/userLanguage.js'
 
 export const appraisalRoutes = Router()
 
@@ -54,6 +55,15 @@ appraisalRoutes.post('/generate', requireAuth, async (req: AuthRequest, res) => 
       })
     }
 
+    // Resolve the user's preferred language for AI output
+    const { data: profileRow } = await supabase
+      .from('user_profiles')
+      .select('preferred_language')
+      .eq('id', userId)
+      .single()
+    const lang = await resolveUserLanguage(req, profileRow?.preferred_language)
+    const langInstruction = languageInstruction(lang)
+
     // Build the prompt for Mistral
     const workLogsText = workLogs.map((log, i) => `
 Week ${i + 1} (${log.week_start_date}):
@@ -65,7 +75,7 @@ ${log.hours_logged ? `- Hours logged: ${log.hours_logged}` : ''}
 `).join('\n\n')
 
     const prompt = `You are helping someone write their self-appraisal. Write a professional, polished self-appraisal based on their work logs and the company's appraisal criteria.
-
+${langInstruction}
 COMPANY APPRAISAL CRITERIA:
 ${body.criteria_text}
 ${body.company_goals ? `\nCOMPANY GOALS:\n${body.company_goals}` : ''}
@@ -162,6 +172,7 @@ Write the self-appraisal:`
       word_count: wordCount,
       has_company_goals: !!body.company_goals,
       has_values: !!body.values,
+      output_language: lang,
     })
 
     logger.with('appraisalId', appraisal?.id).info('Successfully saved generated appraisal')

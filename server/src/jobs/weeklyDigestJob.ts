@@ -1,7 +1,7 @@
 import cron from 'node-cron'
 import { logger } from '../lib/logger.js'
 import { supabase } from '../lib/database.js'
-import { sendEmail } from '../lib/email.js'
+import { sendEmail, translateStatic } from '../lib/email.js'
 import { mdc } from '../lib/mdc.js'
 import { randomUUID } from 'crypto'
 
@@ -83,16 +83,21 @@ class WeeklyDigestJob {
       let failed = 0
 
       for (const profile of profiles || []) {
-        // Get user email from users/auth table
+        // Get user email + preferred_language.
+        // The base schema has preferred_language on users, but the i18n migration
+        // added a canonical copy on user_profiles — and that's where the Settings
+        // page writes. Prefer that, fall back to users.preferred_language.
         const { data: user } = await supabase
           .from('users')
-          .select('email, name')
+          .select('email, name, preferred_language, user_profiles:user_profiles(preferred_language)')
           .eq('id', profile.user_id)
           .single()
 
         if (!user) continue
 
-        const success = await this.sendDigestEmail(user.email, user.name, topArticles)
+        const profilePref = (user as any).user_profiles?.preferred_language
+        const lang = profilePref || user.preferred_language || 'en'
+        const success = await this.sendDigestEmail(user.email, user.name, topArticles, lang)
         if (success) sent++
         else failed++
       }
@@ -102,14 +107,26 @@ class WeeklyDigestJob {
   }
 
   /**
-   * Send a single digest email
+   * Send a single digest email (localized)
    */
   private async sendDigestEmail(
     to: string,
     name: string | null,
-    articles: any[]
+    articles: any[],
+    lang: string = 'en'
   ): Promise<boolean> {
-    const greeting = name ? `Hi ${name}` : 'Hi there'
+    // Lazy import tx helper through the exported email API; for static strings here we
+    // call Google Translate directly by routing through sendEmail's body. To keep this
+    // file self-contained we inline a minimal translation call (memoized below).
+    const [greetingPrefix, intro, readMore, ctaButton, footer, subject] = await Promise.all([
+      translateStatic(name ? `Hi ${name}` : 'Hi there', lang),
+      translateStatic('Here are the top AI stories from this week:', lang),
+      translateStatic('Read more on AI Pulse', lang),
+      translateStatic('View All Stories', lang),
+      translateStatic('AI Pulse from Worklog AI', lang),
+      translateStatic('AI Pulse Weekly Digest - Top AI Stories', lang),
+    ])
+
     const articlesHtml = articles
       .map(
         (article) => `
@@ -119,7 +136,7 @@ class WeeklyDigestJob {
             <p style="margin: 0 0 8px; color: #6b7280; font-size: 14px;">${article.summary.slice(0, 200)}...</p>
             <a href="${process.env.FRONTEND_URL}/ai-pulse/articles/${article.slug}"
                style="color: #4F46E5; text-decoration: none; font-size: 13px; font-weight: 500;">
-              Read more on AI Pulse
+              ${readMore}
             </a>
           </td>
         </tr>
@@ -128,7 +145,7 @@ class WeeklyDigestJob {
       .join('')
 
     const htmlBody = `<!DOCTYPE html>
-<html>
+<html lang="${lang}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -137,9 +154,9 @@ class WeeklyDigestJob {
   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background-color: #ffffff; border-radius: 12px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
       <h1 style="color: #4F46E5; margin-top: 0;">AI Pulse Weekly Digest</h1>
-      <p style="font-size: 16px;">${greeting},</p>
+      <p style="font-size: 16px;">${greetingPrefix},</p>
       <p style="font-size: 16px;">
-        Here are the top AI stories from this week:
+        ${intro}
       </p>
       <table style="width: 100%; border-collapse: collapse; margin: 24px 0;">
         ${articlesHtml}
@@ -147,11 +164,11 @@ class WeeklyDigestJob {
       <p style="text-align: center; margin: 30px 0;">
         <a href="${process.env.FRONTEND_URL || 'http://localhost:5173'}/ai-pulse"
            style="display: inline-block; padding: 14px 36px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
-          View All Stories
+          ${ctaButton}
         </a>
       </p>
       <p style="margin-top: 30px; color: #666; font-size: 13px; border-top: 1px solid #eee; padding-top: 16px;">
-        AI Pulse from Worklog AI
+        ${footer}
       </p>
     </div>
   </div>
@@ -160,7 +177,7 @@ class WeeklyDigestJob {
 
     const result = await sendEmail({
       to,
-      subject: 'AI Pulse Weekly Digest - Top AI Stories',
+      subject,
       htmlBody,
     })
 

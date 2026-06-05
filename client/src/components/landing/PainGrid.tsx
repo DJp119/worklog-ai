@@ -6,8 +6,10 @@ import Calendar from "lucide-react/dist/esm/icons/calendar.mjs";
 import Heart from "lucide-react/dist/esm/icons/heart.mjs";
 import ShieldAlert from "lucide-react/dist/esm/icons/shield-alert.mjs";
 import Award from "lucide-react/dist/esm/icons/award.mjs";
+import { useTranslation } from "react-i18next";
 
 export default function PainGrid() {
+  const { t } = useTranslation();
   return (
     <div className="w-full max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8 px-4">
       {/* The Old Way: Stress Card */}
@@ -20,31 +22,31 @@ export default function PainGrid() {
             <ShieldAlert className="w-5 h-5" />
           </div>
           <div>
-            <span className="text-[10px] text-red-400/70 font-mono uppercase tracking-widest block font-bold">The Painful Reality</span>
-            <h4 className="text-lg font-bold text-white leading-tight">The "December Panic" Method</h4>
+            <span className="text-[10px] text-red-400/70 font-mono uppercase tracking-widest block font-bold">{t('landing.painGrid.painfulReality')}</span>
+            <h4 className="text-lg font-bold text-white leading-tight">{t('landing.painGrid.decemberPanic')}</h4>
           </div>
         </div>
 
         <ul className="space-y-4">
           {[
             {
-              title: "Staring at a Blank Appraisal Box",
-              desc: "Paralysis sets in as you struggle to recall what you accomplished 6 months ago, leading to generic and underplayed self-reviews.",
+              title: t('landing.painGrid.p1Title'),
+              desc: t('landing.painGrid.p1Desc'),
               icon: AlertCircle
             },
             {
-              title: "Frantic Scanning of Slack & Git",
-              desc: "Wasting hours scrolling through hundreds of Slack channels, git logs, and calendar items on December 15th to find raw proof.",
+              title: t('landing.painGrid.p2Title'),
+              desc: t('landing.painGrid.p2Desc'),
               icon: Search
             },
             {
-              title: "Recency Bias Minimizes Your Wins",
-              desc: "Only remembering the tasks completed in the last 2 weeks, while major achievements from Q1 and Q2 are completely forgotten.",
+              title: t('landing.painGrid.p3Title'),
+              desc: t('landing.painGrid.p3Desc'),
               icon: Calendar
             },
             {
-              title: "Underplayed Impact = Missed Promotions",
-              desc: "Writing a modest appraisal because you lack structural data, letting others who write assertive reviews secure the raises.",
+              title: t('landing.painGrid.p4Title'),
+              desc: t('landing.painGrid.p4Desc'),
               icon: Award
             }
           ].map((item, idx) => {
@@ -74,31 +76,31 @@ export default function PainGrid() {
             <Zap className="w-5 h-5 animate-pulse" />
           </div>
           <div>
-            <span className="text-[10px] text-indigo-400 font-mono uppercase tracking-widest block font-bold">The Better Solution</span>
-            <h4 className="text-lg font-bold text-white leading-tight">The Impactly AI Routine</h4>
+            <span className="text-[10px] text-indigo-400 font-mono uppercase tracking-widest block font-bold">{t('landing.painGrid.betterSolution')}</span>
+            <h4 className="text-lg font-bold text-white leading-tight">{t('landing.painGrid.impactlyRoutine')}</h4>
           </div>
         </div>
 
         <ul className="space-y-4">
           {[
             {
-              title: "Complete Database of Weekly Wins",
-              desc: "A safe, private weekly archive of your accomplishments, challenges, and learnings. Organized automatically as you go.",
+              title: t('landing.painGrid.s1Title'),
+              desc: t('landing.painGrid.s1Desc'),
               icon: CheckCircle2
             },
             {
-              title: "One-Click AI Appraisal Drafts",
-              desc: "Multi-model semantic engines instantly compile a full-length, structured self-appraisal mapped directly to your goals in 5 seconds.",
+              title: t('landing.painGrid.s2Title'),
+              desc: t('landing.painGrid.s2Desc'),
               icon: Zap
             },
             {
-              title: "Perfect Alignment with Company Values",
-              desc: "Add your company's core values and target OKRs, and the AI weaves them flawlessly into your appraisal paragraphs.",
+              title: t('landing.painGrid.s3Title'),
+              desc: t('landing.painGrid.s3Desc'),
               icon: Heart
             },
             {
-              title: "Promotion-Ready & Confident Reviews",
-              desc: "Submit a highly professional, data-backed review outlining the exact value you generated. Secure the recognition you earned.",
+              title: t('landing.painGrid.s4Title'),
+              desc: t('landing.painGrid.s4Desc'),
               icon: Award
             }
           ].map((item, idx) => {

@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
+import { useTranslation } from 'react-i18next'
 import SessionList from '../components/Chat/SessionList'
 import ChatWindow from '../components/Chat/ChatWindow'
 import { getChatSessions, createChatSession, deleteChatSession, type ChatSession } from '../lib/chatApi'
 import { usePageMeta } from '../hooks/usePageMeta'
 
 export default function Chat() {
-  usePageMeta({ title: 'AI Critique Assistant', noIndex: true })
+  const { t } = useTranslation()
+  usePageMeta({ title: t('chat.critiqueTitle'), noIndex: true })
   const [sessions, setSessions] = useState<ChatSession[]>([])
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -35,12 +37,12 @@ export default function Chat() {
       setActiveSessionId(session.id)
     } catch (err) {
       console.error(err)
-      alert('Failed to create session')
+      alert(t('chat.failedCreate'))
     }
   }
 
   const handleDeleteSession = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this chat session?')) return
+    if (!confirm(t('chat.confirmDelete'))) return
     try {
       await deleteChatSession(id)
       setSessions(sessions.filter(s => s.id !== id))
@@ -70,7 +72,7 @@ export default function Chat() {
           <ChatWindow key={activeSessionId} sessionId={activeSessionId} />
         ) : (
           <div className="flex-1 flex items-center justify-center text-gray-400">
-            Select or create a chat session to start.
+            {t('chat.emptySelect')}
           </div>
         )}
       </div>

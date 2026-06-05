@@ -4,6 +4,7 @@ import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import { hashPassword, comparePassword, validatePasswordStrength } from '../lib/auth-utils.js'
 import { captureEvent, captureException } from '../lib/posthog.js'
 import { logger } from '../lib/logger.js'
+import { getErrorMessage, getErrorMessageSync } from '../i18n/errors.js'
 
 export const userRoutes = Router()
 
@@ -26,8 +27,16 @@ userRoutes.get('/profile', async (req: AuthRequest, res: Response) => {
 
         if (error || !user) {
             logger.warn('Get profile failed: Profile not found')
-            return res.status(404).json({ success: false, error: 'Profile not found' })
+            return res.status(404).json({ success: false, error: await getErrorMessage(req, 'profileNotFound') })
         }
+
+        // preferred_language lives in user_profiles (per the i18n migration);
+        // join it here so the client receives the full profile in one round-trip.
+        const { data: profileRow } = await supabase
+            .from('user_profiles')
+            .select('preferred_language')
+            .eq('id', userId)
+            .maybeSingle()
 
         logger.info('Successfully fetched user profile')
 
@@ -43,12 +52,13 @@ userRoutes.get('/profile', async (req: AuthRequest, res: Response) => {
                 reminderTime: user.reminder_time,
                 reminderEnabled: user.reminder_enabled,
                 emailVerified: user.email_verified,
+                preferredLanguage: profileRow?.preferred_language ?? null,
                 createdAt: user.created_at,
             },
         })
     } catch (error) {
         logger.error('Get profile error: {}', error instanceof Error ? error.message : String(error), error)
-        res.status(500).json({ success: false, error: 'Internal server error' })
+        res.status(500).json({ success: false, error: getErrorMessageSync('internal') })
     }
 })
 
@@ -68,11 +78,12 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
         const reminder_day = body.reminder_day ?? body.reminderDay
         const reminder_time = body.reminder_time ?? body.reminderTime
         const reminder_enabled = body.reminder_enabled ?? body.reminderEnabled
+        const preferred_language = body.preferred_language ?? body.preferredLanguage ?? null
 
         // Validate reminder_day if provided
         if (reminder_day !== undefined && (reminder_day < 0 || reminder_day > 6)) {
             logger.warn('Update profile validation failed: reminder_day must be 0-6')
-            return res.status(400).json({ success: false, error: 'reminder_day must be 0-6 (Sunday-Saturday)' })
+            return res.status(400).json({ success: false, error: await getErrorMessage(req, 'reminderDayOutOfRange') })
         }
 
         const updateData: Record<string, any> = {}
@@ -83,6 +94,13 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
         if (reminder_day !== undefined) updateData.reminder_day = reminder_day
         if (reminder_time !== undefined) updateData.reminder_time = reminder_time
         if (reminder_enabled !== undefined) updateData.reminder_enabled = reminder_enabled
+
+        if (preferred_language !== undefined) {
+            // Upsert into user_profiles (the table that holds preferred_language)
+            await supabase
+                .from('user_profiles')
+                .upsert({ id: userId, preferred_language, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+        }
 
         updateData.updated_at = new Date().toISOString()
 
@@ -97,12 +115,12 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
 
         if (error) {
             logger.error('Profile update Supabase error: {}', error.message, error)
-            return res.status(500).json({ success: false, error: 'Failed to update profile', detail: error.message })
+            return res.status(500).json({ success: false, error: await getErrorMessage(req, 'failedToUpdateProfile'), detail: error.message })
         }
 
         if (!user) {
             logger.error('No user returned after update')
-            return res.status(500).json({ success: false, error: 'Update matched no rows' })
+            return res.status(500).json({ success: false, error: await getErrorMessage(req, 'noUpdate') })
         }
 
         captureEvent(userId, 'profile_updated', {
@@ -122,12 +140,13 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
                 reminderDay: user.reminder_day,
                 reminderTime: user.reminder_time,
                 reminderEnabled: user.reminder_enabled,
+                preferredLanguage: preferred_language,
             },
         })
     } catch (error) {
         logger.error('Update profile error: {}', error instanceof Error ? error.message : String(error), error)
         captureException(error)
-        res.status(500).json({ success: false, error: 'Internal server error' })
+        res.status(500).json({ success: false, error: getErrorMessageSync('internal') })
     }
 })
 
@@ -142,7 +161,7 @@ userRoutes.put('/password', async (req: AuthRequest, res: Response) => {
 
         if (!currentPassword || !newPassword) {
             logger.warn('Change password validation failed: Current password and new password required')
-            return res.status(400).json({ success: false, error: 'Current password and new password required' })
+            return res.status(400).json({ success: false, error: await getErrorMessage(req, 'currentAndNewPasswordRequired') })
         }
 
         // Get current user's password hash
@@ -154,14 +173,14 @@ userRoutes.put('/password', async (req: AuthRequest, res: Response) => {
 
         if (!user) {
             logger.warn('Change password failed: User not found')
-            return res.status(404).json({ success: false, error: 'User not found' })
+            return res.status(404).json({ success: false, error: await getErrorMessage(req, 'userNotFound') })
         }
 
         // Verify current password
         const isValid = await comparePassword(currentPassword, user.password_hash)
         if (!isValid) {
             logger.warn('Change password failed: Current password is incorrect')
-            return res.status(401).json({ success: false, error: 'Current password is incorrect' })
+            return res.status(401).json({ success: false, error: await getErrorMessage(req, 'currentPasswordIncorrect') })
         }
 
         // Validate new password
@@ -184,7 +203,7 @@ userRoutes.put('/password', async (req: AuthRequest, res: Response) => {
 
         if (error) {
             logger.error('Password update error: {}', error.message, error)
-            return res.status(500).json({ success: false, error: 'Failed to update password' })
+            return res.status(500).json({ success: false, error: await getErrorMessage(req, 'failedToUpdatePassword') })
         }
 
         // Revoke all refresh tokens (user will need to log in again)
@@ -201,11 +220,11 @@ userRoutes.put('/password', async (req: AuthRequest, res: Response) => {
 
         res.json({
             success: true,
-            message: 'Password updated successfully. Please log in again.',
+            message: await getErrorMessage(req, 'passwordUpdated'),
         })
     } catch (error) {
         logger.error('Change password error: {}', error instanceof Error ? error.message : String(error), error)
-        res.status(500).json({ success: false, error: 'Internal server error' })
+        res.status(500).json({ success: false, error: getErrorMessageSync('internal') })
     }
 })
 
@@ -225,7 +244,7 @@ userRoutes.delete('/account', async (req: AuthRequest, res: Response) => {
 
         if (error) {
             logger.error('Account deletion error: {}', error.message, error)
-            return res.status(500).json({ success: false, error: 'Failed to delete account' })
+            return res.status(500).json({ success: false, error: await getErrorMessage(req, 'failedToDeleteAccount') })
         }
 
         captureEvent(userId, 'account_deleted')
@@ -234,11 +253,11 @@ userRoutes.delete('/account', async (req: AuthRequest, res: Response) => {
 
         res.json({
             success: true,
-            message: 'Account deleted successfully',
+            message: await getErrorMessage(req, 'accountDeleted'),
         })
     } catch (error) {
         logger.error('Delete account error: {}', error instanceof Error ? error.message : String(error), error)
         captureException(error)
-        res.status(500).json({ success: false, error: 'Internal server error' })
+        res.status(500).json({ success: false, error: getErrorMessageSync('internal') })
     }
 })

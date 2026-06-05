@@ -1,7 +1,9 @@
 import { useState, FormEvent } from 'react'
+import { useTranslation } from 'react-i18next'
 import { generateAppraisal, getAppraisalHistory } from '../lib/api'
 import type { GeneratedAppraisal } from 'shared'
 import { usePageMeta } from '../hooks/usePageMeta'
+import { formatDate } from '../lib/formatters'
 
 interface AppraisalForm {
   period_start: string
@@ -12,7 +14,8 @@ interface AppraisalForm {
 }
 
 export default function Appraisal() {
-  usePageMeta({ title: 'Generate Appraisal', noIndex: true })
+  const { t } = useTranslation()
+  usePageMeta({ title: t('appraisal.title'), noIndex: true })
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -36,7 +39,7 @@ export default function Appraisal() {
     e.preventDefault()
 
     if (!form.period_start || !form.period_end || !form.criteria_text) {
-      setError('Please fill in all required fields')
+      setError(t('appraisal.requiredFields'))
       return
     }
 
@@ -55,7 +58,7 @@ export default function Appraisal() {
 
       setResult(appraisal)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate appraisal')
+      setError(err instanceof Error ? err.message : t('appraisal.errorGenerate'))
     } finally {
       setGenerating(false)
     }
@@ -64,7 +67,7 @@ export default function Appraisal() {
   const handleCopyToClipboard = () => {
     if (result?.generated_text) {
       navigator.clipboard.writeText(result.generated_text)
-      alert('Copied to clipboard!')
+      alert(t('appraisal.copied'))
     }
   }
 
@@ -75,7 +78,7 @@ export default function Appraisal() {
       setHistory(appraisals)
       setShowHistory(true)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load history')
+      setError(err instanceof Error ? err.message : t('errors.generic'))
     } finally {
       setLoading(false)
     }
@@ -92,8 +95,8 @@ export default function Appraisal() {
           </svg>
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-white">Generate Self-Appraisal</h1>
-          <p className="text-gray-400 text-sm">AI-powered appraisal generation from your work logs</p>
+          <h1 className="text-2xl font-bold text-white">{t('appraisal.title')}</h1>
+          <p className="text-gray-400 text-sm">{t('appraisal.subtitle')}</p>
         </div>
       </div>
 
@@ -104,7 +107,7 @@ export default function Appraisal() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label htmlFor="period_start" className="block text-sm font-medium text-gray-300">
-                Period Start <span className="text-red-400">*</span>
+                {t('appraisal.periodStart')} <span className="text-red-400">*</span>
               </label>
               <input
                 type="date"
@@ -117,7 +120,7 @@ export default function Appraisal() {
             </div>
             <div>
               <label htmlFor="period_end" className="block text-sm font-medium text-gray-300">
-                Period End <span className="text-red-400">*</span>
+                {t('appraisal.periodEnd')} <span className="text-red-400">*</span>
               </label>
               <input
                 type="date"
@@ -133,7 +136,7 @@ export default function Appraisal() {
           {/* Criteria Text */}
           <div>
             <label htmlFor="criteria_text" className="block text-sm font-medium text-gray-300">
-              Appraisal Criteria <span className="text-red-400">*</span>
+              {t('appraisal.criteria')} <span className="text-red-400">*</span>
             </label>
             <textarea
               id="criteria_text"
@@ -141,11 +144,7 @@ export default function Appraisal() {
               value={form.criteria_text}
               onChange={(e) => handleChange('criteria_text', e.target.value)}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder={`Paste your company's self-appraisal criteria here. For example:
-- Demonstrate technical excellence and innovation
-- Drive project delivery and meet commitments
-- Collaborate effectively with team members
-- Show leadership and mentorship`}
+              placeholder={t('appraisal.criteriaPlaceholder')}
               required
             />
           </div>
@@ -153,7 +152,7 @@ export default function Appraisal() {
           {/* Company Goals */}
           <div>
             <label htmlFor="company_goals" className="block text-sm font-medium text-gray-300">
-              Company Goals (optional)
+              {t('appraisal.companyGoals')} <span className="text-gray-500">({t('common.optional')})</span>
             </label>
             <textarea
               id="company_goals"
@@ -161,14 +160,14 @@ export default function Appraisal() {
               value={form.company_goals}
               onChange={(e) => handleChange('company_goals', e.target.value)}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder="What are your company or team goals for this period?"
+              placeholder={t('appraisal.companyGoalsPlaceholder')}
             />
           </div>
 
           {/* Company Values */}
           <div>
             <label htmlFor="values" className="block text-sm font-medium text-gray-300">
-              Company Values (optional)
+              {t('appraisal.companyValues')} <span className="text-gray-500">({t('common.optional')})</span>
             </label>
             <textarea
               id="values"
@@ -176,7 +175,7 @@ export default function Appraisal() {
               value={form.values}
               onChange={(e) => handleChange('values', e.target.value)}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder="Your company's core values"
+              placeholder={t('appraisal.companyValuesPlaceholder')}
             />
           </div>
 
@@ -199,10 +198,10 @@ export default function Appraisal() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Generating...
+                {t('appraisal.generating')}
               </span>
             ) : (
-              'Generate Appraisal'
+              t('appraisal.generate')
             )}
           </button>
         </form>
@@ -219,17 +218,17 @@ export default function Appraisal() {
                   <path d="M9.353 10.353a.5.5 0 00.707 0l2-2a.5.5 0 10-.707-.707L10 9.293 8.646 7.94a.5.5 0 00-.707.707l1.414 1.414z" />
                 </svg>
               </div>
-              <h2 className="text-xl font-bold text-white">Your Generated Appraisal</h2>
+              <h2 className="text-xl font-bold text-white">{t('appraisal.resultTitle')}</h2>
             </div>
             <div className="flex items-center space-x-4">
               <span className="text-sm text-gray-400 bg-white/5 px-3 py-1 rounded-full">
-                {result.word_count} words
+                {t('appraisal.words', { count: result.word_count })}
               </span>
               <button
                 onClick={handleCopyToClipboard}
                 className="text-indigo-400 hover:text-indigo-300 text-sm font-medium transition-colors"
               >
-                Copy to Clipboard
+                {t('appraisal.copy')}
               </button>
             </div>
           </div>
@@ -242,7 +241,7 @@ export default function Appraisal() {
 
           <div className="mt-6 p-4 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
             <p className="text-sm text-gray-300">
-              <strong className="text-indigo-400">Tip:</strong> Review and personalize this draft before submitting. Add specific metrics or examples that only you would know.
+              <strong className="text-indigo-400">{t('appraisal.tip')}</strong> {t('appraisal.tipBody')}
             </p>
           </div>
         </div>
@@ -251,7 +250,7 @@ export default function Appraisal() {
       {/* History Section */}
       <div className="glass-strong rounded-2xl p-8 border border-white/10">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-white">Appraisal History</h2>
+          <h2 className="text-xl font-bold text-white">{t('appraisal.history')}</h2>
           <button
             onClick={loadHistory}
             disabled={loading}
@@ -263,16 +262,16 @@ export default function Appraisal() {
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
-                Loading...
+                {t('common.loading')}
               </span>
             ) : (
-              showHistory ? 'Refresh' : 'Load History'
+              showHistory ? t('appraisal.refresh') : t('appraisal.loadHistory')
             )}
           </button>
         </div>
 
         {showHistory && history.length === 0 && (
-          <p className="text-gray-400 text-sm">No appraisals generated yet.</p>
+          <p className="text-gray-400 text-sm">{t('appraisal.noHistory')}</p>
         )}
 
         {history.length > 0 && (
@@ -289,14 +288,14 @@ export default function Appraisal() {
                 <div className="flex justify-between items-center">
                   <div>
                     <p className="font-medium text-white">
-                      {new Date(appraisal.period_start).toLocaleDateString()} - {new Date(appraisal.period_end).toLocaleDateString()}
+                      {formatDate(appraisal.period_start, 'medium')} - {formatDate(appraisal.period_end, 'medium')}
                     </p>
                     <p className="text-sm text-gray-400 mt-1">
-                      Generated {new Date(appraisal.created_at).toLocaleDateString()}
+                      {t('appraisal.generatedOn', { date: formatDate(appraisal.created_at, 'medium') })}
                     </p>
                   </div>
                   <span className="text-sm text-gray-400 bg-white/5 px-3 py-1 rounded-full">
-                    {appraisal.word_count} words
+                    {t('appraisal.words', { count: appraisal.word_count })}
                   </span>
                 </div>
               </div>

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down.mjs";
 import HelpCircle from "lucide-react/dist/esm/icons/help-circle.mjs";
 
@@ -9,28 +10,29 @@ export interface FAQItem {
 
 export const FAQS: FAQItem[] = [
   {
-    question: "How does the AI generate my self-appraisal?",
-    answer: "Impactly AI processes your private weekly log entries, correlates them with your company's core values and appraisal goals, and drafts professional self-evaluation responses. By referencing your specific, concrete accomplishments throughout the year, the generated review is structured in a logical STAR (Situation, Task, Action, Result) format, ensuring your impact is clear and data-backed."
+    question: "landing.faq.q1",
+    answer: "landing.faq.a1"
   },
   {
-    question: "Is my corporate work log and appraisal data secure?",
-    answer: "Absolutely. Security is our absolute priority. We implement database-level Row Level Security (RLS) to isolate user data completely, and encrypt all data in transit and at rest. We never sell your personal information or weekly check-ins, and we do not use your private logs to train large language models."
+    question: "landing.faq.q2",
+    answer: "landing.faq.a2"
   },
   {
-    question: "Can I customize the generated tone and appraisal criteria?",
-    answer: "Yes. Impactly AI is fully customizable. You can set the writing tone (e.g., Assertive & Data-Driven, Collaborative, Leadership-focused), input your specific department OKRs, copy-paste company core values, or select a custom review period (weekly, quarterly, or yearly) to ensure the outputs match your corporate requirements perfectly."
+    question: "landing.faq.q3",
+    answer: "landing.faq.a3"
   },
   {
-    question: "Does the app support reminders so I don't forget to log weekly?",
-    answer: "Yes. We offer automated, highly customizable email reminders (e.g., Monday morning at 9:00 AM) to prompt you to spend 5 minutes documenting your accomplishments before starting your week. This build-as-you-go approach completely eliminates the stress of appraisal season."
+    question: "landing.faq.q4",
+    answer: "landing.faq.a4"
   },
   {
-    question: "Is there a free trial or free tier available?",
-    answer: "Yes. Impactly AI offers a robust free tier that allows you to keep unlimited weekly work logs, track consistency streaks, and generate full Q4 appraisal reports. No credit card is required to join. You can sign up via standard email or with single-click Google/GitHub OAuth directly on our login page."
+    question: "landing.faq.q5",
+    answer: "landing.faq.a5"
   }
 ];
 
 export default function FaqAccordion() {
+  const { t } = useTranslation();
   const [openIndex, setOpenIndex] = useState<number | null>(null);
 
   const toggleFaq = (index: number) => {
@@ -43,10 +45,10 @@ export default function FaqAccordion() {
     "@type": "FAQPage",
     "mainEntity": FAQS.map((faq) => ({
       "@type": "Question",
-      "name": faq.question,
+      "name": t(faq.question),
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": faq.answer
+        "text": t(faq.answer)
       }
     }))
   };
@@ -73,7 +75,7 @@ export default function FaqAccordion() {
               >
                 <div className="flex items-center gap-3">
                   <HelpCircle className="w-5 h-5 text-indigo-400 flex-shrink-0" />
-                  <span className="text-sm md:text-base">{faq.question}</span>
+                  <span className="text-sm md:text-base">{t(faq.question)}</span>
                 </div>
                 <ChevronDown
                   className={`w-5 h-5 text-gray-500 transition-transform duration-300 flex-shrink-0 ${
@@ -88,7 +90,7 @@ export default function FaqAccordion() {
                 }`}
               >
                 <div className="p-5 md:p-6 text-xs md:text-sm text-gray-400 leading-relaxed bg-black/20">
-                  {faq.answer}
+                  {t(faq.answer)}
                 </div>
               </div>
             </div>

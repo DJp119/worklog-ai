@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import Sparkles from "lucide-react/dist/esm/icons/sparkles.mjs";
 import Terminal from "lucide-react/dist/esm/icons/terminal.mjs";
 import FileText from "lucide-react/dist/esm/icons/file-text.mjs";
@@ -24,7 +25,7 @@ interface Preset {
 const PRESETS: Preset[] = [
   {
     role: "general",
-    label: "General / Operations",
+    label: "landing.widget.roleGeneral",
     icon: User,
     rawInput: "Organized our file system and made a tracking sheet for vendor invoices.",
     tones: {
@@ -44,7 +45,7 @@ const PRESETS: Preset[] = [
   },
   {
     role: "marketing",
-    label: "Marketing",
+    label: "landing.widget.roleMarketing",
     icon: MessageSquare,
     rawInput: "Updated the website copy and ran a small email newsletter that got new signups.",
     tones: {
@@ -64,7 +65,7 @@ const PRESETS: Preset[] = [
   },
   {
     role: "sales",
-    label: "Sales / Success",
+    label: "landing.widget.roleSales",
     icon: Sparkles,
     rawInput: "Helped a big customer who wanted to cancel and got them to renew their contract.",
     tones: {
@@ -84,7 +85,7 @@ const PRESETS: Preset[] = [
   },
   {
     role: "engineering",
-    label: "Engineering",
+    label: "landing.widget.roleEngineering",
     icon: Terminal,
     rawInput: "Fixed the lag in database queries and made the dashboard load faster.",
     tones: {
@@ -105,6 +106,7 @@ const PRESETS: Preset[] = [
 ];
 
 export default function PlaygroundWidget() {
+  const { t } = useTranslation();
   const [activeRole, setActiveRole] = useState("general");
   const [activeTone, setActiveTone] = useState("data");
   const [userInput, setUserInput] = useState("");
@@ -158,20 +160,20 @@ export default function PlaygroundWidget() {
           <div>
             <div className="flex items-center gap-2 text-indigo-400 font-medium text-sm mb-4 tracking-wide uppercase">
               <Sparkles className="w-4 h-4 animate-pulse" />
-              <span>Interactive Playground</span>
+              <span>{t('landing.widget.title')}</span>
             </div>
-            
+
             <h3 className="text-xl font-bold text-white mb-2">
-              Try the AI Appraisal Generator
+              {t('landing.widget.heading')}
             </h3>
             <p className="text-gray-400 text-sm mb-6 leading-relaxed">
-              Select your role, pick a communication tone, and see how simple bullet points turn into high-impact self-appraisals.
+              {t('landing.widget.desc')}
             </p>
 
             {/* Role selection */}
             <div className="mb-4">
               <label className="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">
-                1. Select Profession
+                {t('landing.widget.step1')}
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {PRESETS.map((preset) => {
@@ -191,7 +193,7 @@ export default function PlaygroundWidget() {
                       }`}
                     >
                       <IconComponent className="w-3.5 h-3.5" />
-                      <span>{preset.label}</span>
+                      <span>{t(preset.label)}</span>
                     </button>
                   );
                 })}
@@ -201,13 +203,13 @@ export default function PlaygroundWidget() {
             {/* Tone Selection */}
             <div className="mb-4">
               <label className="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">
-                2. Pick Writing Tone
+                {t('landing.widget.step2')}
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { id: "data", label: "Data-Driven" },
-                  { id: "collaborative", label: "Collaborative" },
-                  { id: "leadership", label: "Leadership" }
+                  { id: "data", label: "landing.widget.toneData" },
+                  { id: "collaborative", label: "landing.widget.toneCollab" },
+                  { id: "leadership", label: "landing.widget.toneLeader" }
                 ].map((tone) => (
                   <button
                     key={tone.id}
@@ -222,7 +224,7 @@ export default function PlaygroundWidget() {
                         : "border-white/5 bg-white/[0.02] hover:bg-white/5 text-gray-400 hover:text-white"
                     }`}
                   >
-                    {tone.label}
+                    {t(tone.label)}
                   </button>
                 ))}
               </div>
@@ -231,7 +233,7 @@ export default function PlaygroundWidget() {
             {/* Bullet Point Input */}
             <div>
               <label className="block text-gray-400 text-xs font-semibold uppercase tracking-wider mb-2">
-                3. Raw Achievement
+                {t('landing.widget.step3')}
               </label>
               <textarea
                 value={userInput}
@@ -242,7 +244,7 @@ export default function PlaygroundWidget() {
                 }}
                 rows={3}
                 className="w-full bg-black/40 border border-white/5 rounded-xl p-3 text-sm text-gray-300 placeholder-gray-600 focus:outline-none focus:border-indigo-500/50 resize-none transition-colors"
-                placeholder="What did you work on this week?"
+                placeholder={t('landing.widget.placeholder')}
               />
             </div>
           </div>
@@ -255,12 +257,12 @@ export default function PlaygroundWidget() {
             {isGenerating ? (
               <>
                 <RefreshCw className="w-4 h-4 animate-spin" />
-                <span>Processing data points...</span>
+                <span>{t('landing.widget.processing')}</span>
               </>
             ) : (
               <>
                 <Sparkles className="w-4 h-4" />
-                <span>Generate Appraisal Draft</span>
+                <span>{t('landing.widget.generate')}</span>
               </>
             )}
           </button>
@@ -276,11 +278,11 @@ export default function PlaygroundWidget() {
                 <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/50"></span>
                 <span className="w-2.5 h-2.5 rounded-full bg-green-500/50"></span>
               </div>
-              <span className="text-[11px] font-mono text-gray-500 ml-2">appraisal_draft.md</span>
+              <span className="text-[11px] font-mono text-gray-500 ml-2">{t('landing.widget.fileName')}</span>
             </div>
             {showResult && (
               <span className="text-[10px] font-mono bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 px-2 py-0.5 rounded">
-                Hybrid AI Powered
+                {t('landing.widget.hybridBadge')}
               </span>
             )}
           </div>
@@ -311,7 +313,7 @@ export default function PlaygroundWidget() {
                 </div>
               </div>
               <div className="text-xs text-gray-500 font-mono text-center max-w-[200px]">
-                Structuring logs into STAR narrative, mapping company values...
+                {t('landing.widget.loadingMsg')}
               </div>
             </div>
           )}
@@ -322,9 +324,9 @@ export default function PlaygroundWidget() {
               <div className="w-12 h-12 rounded-xl bg-white/5 border border-white/5 flex items-center justify-center text-gray-500 mb-4">
                 <FileText className="w-5 h-5" />
               </div>
-              <p className="text-gray-400 text-sm font-semibold mb-1">Workspace Ready</p>
+              <p className="text-gray-400 text-sm font-semibold mb-1">{t('landing.widget.workspaceReady')}</p>
               <p className="text-gray-600 text-xs max-w-[240px]">
-                Click the generate button to transform your raw bullet accomplishments into a promotion-ready narrative.
+                {t('landing.widget.workspaceDesc')}
               </p>
             </div>
           )}
@@ -334,10 +336,10 @@ export default function PlaygroundWidget() {
             <div className="flex-1 flex flex-col justify-between relative">
               <div className="text-sm leading-relaxed font-sans text-gray-300 prose prose-invert select-text pb-20">
                 <p className="font-semibold text-white border-b border-white/5 pb-2 mb-3">
-                  Key Accomplishments (Q4 Review):
+                  {t('landing.widget.accomplishmentHeader')}
                 </p>
                 <div className="text-xs font-mono text-gray-500 mb-4 bg-white/[0.02] p-2.5 rounded border border-white/5">
-                  <span className="text-indigo-400">Accomplishment:</span> {currentPreset.tones[activeTone].accomplishment}
+                  <span className="text-indigo-400">{t('landing.widget.accomplishmentLabel')}</span> {currentPreset.tones[activeTone].accomplishment}
                 </div>
                 <p className="whitespace-pre-line text-[13px] md:text-sm">
                   {displayedText}
@@ -352,17 +354,17 @@ export default function PlaygroundWidget() {
                     <div className="text-center sm:text-left">
                       <p className="text-xs font-bold text-white flex items-center justify-center sm:justify-start gap-1">
                         <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-bounce" />
-                        Unlock Full Performance Document
+                        {t('landing.widget.unlock')}
                       </p>
                       <p className="text-[10px] text-gray-400 mt-0.5">
-                        Export STAR reviews, career reflections, and AI chat critiques.
+                        {t('landing.widget.unlockDesc')}
                       </p>
                     </div>
                     <Link
                       to="/login"
                       className="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-500 hover:shadow-lg hover:shadow-indigo-500/20 text-white font-bold text-xs rounded-lg flex items-center justify-center gap-1.5 transition-all"
                     >
-                      <span>Join Free</span>
+                      <span>{t('landing.widget.joinFree')}</span>
                       <ChevronRight className="w-3.5 h-3.5" />
                     </Link>
                   </div>

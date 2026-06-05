@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { usePageMeta } from '../hooks/usePageMeta'
 
 export default function ResetPassword() {
-  usePageMeta({ title: 'Reset Password', noIndex: true })
+  const { t } = useTranslation()
+  usePageMeta({ title: t('resetPassword.pageTitle'), noIndex: true })
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle')
@@ -21,7 +23,7 @@ export default function ResetPassword() {
   useEffect(() => {
     if (!token || !userId) {
       setStatus('error')
-      setMessage('Invalid reset link. Please request a new password reset.')
+      setMessage(t('resetPassword.errorInvalidLinkLong'))
     }
   }, [token, userId])
 
@@ -30,27 +32,27 @@ export default function ResetPassword() {
 
     if (!token || !userId) {
       setStatus('error')
-      setMessage('Invalid reset link.')
+      setMessage(t('resetPassword.errorInvalidLinkShort'))
       return
     }
 
     if (!newPassword || !confirmPassword) {
-      setMessage('Please fill in all fields')
+      setMessage(t('resetPassword.errorFillAll'))
       return
     }
 
     if (newPassword !== confirmPassword) {
-      setMessage('Passwords do not match')
+      setMessage(t('resetPassword.errorMismatch'))
       return
     }
 
     if (newPassword.length < 8) {
-      setMessage('Password must be at least 8 characters')
+      setMessage(t('resetPassword.errorLength'))
       return
     }
 
     setIsSubmitting(true)
-    setMessage('Resetting password...')
+    setMessage(t('resetPassword.resetting'))
 
     try {
       const response = await fetch(`${API_URL}/api/auth/reset-password`, {
@@ -68,14 +70,14 @@ export default function ResetPassword() {
 
       if (response.ok && data.success) {
         setStatus('success')
-        setMessage('Password reset successfully!')
+        setMessage(t('resetPassword.successSubmit'))
       } else {
         setStatus('error')
-        setMessage(data.error || 'Failed to reset password')
+        setMessage(data.error || t('resetPassword.errorFailed'))
       }
     } catch {
       setStatus('error')
-      setMessage('Failed to reset password. Please try again.')
+      setMessage(t('resetPassword.errorFailedRetry'))
     } finally {
       setIsSubmitting(false)
     }
@@ -86,13 +88,13 @@ export default function ResetPassword() {
     return (
       <div className="min-h-[80vh] flex items-center justify-center px-4">
         <div className="glass-strong p-8 rounded-2xl border border-white/10 max-w-md w-full text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">Invalid Link</h2>
+          <h2 className="text-2xl font-bold text-white mb-4">{t('resetPassword.invalidTitle')}</h2>
           <p className="text-gray-400 mb-6">{message}</p>
           <button
             onClick={() => navigate('/login')}
             className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-6 py-3 rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all"
           >
-            Go to Login
+            {t('resetPassword.goToLogin')}
           </button>
         </div>
       </div>
@@ -104,13 +106,13 @@ export default function ResetPassword() {
     return (
       <div className="min-h-[80vh] flex items-center justify-center px-4">
         <div className="glass-strong p-8 rounded-2xl border border-white/10 max-w-md w-full text-center">
-          <h2 className="text-2xl font-bold text-white mb-4">Password Reset!</h2>
-          <p className="text-gray-400 mb-6">Your password has been reset successfully.</p>
+          <h2 className="text-2xl font-bold text-white mb-4">{t('resetPassword.successTitle')}</h2>
+          <p className="text-gray-400 mb-6">{t('resetPassword.successDesc')}</p>
           <Link
             to="/login"
             className="inline-block bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-6 py-3 rounded-lg hover:from-indigo-600 hover:to-purple-600 transition-all"
           >
-            Go to Login
+            {t('resetPassword.goToLogin')}
           </Link>
         </div>
       </div>
@@ -122,8 +124,8 @@ export default function ResetPassword() {
     <div className="min-h-[80vh] flex items-center justify-center px-4">
       <div className="glass-strong p-8 rounded-2xl border border-white/10 max-w-md w-full relative z-10">
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-white">Reset Password</h2>
-          <p className="text-gray-400 mt-2">Enter your new password</p>
+          <h2 className="text-2xl font-bold text-white">{t('resetPassword.pageTitle')}</h2>
+          <p className="text-gray-400 mt-2">{t('resetPassword.formSubtitle')}</p>
         </div>
 
         {message && (
@@ -139,7 +141,7 @@ export default function ResetPassword() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="newPassword" className="block text-sm font-medium text-gray-300 mb-1">
-              New Password
+              {t('resetPassword.newPassword')}
             </label>
             <input
               id="newPassword"
@@ -147,14 +149,14 @@ export default function ResetPassword() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               className="block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder="Enter new password"
+              placeholder={t('resetPassword.newPasswordPlaceholder')}
               autoComplete="new-password"
             />
           </div>
 
           <div>
             <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300 mb-1">
-              Confirm Password
+              {t('resetPassword.confirmPassword')}
             </label>
             <input
               id="confirmPassword"
@@ -162,7 +164,7 @@ export default function ResetPassword() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-              placeholder="Confirm new password"
+              placeholder={t('resetPassword.confirmPasswordPlaceholder')}
               autoComplete="new-password"
             />
           </div>
@@ -175,7 +177,7 @@ export default function ResetPassword() {
                 onChange={(e) => setShowPassword(e.target.checked)}
                 className="mr-2"
               />
-              <span className="text-sm text-gray-400">Show password</span>
+              <span className="text-sm text-gray-400">{t('resetPassword.showPassword')}</span>
             </label>
           </div>
 
@@ -184,7 +186,7 @@ export default function ResetPassword() {
             disabled={isSubmitting || !newPassword || !confirmPassword}
             className="w-full py-3 px-4 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 hover:from-indigo-600 hover:via-purple-600 hover:to-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
-            {isSubmitting ? 'Resetting...' : 'Reset Password'}
+            {isSubmitting ? t('resetPassword.resettingBtn') : t('resetPassword.pageTitle')}
           </button>
         </form>
 
@@ -193,7 +195,7 @@ export default function ResetPassword() {
             to="/login"
             className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
           >
-            Back to Login
+            {t('resetPassword.backToLogin')}
           </Link>
         </div>
       </div>

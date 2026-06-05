@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { usePageMeta } from '../hooks/usePageMeta'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 export default function VerifyEmail() {
-  usePageMeta({ title: 'Verify Email', noIndex: true })
+  const { t } = useTranslation()
+  usePageMeta({ title: t('verifyEmail.title'), noIndex: true })
   const [searchParams] = useSearchParams()
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading')
-  const [message, setMessage] = useState('Verifying your email...')
+  const [message, setMessage] = useState(t('verifyEmail.loading'))
 
   const token = searchParams.get('token')
   const userId = searchParams.get('userId')
@@ -17,7 +19,7 @@ export default function VerifyEmail() {
     async function verifyEmail() {
       if (!token || !userId) {
         setStatus('error')
-        setMessage('Invalid verification link. Please try again.')
+        setMessage(t('verifyEmail.errorInvalidLink'))
         return
       }
 
@@ -38,15 +40,15 @@ export default function VerifyEmail() {
 
         if (response.ok && data.success) {
           setStatus('success')
-          setMessage('Email verified successfully! You can now log in.')
+          setMessage(t('verifyEmail.success'))
         } else {
           setStatus('error')
-          setMessage(data.error || 'Failed to verify email. The link may have expired.')
+          setMessage(data.error || t('verifyEmail.errorExpired'))
         }
       } catch (error) {
         console.error('Email verification error:', error)
         setStatus('error')
-        setMessage('Failed to verify email. Please try again or contact support.')
+        setMessage(t('verifyEmail.errorRetry'))
       }
     }
 
@@ -73,13 +75,13 @@ export default function VerifyEmail() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Email Verified!</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('verifyEmail.successTitle')}</h2>
           <p className="text-gray-600 mb-6">{message}</p>
           <a
             href="/login"
             className="inline-block bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
           >
-            Go to Login
+            {t('verifyEmail.goToLogin')}
           </a>
         </div>
       </div>
@@ -94,13 +96,13 @@ export default function VerifyEmail() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 mb-2">Verification Failed</h2>
+        <h2 className="text-2xl font-bold text-gray-900 mb-2">{t('verifyEmail.errorTitle')}</h2>
         <p className="text-gray-600 mb-6">{message}</p>
         <a
           href="/login"
           className="inline-block bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700 transition-colors"
         >
-          Go to Login
+          {t('verifyEmail.goToLogin')}
         </a>
       </div>
     </div>

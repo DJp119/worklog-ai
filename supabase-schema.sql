@@ -468,3 +468,40 @@ CREATE TRIGGER update_ai_impact_cards_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+-- =============================================
+-- 5. I18N — preferred language + translation cache
+-- =============================================
+
+-- 5.1 Add preferred_language column to user_profiles (and users)
+ALTER TABLE user_profiles
+  ADD COLUMN IF NOT EXISTS preferred_language TEXT DEFAULT NULL;
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS preferred_language TEXT DEFAULT NULL;
+
+-- 5.2 Translation cache table (public read so anon clients can fetch translations)
+CREATE TABLE IF NOT EXISTS translation_cache (
+  language_code TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1,
+  translations JSONB NOT NULL,
+  source TEXT NOT NULL DEFAULT 'google',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (language_code, version)
+);
+
+ALTER TABLE translation_cache ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Translations are public read"
+  ON translation_cache
+  FOR SELECT
+  USING (true);
+
+CREATE POLICY "Translations service-role write"
+  ON translation_cache
+  FOR ALL
+  USING (auth.role() = 'service_role')
+  WITH CHECK (auth.role() = 'service_role');
+
+CREATE INDEX IF NOT EXISTS idx_translation_cache_language
+  ON translation_cache(language_code, version);
+

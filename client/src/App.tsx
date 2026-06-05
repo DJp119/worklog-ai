@@ -1,7 +1,9 @@
 import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { Layout } from './components/Layout'
+import { useAutoLocale } from './i18n/useAutoLocale'
 import LandingPage from './components/LandingPage'
 
 const Login = lazy(() => import('./pages/Login'))
@@ -20,12 +22,13 @@ const AIPulseHub = lazy(() => import('./pages/ai-pulse/Hub').then(m => ({ defaul
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth()
+  const { t } = useTranslation()
 
   if (loading) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-gray-600">Loading...</div>
+          <div className="text-gray-600">{t('common.loading')}</div>
         </div>
       </Layout>
     )
@@ -39,8 +42,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
+  const { t } = useTranslation()
   return (
-    <Suspense fallback={<Layout><div className="flex items-center justify-center min-h-[60vh]"><div className="text-gray-600">Loading…</div></div></Layout>}>
+    <Suspense fallback={<Layout><div className="flex items-center justify-center min-h-[60vh]"><div className="text-gray-600">{t('common.loading')}</div></div></Layout>}>
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
@@ -104,6 +108,7 @@ function AppRoutes() {
 }
 
 export default function App() {
+  useAutoLocale()
   return (
     <AuthProvider>
       <AppRoutes />
