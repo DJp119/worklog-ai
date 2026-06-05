@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../context/AuthContext';
 import { posthog } from '../../lib/analytics';
 import { Timeline } from '../../components/ai-pulse/Timeline';
@@ -41,19 +42,10 @@ interface ImpactCard {
   created_at: string;
 }
 
-const categories = [
-  { id: 'all', label: 'All' },
-  { id: 'news', label: 'News' },
-  { id: 'models', label: 'Models' },
-  { id: 'startups', label: 'Startups' },
-  { id: 'research', label: 'Research' },
-  { id: 'tools', label: 'Tools' },
-  { id: 'funding', label: 'Funding' },
-  { id: 'india_ai', label: 'India AI' },
-  { id: 'world_ai', label: 'World AI' },
-  { id: 'open_source', label: 'Open Source' },
-  { id: 'ai_news', label: 'AI News' },
-];
+const categoryIds = [
+  'all', 'news', 'models', 'startups', 'research', 'tools',
+  'funding', 'india_ai', 'world_ai', 'open_source', 'ai_news',
+] as const;
 
 // Timeline event interface for API-sourced articles
 interface TimelineEvent {
@@ -93,6 +85,7 @@ function articleToTimelineEvent(article: Article): TimelineEvent {
 }
 
 export const AIPulseHub: React.FC = () => {
+  const { t } = useTranslation();
   const { user } = useAuth();
   const navigate = useNavigate();
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -104,8 +97,8 @@ export const AIPulseHub: React.FC = () => {
 
   // SEO Meta tags
   useEffect(() => {
-    document.title = 'AI Pulse Hub - Daily AI News & Industry Impact | ImpactlyAI';
-  }, []);
+    document.title = `${t('aiPulse.hub.title')} - Daily AI News & Industry Impact | ImpactlyAI`;
+  }, [t]);
 
   // Fetch articles and impact cards from API (Phase 1: RSS Automation)
   useEffect(() => {
@@ -128,7 +121,7 @@ export const AIPulseHub: React.FC = () => {
         setImpactCards(impactsData);
       } catch (err) {
         console.error('[AI Pulse] Failed to fetch data:', err);
-        setError('Failed to load content. Please refresh the page.');
+        setError(t('aiPulse.hub.fetchError'));
         setArticles([]);
         setImpactCards([]);
       } finally {
@@ -186,8 +179,8 @@ export const AIPulseHub: React.FC = () => {
   return (
     <>
       <SEOHead
-        title="AI Pulse Hub"
-        description="Your daily destination for AI trends, breakthroughs, and industry impact. Track how AI transforms HR, Engineering, Healthcare, Marketing and more."
+        title={t('aiPulse.hub.title')}
+        description={t('aiPulse.hub.subtitle') + ' Track how AI transforms HR, Engineering, Healthcare, Marketing and more.'}
       />
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-indigo-950 to-gray-900">
         {/* Header */}
@@ -196,10 +189,10 @@ export const AIPulseHub: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-4xl font-bold text-white mb-2">
-                  AI Pulse Hub
+                  {t('aiPulse.hub.title')}
                 </h1>
                 <p className="text-gray-400">
-                  Your daily destination for AI trends, breakthroughs, and industry impact
+                  {t('aiPulse.hub.subtitle')}
                 </p>
               </div>
 
@@ -211,23 +204,23 @@ export const AIPulseHub: React.FC = () => {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
                   </svg>
-                  Share
+                  {t('aiPulse.hub.share')}
                 </button>
               </div>
             </div>
 
             {/* Category Filter */}
             <div className="flex flex-wrap gap-2 mt-6">
-              {categories.map((cat) => (
+              {categoryIds.map((catId) => (
                 <button
-                  key={cat.id}
-                  onClick={() => handleCategoryChange(cat.id)}
-                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedCategory === cat.id
+                  key={catId}
+                  onClick={() => handleCategoryChange(catId)}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${selectedCategory === catId
                       ? 'bg-indigo-500 text-white'
                       : 'bg-white/5 text-gray-300 hover:bg-white/10'
                     }`}
                 >
-                  {cat.label}
+                  {t(`aiPulse.hub.cat${catId.split('_').map(s => s.charAt(0).toUpperCase() + s.slice(1)).join('').replace('Ai', 'Ai')}`)}
                 </button>
               ))}
             </div>
@@ -239,7 +232,7 @@ export const AIPulseHub: React.FC = () => {
           {loading && (
             <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
-              <p className="mt-4 text-gray-400">Loading AI news and insights...</p>
+              <p className="mt-4 text-gray-400">{t('aiPulse.hub.loading')}</p>
             </div>
           )}
 
@@ -251,18 +244,18 @@ export const AIPulseHub: React.FC = () => {
 
           {!loading && !error && articles.length === 0 && (
             <div className="mb-8 p-8 text-center bg-white/5 rounded-xl border border-white/10">
-              <p className="text-gray-400">No articles available yet. Check back soon for the latest AI news!</p>
+              <p className="text-gray-400">{t('aiPulse.hub.empty')}</p>
             </div>
           )}
 
           {showShareCard && !loading && (
             <div className="mb-8 p-6 bg-white/5 rounded-xl border border-white/10">
-              <h3 className="text-lg font-semibold text-white mb-4">Share AI Pulse Hub</h3>
+              <h3 className="text-lg font-semibold text-white mb-4">{t('aiPulse.hub.shareHeading')}</h3>
               <ShareCard
-                title="Daily AI News & Industry Impact"
-                subtitle="Stay updated with the latest AI breakthroughs and trends"
+                title={t('aiPulse.hub.shareTitle')}
+                subtitle={t('aiPulse.hub.shareSubtitle')}
                 stat={String(articles.length)}
-                statLabel="Articles"
+                statLabel={t('aiPulse.hub.articles')}
               />
             </div>
           )}
@@ -271,7 +264,7 @@ export const AIPulseHub: React.FC = () => {
           {!loading && articles.length > 0 && (
             <div className="mb-12">
               <Timeline
-                title="Today in AI"
+                title={t('aiPulse.hub.timelineTitle')}
                 events={timelineEvents}
               />
             </div>
@@ -280,7 +273,7 @@ export const AIPulseHub: React.FC = () => {
           {/* Impact Cards Section - API-sourced */}
           {!loading && impactCards.length > 0 && (
             <div className="mb-12">
-              <h2 className="text-2xl font-bold text-white mb-6">AI Industry Impact</h2>
+              <h2 className="text-2xl font-bold text-white mb-6">{t('aiPulse.hub.impactTitle')}</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {impactCards.map((card) => (
                   <div key={card.id} className="relative">
@@ -312,19 +305,17 @@ export const AIPulseHub: React.FC = () => {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="text-lg font-semibold text-white mb-2">
-                  How AI Trends Impact Your Work
+                  {t('aiPulse.hub.ctaTitle')}
                 </h3>
                 <p className="text-gray-300 text-sm">
-                  These industry shifts directly affect your team's productivity, skill requirements,
-                  and career trajectory. Track your own work outcomes and measure the impact of AI
-                  adoption in your organization.
+                  {t('aiPulse.hub.ctaBody')}
                 </p>
               </div>
               <button
                 onClick={handleCTAClick}
                 className="flex-shrink-0 px-6 py-3 bg-indigo-500 hover:bg-indigo-600 rounded-lg text-white font-medium transition-colors"
               >
-                Track Your Work →
+                {t('aiPulse.hub.ctaButton')}
               </button>
             </div>
           </div>

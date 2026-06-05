@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
+import { useTranslation } from 'react-i18next'
 import { posthog } from '../lib/analytics'
 
 interface User {
@@ -36,6 +37,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation()
   const [user, setUser] = useState<User | null>(null)
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [refreshToken, setRefreshToken] = useState<string | null>(null)
@@ -96,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!response.ok) {
       const error = await response.json()
-      throw new AuthError(error.error || 'Login failed', error.code, error.email)
+      throw new AuthError(error.error || t('errors.generic'), error.code, error.email)
     }
 
     const data = await response.json()
@@ -132,7 +134,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.error || 'Signup failed')
+      throw new Error(error.error || t('errors.generic'))
     }
 
     return await response.json()
@@ -163,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.error || 'Verification failed')
+      throw new Error(error.error || t('errors.generic'))
     }
   }
 
@@ -176,7 +178,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.error || 'Failed to resend verification email')
+      throw new Error(error.error || t('errors.generic'))
     }
   }
 
