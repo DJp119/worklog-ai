@@ -68,6 +68,7 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
         const reminder_day = body.reminder_day ?? body.reminderDay
         const reminder_time = body.reminder_time ?? body.reminderTime
         const reminder_enabled = body.reminder_enabled ?? body.reminderEnabled
+        const preferred_language = body.preferred_language ?? body.preferredLanguage ?? null
 
         // Validate reminder_day if provided
         if (reminder_day !== undefined && (reminder_day < 0 || reminder_day > 6)) {
@@ -83,6 +84,13 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
         if (reminder_day !== undefined) updateData.reminder_day = reminder_day
         if (reminder_time !== undefined) updateData.reminder_time = reminder_time
         if (reminder_enabled !== undefined) updateData.reminder_enabled = reminder_enabled
+
+        if (preferred_language !== undefined) {
+            // Upsert into user_profiles (the table that holds preferred_language)
+            await supabase
+                .from('user_profiles')
+                .upsert({ id: userId, preferred_language, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+        }
 
         updateData.updated_at = new Date().toISOString()
 
@@ -122,6 +130,7 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
                 reminderDay: user.reminder_day,
                 reminderTime: user.reminder_time,
                 reminderEnabled: user.reminder_enabled,
+                preferredLanguage: preferred_language,
             },
         })
     } catch (error) {

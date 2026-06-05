@@ -2,6 +2,7 @@ import { supabase } from './supabase.js'
 
 import { generateMonthlySummary } from './summaryService.js'
 import type { MonthlySummary, UserProfile, ChatMessage } from 'shared'
+import { languageInstruction } from './userLanguage.js'
 
 function getMonthsBetween(startStr: string, endStr: string): string[] {
   const start = new Date(startStr)
@@ -62,12 +63,13 @@ export function stitchSummaries(summaries: MonthlySummary[]): string {
 
 export function buildSystemPrompt(
   stitchedSummaries: string,
-  userProfile: Partial<UserProfile>
+  userProfile: Partial<UserProfile> & { preferred_language?: string | null }
 ): string {
+  const lang = (userProfile.preferred_language || 'en').split('-')[0].toLowerCase()
   return `You are an AI appraisal assistant for ${userProfile.name || 'a professional'}.
 Job Title: ${userProfile.job_title || 'Not specified'}
 Company: ${userProfile.company_name || 'Not specified'}
-
+${languageInstruction(lang)}
 YOUR DATA SOURCE — Monthly work summaries:
 ${stitchedSummaries}
 
