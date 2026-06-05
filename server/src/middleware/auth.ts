@@ -63,7 +63,7 @@ export async function createRefreshToken(userId: string, token: string, expiryDa
         .from('refresh_tokens')
         .insert({
             user_id: userId,
-            token: token,
+            token_hash: hashToken(token),
             expires_at: expiresAt.toISOString(),
             session_ttl_days: expiryDays,
         })
@@ -90,7 +90,7 @@ export async function revokeRefreshToken(token: string) {
             revoked: true,
             revoked_at: revokedAt.toISOString(),
         })
-        .eq('token', token)
+        .eq('token_hash', hashToken(token))
         .eq('revoked', false)
 }
 
@@ -103,7 +103,7 @@ export async function validateRefreshToken(token: string) {
     const { data: tokenRecord } = await supabase
         .from('refresh_tokens')
         .select('*, users(id, email, name)')
-        .eq('token', token)
+        .eq('token_hash', hashToken(token))
         .eq('revoked', false)
         .gte('expires_at', now)
         .single()
