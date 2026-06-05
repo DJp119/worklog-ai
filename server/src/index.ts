@@ -10,6 +10,7 @@ import { summariesRoutes } from './routes/summaries.js'
 import { chatRoutes } from './routes/chat.js'
 import { feedbackRoutes } from './routes/feedback.js'
 import { aiPulseRoutes } from './routes/aiPulse.js'
+import { translateRoutes } from './routes/translate.js'
 import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { newsCollectionJob } from './jobs/newsCollectionJob.js'
@@ -138,6 +139,7 @@ app.use('/api/summaries', summariesRoutes)
 app.use('/api/chat', chatRoutes)
 app.use('/api/feedback', feedbackRoutes)
 app.use('/api/ai-pulse', aiPulseRoutes)
+app.use('/api/translate', translateRoutes)
 
 // Root route
 app.get('/', (req, res) => {

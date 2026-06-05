@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { Layout } from './components/Layout'
+import { useAutoLocale } from './i18n/useAutoLocale'
 import LandingPage from './components/LandingPage'
 
 const Login = lazy(() => import('./pages/Login'))
@@ -25,7 +26,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return (
       <Layout>
         <div className="flex items-center justify-center min-h-[60vh]">
-          <div className="text-gray-600">Loading...</div>
+          <div className="text-gray-600">Loading…</div>
         </div>
       </Layout>
     )
@@ -104,6 +105,7 @@ function AppRoutes() {
 }
 
 export default function App() {
+  useAutoLocale()
   return (
     <AuthProvider>
       <AppRoutes />

@@ -192,3 +192,42 @@ button {
 .prose strong {
   font-weight: 600;
 }
+
+/* =========================================================================
+   i18n: RTL support + locale-specific font stacks
+   ========================================================================= */
+
+[dir="rtl"] .ltr-only { display: none; }
+[dir="ltr"] .rtl-only { display: none; }
+
+[dir="rtl"] .icon-directional {
+  transform: scaleX(-1);
+}
+
+:lang(ar), :lang(he), :lang(ur), :lang(fa), :lang(ps) {
+  font-family: 'Noto Sans Arabic', 'Noto Sans Hebrew', system-ui, sans-serif;
+}
+:lang(hi), :lang(ma), :lang(ne) {
+  font-family: 'Noto Sans Devanagari', system-ui, sans-serif;
+}
+:lang(bn) {
+  font-family: 'Noto Sans Bengali', system-ui, sans-serif;
+}
+:lang(ja) {
+  font-family: 'Noto Sans JP', system-ui, sans-serif;
+}
+:lang(ko) {
+  font-family: 'Noto Sans KR', system-ui, sans-serif;
+}
+:lang(zh) {
+  font-family: 'Noto Sans SC', system-ui, sans-serif;
+}
+:lang(th) {
+  font-family: 'Noto Sans Thai', system-ui, sans-serif;
+}
+:lang(ta), :lang(te), :lang(kn), :lang(ml) {
+  font-family: 'Noto Sans Tamil', system-ui, sans-serif;
+}
+
+[dir="rtl"] .text-left { text-align: right; }
+[dir="rtl"] .text-right { text-align: left; }

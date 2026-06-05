@@ -1,5 +1,6 @@
 import { ReactNode, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 
 interface LayoutProps {
@@ -7,6 +8,7 @@ interface LayoutProps {
 }
 
 export function Layout({ children }: LayoutProps) {
+  const { t } = useTranslation()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -34,7 +36,7 @@ export function Layout({ children }: LayoutProps) {
                   <svg className="h-8 w-8 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                  <h1 className="ml-2 text-xl font-bold gradient-text">Impactly AI</h1>
+                  <h1 className="ml-2 text-xl font-bold gradient-text">{t('brand.name')}</h1>
                 </div>
               </div>
             </Link>
@@ -47,31 +49,31 @@ export function Layout({ children }: LayoutProps) {
                     to="/dashboard"
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
                   >
-                    Dashboard
+                    {t('nav.dashboard')}
                   </Link>
                   <Link
                     to="/log"
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
                   >
-                    Log Work
+                    {t('nav.logWork')}
                   </Link>
                   <Link
                     to="/appraisals"
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
                   >
-                    Appraisals
+                    {t('nav.appraisals')}
                   </Link>
                   <Link
                     to="/chat"
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5 flex items-center gap-1"
                   >
-                    AI Chat
+                    {t('nav.aiChat')}
                   </Link>
                   <Link
                     to="/ai-pulse"
                     className="text-indigo-300 hover:text-indigo-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-indigo-500/10 flex items-center gap-1 relative"
                   >
-                    AI Pulse
+                    {t('nav.aiPulse')}
                     <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-ping"></span>
                     <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></span>
                   </Link>
@@ -79,13 +81,13 @@ export function Layout({ children }: LayoutProps) {
                     to="/settings"
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
                   >
-                    Settings
+                    {t('nav.settings')}
                   </Link>
                   <Link
                     to="/feedback"
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
                   >
-                    Feedback
+                    {t('nav.feedback')}
                   </Link>
                   <div className="w-px h-6 bg-white/10 mx-2"></div>
                   <span className="text-gray-400 text-sm mr-3">{user.email}</span>
@@ -93,7 +95,7 @@ export function Layout({ children }: LayoutProps) {
                     onClick={handleSignOut}
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
                   >
-                    Sign Out
+                    {t('nav.signOut')}
                   </button>
                 </>
               ) : (
@@ -112,7 +114,7 @@ export function Layout({ children }: LayoutProps) {
                     to="/login"
                     className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 transition-all glow-primary"
                   >
-                    Sign In
+                    {t('nav.signIn')}
                   </Link>
                 </div>
               )}
@@ -251,7 +253,7 @@ export function Layout({ children }: LayoutProps) {
                 <svg className="h-6 w-6 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                <h3 className="ml-2 text-lg font-bold gradient-text">Impactly AI</h3>
+                <h3 className="ml-2 text-lg font-bold gradient-text">{t('brand.name')}</h3>
               </div>
               <p className="text-gray-400 text-sm">
                 AI-powered self-appraisal generation for high performers.
