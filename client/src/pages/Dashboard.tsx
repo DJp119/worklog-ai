@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { getEntries } from '../lib/api'
 import type { WorkLogEntry } from 'shared'
 import { usePageMeta } from '../hooks/usePageMeta'
@@ -15,7 +16,8 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
-  usePageMeta({ title: 'Dashboard', noIndex: true })
+  const { t } = useTranslation()
+  usePageMeta({ title: t('dashboard.title'), noIndex: true })
   const [loading, setLoading] = useState(true)
   const [entries, setEntries] = useState<WorkLogEntry[]>([])
   const [stats, setStats] = useState<DashboardStats | null>(null)
@@ -198,18 +200,17 @@ export default function Dashboard() {
             </div>
             <div className="ml-4 flex-1">
               <h3 className="text-sm font-medium text-amber-400">
-                You haven't logged this week yet
+                {t('dashboard.notLogged')}
               </h3>
               <p className="mt-2 text-sm text-gray-400">
-                Take 5 minutes to log your accomplishments, challenges, and learnings.
-                Keeping a consistent record will make appraisal time much easier!
+                {t('dashboard.notLoggedDesc')}
               </p>
               <div className="mt-4">
                 <Link
                   to="/log"
                   className="text-sm font-medium text-amber-400 hover:text-amber-300 inline-flex items-center"
                 >
-                  Log your week now
+                  {t('dashboard.logNow')}
                   <svg className="ml-1 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                   </svg>
@@ -232,7 +233,7 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-400">Total Weeks Logged</p>
+                <p className="text-sm font-medium text-gray-400">{t('dashboard.totalWeeks')}</p>
                 <p className="text-2xl font-bold text-white">{stats.totalWeeks}</p>
               </div>
             </div>
@@ -247,8 +248,10 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-400">Current Streak</p>
-                <p className="text-2xl font-bold text-white">{stats.currentStreak} weeks</p>
+                <p className="text-sm font-medium text-gray-400">{t('dashboard.currentStreak')}</p>
+                <p className="text-2xl font-bold text-white">
+                  {t('dashboard.weeks', { count: stats.currentStreak })}
+                </p>
               </div>
             </div>
           </div>
@@ -262,8 +265,10 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-400">Longest Streak</p>
-                <p className="text-2xl font-bold text-white">{stats.longestStreak} weeks</p>
+                <p className="text-sm font-medium text-gray-400">{t('dashboard.longestStreak')}</p>
+                <p className="text-2xl font-bold text-white">
+                  {t('dashboard.weeks', { count: stats.longestStreak })}
+                </p>
               </div>
             </div>
           </div>
@@ -277,9 +282,9 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-400">Total Hours</p>
+                <p className="text-sm font-medium text-gray-400">{t('dashboard.totalHours')}</p>
                 <p className="text-2xl font-bold text-white">{stats.totalHours}</p>
-                <p className="text-xs text-gray-500">Avg: {stats.averageHours}h/week</p>
+                <p className="text-xs text-gray-500">{t('dashboard.avgPerWeek', { hours: stats.averageHours })}</p>
               </div>
             </div>
           </div>
@@ -289,7 +294,7 @@ export default function Dashboard() {
       {/* Recent Entries */}
       <div className="glass rounded-xl border border-white/5">
         <div className="px-6 py-4 border-b border-white/5">
-          <h2 className="text-lg font-semibold text-white">Recent Entries</h2>
+          <h2 className="text-lg font-semibold text-white">{t('dashboard.recentEntries')}</h2>
         </div>
         <div className="divide-y divide-white/5">
           {entries.length === 0 ? (
