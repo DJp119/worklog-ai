@@ -1,0 +1,37 @@
+{
+  "version": "1.0.0",
+  "generated": "2026-06-05",
+  "tech_stack": {
+    "client": ["react", "vite", "tailwind", "react-i18next"],
+    "server": ["express", "typescript", "node-cron"],
+    "data": ["supabase-postgres", "supabase-auth"],
+    "ai": ["mistral", "nvidia-nim"],
+    "email": ["brevo", "resend"],
+    "auth": ["jwt-bearer", "bcrypt"]
+  },
+  "trust_boundaries": ["public", "auth", "data", "ai", "email", "cron"],
+  "severity_thresholds": {
+    "critical": "remote unauthenticated impact OR complete data breach",
+    "high": "authenticated data exposure OR privilege escalation",
+    "medium": "limited data leak OR business-logic bypass",
+    "low": "informational OR requires unlikely preconditions"
+  },
+  "stride_weights": {
+    "Spoofing": 1.0,
+    "Tampering": 1.0,
+    "Repudiation": 0.6,
+    "InfoDisclosure": 0.9,
+    "DoS": 0.7,
+    "ElevationOfPrivilege": 1.0
+  },
+  "scan_priority_files": [
+    "server/src/routes/auth.ts",
+    "server/src/routes/users.ts",
+    "server/src/routes/translate.ts",
+    "server/src/middleware/auth.ts",
+    "server/src/jobs/reminderJob.ts",
+    "server/src/jobs/weeklyDigestJob.ts",
+    "client/src/lib/api.ts",
+    "client/src/pages/Settings.tsx"
+  ]
+}

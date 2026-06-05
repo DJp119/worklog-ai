@@ -1,3 +1,10 @@
+// SECURITY: req.supabase is built with the SERVICE ROLE key and bypasses RLS.
+// Every route handler that uses req.supabase MUST scope queries by req.userId
+// (e.g. .eq('user_id', req.userId) or .eq('id', req.userId)). A handler that
+// uses req.supabase without an explicit user filter can read or write any
+// user's data. All current handlers in this repo follow this rule; treat it
+// as a hard requirement for new handlers.
+
 import { Request, Response, NextFunction } from 'express'
 import jwt from 'jsonwebtoken'
 import { supabase, runtimeSupabaseKey, runtimeSupabaseUrl } from '../lib/database.js'
@@ -22,7 +29,10 @@ export interface JWTPayload {
     email: string
 }
 
-const ACCESS_TOKEN_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-production'
+const ACCESS_TOKEN_SECRET = process.env.JWT_SECRET
+if (!ACCESS_TOKEN_SECRET || ACCESS_TOKEN_SECRET.length < 32) {
+    throw new Error('JWT_SECRET must be set and at least 32 characters')
+}
 const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || '15m'
 const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRY || '30d'
 
@@ -55,6 +65,7 @@ export async function createRefreshToken(userId: string, token: string, expiryDa
             user_id: userId,
             token: token,
             expires_at: expiresAt.toISOString(),
+            session_ttl_days: expiryDays,
         })
         .select()
         .single()
@@ -118,6 +129,12 @@ export function verifyToken(token: string): JWTPayload | null {
 /**
  * Middleware to verify JWT token from Authorization header
  * Expects: Authorization: Bearer <token>
+ *
+ * SECURITY: `req.supabase` is built with the SERVICE ROLE key, which bypasses
+ * RLS. Every route handler that uses `req.supabase` MUST scope all queries
+ * by `req.userId` (e.g. `.eq('id', req.userId)`). Forgetting this is a
+ * privilege-escalation bug. If you need a user-scoped client, prefer the
+ * per-user Supabase client created from the request's JWT.
  */
 export async function requireAuth(
     req: AuthRequest,

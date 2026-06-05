@@ -1,0 +1,23 @@
+{
+  "scan_date": "2026-06-05T12:19:47.414Z",
+  "ecosystems": [
+    "node"
+  ],
+  "lockfiles": [
+    "package-lock.json"
+  ],
+  "findings": [],
+  "summary": {
+    "total": 0,
+    "reachable": 0,
+    "potentially_reachable": 0,
+    "not_reachable": 0
+  },
+  "scan_errors": [
+    {
+      "manager": "npm",
+      "lockfile": "package-lock.json",
+      "reason": "spawnSync npm ENOENT"
+    }
+  ]
+}

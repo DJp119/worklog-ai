@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "bug-hunter": {
+      "source": "codexstar69/bug-hunter",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "4651d5cc873df42d1e30c6c3146cdda755399698a75fda288af284169799b641"
+    },
     "caveman": {
       "source": "mattpocock/skills",
       "sourceType": "github",
