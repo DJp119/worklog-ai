@@ -5,6 +5,7 @@ import enBase from '../locales/en/base.json'
 export const TRANSLATION_VERSION = 3
 const STORAGE_KEY = `impactly_i18n_v${TRANSLATION_VERSION}`
 const LANG_KEY = 'impactly_language'
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 const RTL_LANGS = new Set(['ar', 'he', 'ur', 'fa', 'ps', 'sd', 'yi', 'ku'])
 
@@ -32,7 +33,7 @@ const DynamicBackend = {
         }
       }
     }
-    fetch(`/api/translate/${encodeURIComponent(language)}`)
+    fetch(`${API_URL}/api/translate/${encodeURIComponent(language)}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('translate failed'))))
       .then((data) => {
         const translations = (data?.data?.translations ?? data?.translations ?? {}) as Record<string, string>
@@ -83,11 +84,6 @@ if (typeof window !== 'undefined') {
   applyDir(i18n.language || 'en')
   i18n.on('languageChanged', (lang) => {
     applyDir(lang)
-    try {
-      localStorage.setItem(LANG_KEY, lang)
-    } catch {
-      /* ignore */
-    }
   })
 }
 
