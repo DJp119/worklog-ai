@@ -2,7 +2,7 @@ import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 import enBase from '../locales/en/base.json'
 
-export const TRANSLATION_VERSION = 1
+export const TRANSLATION_VERSION = 3
 const STORAGE_KEY = `impactly_i18n_v${TRANSLATION_VERSION}`
 const LANG_KEY = 'impactly_language'
 
