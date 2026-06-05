@@ -28,6 +28,19 @@ function ensureFontLoaded(family: string) {
 
 export function useAutoLocale() {
   useEffect(() => {
+    // Re-evaluate language on mount. If the user has not explicitly chosen a language
+    // (no localStorage entry), sync to the current browser language so the UI matches
+    // navigator.language even if it changed since first init.
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('impactly_language')
+      if (!stored) {
+        const detected = (navigator.language || 'en').split('-')[0]
+        if (detected && detected !== i18n.language) {
+          void i18n.changeLanguage(detected)
+        }
+      }
+    }
+
     const lang = i18n.language
     if (!lang) return
     const base = lang.split('-')[0]

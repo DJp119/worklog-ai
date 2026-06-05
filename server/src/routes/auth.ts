@@ -8,6 +8,7 @@ import {
   validatePasswordStrength,
 } from '../lib/auth-utils.js'
 import { sendVerificationEmail, sendPasswordResetEmail } from '../lib/email.js'
+import { languageFromAcceptHeader } from '../lib/userLanguage.js'
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -100,7 +101,7 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
     }
 
     // Send verification email (don't fail signup if email fails)
-    const emailSent = await sendVerificationEmail(email, userData.id, emailToken)
+    const emailSent = await sendVerificationEmail(email, userData.id, emailToken, languageFromAcceptHeader(req.headers['accept-language'] as string | undefined))
     if (!emailSent) {
       logger.warn('Verification email not sent (Brevo not configured or failed)')
     }
@@ -278,7 +279,7 @@ authRoutes.post('/resend-verification', async (req: AuthRequest, res: Response) 
     }
 
     // Send the verification email
-    const emailSent = await sendVerificationEmail(user.email, user.id, emailToken)
+    const emailSent = await sendVerificationEmail(user.email, user.id, emailToken, languageFromAcceptHeader(req.headers['accept-language'] as string | undefined))
     if (!emailSent) {
       logger.warn('Resend verification email not sent (Brevo not configured or failed)')
     }
@@ -497,7 +498,7 @@ authRoutes.post('/forgot-password', async (req: AuthRequest, res: Response) => {
     }
 
     // Send reset email
-    const emailSent = await sendPasswordResetEmail(user.email, user.id, resetToken)
+    const emailSent = await sendPasswordResetEmail(user.email, user.id, resetToken, languageFromAcceptHeader(req.headers['accept-language'] as string | undefined))
     if (!emailSent) {
       logger.warn('Password reset email not sent (Brevo not configured)')
     }

@@ -9,6 +9,7 @@ import { ShareCard } from '../../components/ai-pulse/ShareCard';
 import { BookmarkBtn } from '../../components/ai-pulse/BookmarkBtn';
 import { SEOHead } from '../../components/ai-pulse/SEOHead';
 import { apiRequest } from '../../lib/api';
+import { formatTime } from '../../lib/formatters';
 
 // Article interface matching database schema
 interface Article {
@@ -59,13 +60,8 @@ interface TimelineEvent {
 
 // Convert Article to TimelineEvent
 function articleToTimelineEvent(article: Article): TimelineEvent {
-  // Extract time from published_at
-  const date = new Date(article.published_at);
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-  const ampm = hours >= 12 ? 'PM' : 'AM';
-  const displayHours = hours % 12 || 12;
-  const timeStr = `${displayHours}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+  // Locale-aware time formatting (replaces hardcoded AM/PM)
+  const timeStr = formatTime(article.published_at);
 
   // Map category
   let category: TimelineEvent['category'] = 'news';

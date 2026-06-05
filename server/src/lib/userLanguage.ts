@@ -7,6 +7,17 @@ const SUPPORTED_CODES = new Set([
 ])
 
 /**
+ * Extract a supported primary language code from the Accept-Language header.
+ * Used at signup / password-reset time when no DB profile exists yet.
+ */
+export function languageFromAcceptHeader(acceptLanguage: string | undefined | null): string {
+  if (!acceptLanguage) return 'en'
+  const primary = acceptLanguage.split(',')[0]?.split('-')[0]?.trim().toLowerCase()
+  if (primary && SUPPORTED_CODES.has(primary)) return primary
+  return 'en'
+}
+
+/**
  * Resolve the language code for the current request.
  * Priority: explicit user preference in DB row → Accept-Language header → 'en'.
  */
@@ -18,11 +29,7 @@ export async function resolveUserLanguage(
     return preferredFromProfile.split('-')[0].toLowerCase()
   }
   const accept = req.headers['accept-language']
-  if (typeof accept === 'string' && accept.length) {
-    const primary = accept.split(',')[0]?.split('-')[0]?.trim().toLowerCase()
-    if (primary && SUPPORTED_CODES.has(primary)) return primary
-  }
-  return 'en'
+  return languageFromAcceptHeader(typeof accept === 'string' ? accept : null)
 }
 
 /**

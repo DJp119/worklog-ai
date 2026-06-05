@@ -9,6 +9,7 @@ interface ReminderUser {
     id: string
     email: string
     name: string | null
+    preferred_language: string | null
 }
 
 class ReminderJob {
@@ -61,7 +62,7 @@ class ReminderJob {
             // Query users with matching reminder preferences
             const { data: users, error } = await supabase
                 .from('users')
-                .select('id, email, name')
+                .select('id, email, name, preferred_language')
                 .eq('reminder_enabled', true)
                 .eq('reminder_day', utcDay)
                 .eq('reminder_time', utcTimeStr)
@@ -83,7 +84,7 @@ class ReminderJob {
 
             for (const user of users as ReminderUser[]) {
                 try {
-                    const sent = await sendReminderEmail(user.email, user.name || undefined)
+                    const sent = await sendReminderEmail(user.email, user.name || undefined, user.preferred_language || 'en')
 
                     // Log the reminder attempt
                     await supabase.from('reminder_logs').insert({
