@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-05T12:18:49.128Z",
+  "generatedAt": "2026-06-05T19:50:34.049Z",
   "target": "D:\\Vibe Coded\\worklog-ai",
   "totalFiles": 107,
   "scannableFiles": 98,
@@ -7,9 +7,9 @@
   "modeFile": "modes/extended.md",
   "needsLoop": false,
   "fileBudget": 60,
-  "avgLines": 147,
-  "avgTokensPerFile": 588,
-  "estimatedTotalLines": 15729,
+  "avgLines": 148,
+  "avgTokensPerFile": 592,
+  "estimatedTotalLines": 15836,
   "sampledFiles": 30,
   "domains": [
     {
@@ -187,8 +187,8 @@
   ],
   "tokenEstimate": {
     "recon": 2140,
-    "perHunterChunk": 35280,
-    "totalPipeline": 79364
+    "perHunterChunk": 35520,
+    "totalPipeline": 79756
   },
   "recommendations": [],
   "riskMap": {
