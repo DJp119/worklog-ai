@@ -2,6 +2,7 @@ import { useState, useEffect, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { submitFeedback, getFeedbackHistory, FeedbackItem } from '../lib/api'
 import { usePageMeta } from '../hooks/usePageMeta'
+import { formatDate as formatDateLocale, formatTime as formatTimeLocale } from '../lib/formatters'
 
 type CategoryValue = 'bug' | 'feature' | 'improvement' | 'general'
 
@@ -158,13 +159,7 @@ export default function Feedback() {
   }
 
   function formatDate(dateStr: string) {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return `${formatDateLocale(dateStr, 'medium')} ${formatTimeLocale(dateStr)}`
   }
 
   function getCategoryInfo(cat: string) {

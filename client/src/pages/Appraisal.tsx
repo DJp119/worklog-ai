@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { generateAppraisal, getAppraisalHistory } from '../lib/api'
 import type { GeneratedAppraisal } from 'shared'
 import { usePageMeta } from '../hooks/usePageMeta'
+import { formatDate } from '../lib/formatters'
 
 interface AppraisalForm {
   period_start: string
@@ -287,10 +288,10 @@ export default function Appraisal() {
                 <div className="flex justify-between items-center">
                   <div>
                     <p className="font-medium text-white">
-                      {new Date(appraisal.period_start).toLocaleDateString()} - {new Date(appraisal.period_end).toLocaleDateString()}
+                      {formatDate(appraisal.period_start, 'medium')} - {formatDate(appraisal.period_end, 'medium')}
                     </p>
                     <p className="text-sm text-gray-400 mt-1">
-                      {t('appraisal.generatedOn', { date: new Date(appraisal.created_at).toLocaleDateString() })}
+                      {t('appraisal.generatedOn', { date: formatDate(appraisal.created_at, 'medium') })}
                     </p>
                   </div>
                   <span className="text-sm text-gray-400 bg-white/5 px-3 py-1 rounded-full">

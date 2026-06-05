@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { getEntries } from '../lib/api'
 import type { WorkLogEntry } from 'shared'
 import { usePageMeta } from '../hooks/usePageMeta'
+import { formatDate } from '../lib/formatters'
 
 interface DashboardStats {
   totalWeeks: number
@@ -321,11 +322,7 @@ export default function Dashboard() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-sm font-medium text-indigo-400">
-                      Week of {new Date(entry.week_start_date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      })}
+                      Week of {formatDate(entry.week_start_date, 'medium')}
                     </p>
                     <p className="mt-2 text-sm text-gray-300 line-clamp-2">
                       {entry.accomplishments}

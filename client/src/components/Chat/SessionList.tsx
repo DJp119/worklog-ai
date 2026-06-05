@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import type { ChatSession } from '../../lib/chatApi'
+import { formatDate } from '../../lib/formatters'
 
 interface SessionListProps {
   sessions: ChatSession[]
@@ -108,7 +109,7 @@ export default function SessionList({ sessions, activeSessionId, onSelect, onCre
                   {session.title}
                 </div>
                 <div className="text-xs text-gray-500 truncate mt-0.5">
-                  {new Date(session.updated_at).toLocaleDateString()}
+                  {formatDate(session.updated_at, 'medium')}
                 </div>
               </div>
               <button 
