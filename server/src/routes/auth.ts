@@ -595,6 +595,15 @@ authRoutes.post('/reset-password', async (req: AuthRequest, res: Response) => {
       return res.status(500).json({ error: 'Failed to reset password' })
     }
 
+    // Revoke all active refresh tokens for this user — parity with change-password (users.ts:251-259).
+    // Why: the reset-password flow is the account-compromise recovery path; if we don't revoke,
+    // an attacker holding a stolen refresh token retains access for the original 7-30 day window.
+    await supabase
+      .from('refresh_tokens')
+      .update({ revoked: true, revoked_at: new Date().toISOString() })
+      .eq('user_id', resetData.user_id)
+      .eq('revoked', false)
+
     // Delete used reset token
     await supabase.from('password_reset_tokens').delete().eq('id', resetData.id)
 

@@ -1,0 +1,45 @@
+{
+  "generated_at": "2026-06-06",
+  "scan_id": "post-fix-rescan-2",
+  "phase": "Phase 2 — Fix & Verify (round 2)",
+  "dry_run": false,
+  "branch": "New-Frontend-UI-Changes",
+  "bugs_fixed": 3,
+  "bugs_skipped": 0,
+  "typecheck": "PASS (server: 0 errors)",
+  "note": "Round 2 — see fix-report.json for round 1 (6 bugs). These 3 are new findings the first scan missed.",
+  "fixes": [
+    {
+      "bugId": "BUG-7",
+      "severity": "Medium",
+      "cwe": "CWE-613",
+      "title": "Reset-password did not revoke refresh tokens",
+      "files_changed": ["server/src/routes/auth.ts"],
+      "summary": "Added refresh_tokens revoke block to the reset-password handler (after the password update succeeds, before deleting the reset token). Brings the account-compromise recovery path to parity with the in-app change-password flow at users.ts:251-259. An attacker holding a previously stolen refresh token can no longer retain access after the victim resets their password.",
+      "verification": "Typecheck PASS. Block matches the change-password pattern verbatim. user_id scoped via resetData.user_id."
+    },
+    {
+      "bugId": "BUG-8",
+      "severity": "Low",
+      "cwe": "CWE-256",
+      "title": "Refresh / reset / verification tokens stored in plaintext at rest",
+      "files_changed": [
+        "supabase-schema.sql",
+        "server/src/middleware/auth.ts",
+        "server/src/routes/auth.ts"
+      ],
+      "summary": "Added SHA-256 hashToken() helper (middleware/auth.ts:258). All three token tables (refresh_tokens, password_reset_tokens, email_verifications) now store token_hash instead of plaintext token. createRefreshToken/revokeRefreshToken/validateRefreshToken hash on write and on lookup. The plaintext token is still sent on the wire (the client still needs it), but DB exfiltration no longer yields usable session tokens. Schema migration is idempotent (ALTER TABLE ... ADD COLUMN IF NOT EXISTS token_hash + DROP COLUMN IF EXISTS token).",
+      "verification": "Typecheck PASS. All three call sites in middleware/auth.ts (insert/revoke/validate) match by token_hash. All four call sites in routes/auth.ts (email verification insert + lookup, password reset insert + lookup) use hashToken().",
+      "operator_action_required": "Apply the supabase-schema.sql migration to production DB. Active sessions will be invalidated at deploy (token_hash column is empty for pre-migration rows) — users must re-login."
+    },
+    {
+      "bugId": "BUG-9",
+      "severity": "Low",
+      "cwe": "CWE-117",
+      "title": "X-Request-Id header injected into logs without validation",
+      "files_changed": ["server/src/middleware/requestId.ts"],
+      "summary": "Added VALID_REQUEST_ID whitelist (/^[A-Za-z0-9_-]{8,64}$/). Headers that don't match fall back to a server-generated UUID. UUIDs, ULIDs, and short alphanumeric trace IDs are accepted; newlines, ANSI escapes, HTML, and oversize values are rejected. Closes the log-injection vector through the MDC requestId field consumed by every logger.info/warn/error call.",
+      "verification": "Typecheck PASS. Regex covers standard distributed-tracing ID formats. Fallback is randomUUID() (already imported)."
+    }
+  ]
+}
