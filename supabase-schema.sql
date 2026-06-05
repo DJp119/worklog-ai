@@ -5,9 +5,12 @@
 -- PHASE 1: Database Schema
 -- ============================================
 
--- 1.1 Users profile table (extends auth.users)
+-- 1.1 Users profile table.
+-- This app uses custom auth (the public.users table), not Supabase Auth,
+-- so user_profiles.id is a plain UUID PK with no FK to auth.users.
+-- Application code maintains the id link to public.users.
 CREATE TABLE IF NOT EXISTS user_profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   company_name TEXT,
   job_title TEXT,
@@ -250,10 +253,14 @@ CREATE TABLE IF NOT EXISTS refresh_tokens (
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token TEXT NOT NULL UNIQUE,
   expires_at TIMESTAMPTZ NOT NULL,
+  session_ttl_days INT NOT NULL DEFAULT 30,
   revoked BOOLEAN DEFAULT false,
   revoked_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Idempotent migration: add session_ttl_days to existing deployments
+ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS session_ttl_days INT NOT NULL DEFAULT 30;
 
 CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
 

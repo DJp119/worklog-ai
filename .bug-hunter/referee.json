@@ -1,0 +1,62 @@
+[
+  {
+    "bugId": "BUG-1",
+    "verdict": "REAL_BUG",
+    "trueSeverity": "Low",
+    "confidenceScore": 92,
+    "confidenceLabel": "high",
+    "verificationMode": "INDEPENDENTLY_VERIFIED",
+    "analysisSummary": "Verified by reading auth.ts:566-571 and 597-598. The SELECT clause is `select('user_id, expires_at')`; the DELETE clause is `.eq('id', resetData.user_id)`. Since resetData has no `id` field, .eq() compares the tokens.id column to the user_id UUID. The UUIDs are distinct; PostgREST returns 0 affected rows. Token rows persist after a successful reset. Confirmed real bug. Security impact is bounded by the 1h token expiry, but the cleanup comment is a lie and the DB accumulates stale rows.",
+    "suggestedFix": "Add 'id' to the SELECT clause at line 569 (`select('id, user_id, expires_at')`) and change the DELETE at line 598 to `.eq('id', resetData.id)`."
+  },
+  {
+    "bugId": "BUG-2",
+    "verdict": "REAL_BUG",
+    "trueSeverity": "Low",
+    "confidenceScore": 85,
+    "confidenceLabel": "high",
+    "verificationMode": "INDEPENDENTLY_VERIFIED",
+    "analysisSummary": "Verified by reading email.ts:29-58 (tx returns raw translatedText) and lines 151-176, 206-230, 268-300 (htmlBody uses unescaped ${...} interpolation). No HTML-escape helper exists in the file. Confirmed for all three email types: verification, password reset, and weekly reminder. Risk is low because Google Translate returns clean text and email clients neutralize active content, but the unescaped interpolation is a defense-in-depth gap.",
+    "suggestedFix": "Add a small `escapeHtml(s: string)` helper in email.ts and apply it to every ${tx(...)} interpolation in the htmlBody templates. Equivalent: switch to a templating engine (Handlebars, EJS) that auto-escapes by default."
+  },
+  {
+    "bugId": "BUG-3",
+    "verdict": "REAL_BUG",
+    "trueSeverity": "Medium",
+    "confidenceScore": 95,
+    "confidenceLabel": "high",
+    "verificationMode": "INDEPENDENTLY_VERIFIED",
+    "analysisSummary": "Verified by reading middleware/auth.ts:25 verbatim. The literal 'dev-secret-change-in-production' is a hardcoded fallback. Confirmed no fail-fast check exists at server/src/index.ts startup (only SUPABASE_SERVICE_KEY is checked). If JWT_SECRET is unset, the server boots and accepts tokens signed with the known string. Mitigated in practice by the env always being set, but the footgun is a real risk for any future deploy that forgets. Promotes to Critical severity in the event of an accidental un-set, but the bug's static state warrants Medium.",
+    "suggestedFix": "Replace the `||` fallback with an explicit fail-fast at module load: `const ACCESS_TOKEN_SECRET = process.env.JWT_SECRET; if (!ACCESS_TOKEN_SECRET) throw new Error('JWT_SECRET is required')`. Mirror the SUPABASE_SERVICE_KEY check at server/src/index.ts:186-191."
+  },
+  {
+    "bugId": "BUG-4",
+    "verdict": "REAL_BUG",
+    "trueSeverity": "Low",
+    "confidenceScore": 80,
+    "confidenceLabel": "high",
+    "verificationMode": "INDEPENDENTLY_VERIFIED",
+    "analysisSummary": "Verified by reading users.ts:81 and the upsert at 122-132. No validation of preferred_language against any enum. The value flows to Google Translate (which silently rejects invalid codes), PostHog events, and cron-job queries. No XSS, no SQLi, no privilege escalation. The bug is missing input validation, period — CWE-20.",
+    "suggestedFix": "At users.ts:81, after destructuring, validate: `if (preferred_language !== null && !SUPPORTED_EMAIL_LANGS.has(preferred_language.split('-')[0].toLowerCase())) return res.status(400)...`. Reuse the SUPPORTED_EMAIL_LANGS set already defined in email.ts:12-15 (export it from email.ts and import here)."
+  },
+  {
+    "bugId": "BUG-5",
+    "verdict": "REAL_BUG",
+    "trueSeverity": "Low",
+    "confidenceScore": 80,
+    "confidenceLabel": "high",
+    "verificationMode": "INDEPENDENTLY_VERIFIED",
+    "analysisSummary": "Verified by reading middleware/auth.ts:171-178. The service-role Supabase client is constructed and attached to req.supabase on every authenticated request. All current route handlers scope by req.userId, so no current exploit. The bug is the missing second line of defense — a future handler that forgets to scope would bypass RLS. Promotes to High if such a handler is added; static state warrants Low.",
+    "suggestedFix": "Document the requirement at the top of middleware/auth.ts: 'Route handlers MUST scope all req.supabase queries by req.userId. The service-role client bypasses RLS.' Optionally, wrap req.supabase in a proxy that auto-injects an id filter on .from('users'), .from('work_log_entries'), etc. — this would convert the bypass into a hard error."
+  },
+  {
+    "bugId": "BUG-6",
+    "verdict": "REAL_BUG",
+    "trueSeverity": "Low",
+    "confidenceScore": 95,
+    "confidenceLabel": "high",
+    "verificationMode": "INDEPENDENTLY_VERIFIED",
+    "analysisSummary": "Verified by reading auth.ts:368 (tokenExpiryDays = rememberMe ? 30 : 7) and 619-663 (refresh handler ignores this). The refresh_tokens table does not persist the original TTL. The hardcoded 30 at line 647 is the only source. Confirmed: every refresh resets the user's choice. This is a privacy/consent violation, not a security bypass.",
+    "suggestedFix": "Add a `session_ttl_days` column to refresh_tokens (default 30, set to 7 on rememberMe=false login). At refresh time, read tokenRecord.session_ttl_days and pass that to createRefreshToken. Migration: ALTER TABLE refresh_tokens ADD COLUMN session_ttl_days INT NOT NULL DEFAULT 30."
+  }
+]

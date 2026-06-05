@@ -5,6 +5,7 @@ import { hashPassword, comparePassword, validatePasswordStrength } from '../lib/
 import { captureEvent, captureException } from '../lib/posthog.js'
 import { logger } from '../lib/logger.js'
 import { getErrorMessage, getErrorMessageSync } from '../i18n/errors.js'
+import { isSupportedEmailLang } from '../lib/email.js'
 
 export const userRoutes = Router()
 
@@ -80,6 +81,12 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
         const reminder_enabled = body.reminder_enabled ?? body.reminderEnabled
         const preferred_language = body.preferred_language ?? body.preferredLanguage ?? null
 
+        // Validate preferred_language against supported enum (null is allowed — means "auto")
+        if (preferred_language !== null && preferred_language !== undefined && !isSupportedEmailLang(preferred_language)) {
+            logger.with('preferred_language', preferred_language).warn('Update profile validation failed: unsupported language code')
+            return res.status(400).json({ success: false, error: await getErrorMessage(req, 'failedToUpdateProfile'), detail: 'Unsupported preferred_language value' })
+        }
+
         // Validate reminder_day if provided
         if (reminder_day !== undefined && (reminder_day < 0 || reminder_day > 6)) {
             logger.warn('Update profile validation failed: reminder_day must be 0-6')
@@ -96,10 +103,45 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
         if (reminder_enabled !== undefined) updateData.reminder_enabled = reminder_enabled
 
         if (preferred_language !== undefined) {
-            // Upsert into user_profiles (the table that holds preferred_language)
-            await supabase
+            // Upsert into user_profiles (the table that holds preferred_language).
+            // `email` is NOT NULL UNIQUE on user_profiles, so it must be included
+            // — otherwise the first upsert (no row exists) fails silently.
+            // Look up the email from the users table since this row may not yet
+            // exist in user_profiles.
+            const { data: existingProfile } = await supabase
                 .from('user_profiles')
-                .upsert({ id: userId, preferred_language, updated_at: new Date().toISOString() }, { onConflict: 'id' })
+                .select('email')
+                .eq('id', userId)
+                .maybeSingle()
+
+            const { data: existingUser } = await supabase
+                .from('users')
+                .select('email')
+                .eq('id', userId)
+                .single()
+
+            const profileEmail = existingProfile?.email || existingUser?.email
+            if (!profileEmail) {
+                logger.error('Cannot upsert user_profiles: no email on file for user')
+                return res.status(500).json({ success: false, error: await getErrorMessage(req, 'failedToUpdateProfile'), detail: 'Missing user email' })
+            }
+
+            const { error: profileError } = await supabase
+                .from('user_profiles')
+                .upsert(
+                    {
+                        id: userId,
+                        email: profileEmail,
+                        preferred_language,
+                        updated_at: new Date().toISOString(),
+                    },
+                    { onConflict: 'id' }
+                )
+
+            if (profileError) {
+                logger.error('Profile upsert error: {}', profileError.message, profileError)
+                return res.status(500).json({ success: false, error: await getErrorMessage(req, 'failedToUpdateProfile'), detail: profileError.message })
+            }
         }
 
         updateData.updated_at = new Date().toISOString()

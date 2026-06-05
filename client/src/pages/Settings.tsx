@@ -99,13 +99,35 @@ export default function Settings() {
     setProfile((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handleLanguageChange = (value: string) => {
+  const [languageSaving, setLanguageSaving] = useState(false)
+  const [languageError, setLanguageError] = useState<string | null>(null)
+
+  const handleLanguageChange = async (value: string) => {
     setProfile((prev) => ({ ...prev, preferred_language: value }))
+    // Apply to UI immediately so the user sees the change without waiting
+    // for the network round-trip.
     if (value === 'auto') {
       const detected = (navigator.language || 'en').split('-')[0]
       void i18n.changeLanguage(detected)
     } else {
       void i18n.changeLanguage(value)
+    }
+
+    if (!user) return
+
+    // Persist to the server immediately — language preference is a one-tap
+    // setting, not a "Save Profile" form submission.
+    setLanguageSaving(true)
+    setLanguageError(null)
+    try {
+      await updateProfile({
+        preferredLanguage: value === 'auto' ? null : value,
+      })
+      setMessage(t('settings.savedSuccess'))
+    } catch (err) {
+      setLanguageError(err instanceof Error ? err.message : t('settings.errorSaveFailed'))
+    } finally {
+      setLanguageSaving(false)
     }
   }
 
@@ -247,8 +269,9 @@ export default function Settings() {
           <select
             id="preferred_language"
             value={profile.preferred_language}
-            onChange={(e) => handleLanguageChange(e.target.value)}
-            className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            onChange={(e) => void handleLanguageChange(e.target.value)}
+            disabled={languageSaving}
+            className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all disabled:opacity-60"
           >
             {supportedLanguages().map((lang) => (
               <option key={lang.code} value={lang.code} className="bg-[#0a0a0f]">
@@ -258,6 +281,12 @@ export default function Settings() {
               </option>
             ))}
           </select>
+          {languageSaving && (
+            <p className="mt-2 text-xs text-gray-500">{t('common.saving')}</p>
+          )}
+          {languageError && (
+            <p className="mt-2 text-xs text-red-400">{languageError}</p>
+          )}
         </div>
       </div>
 

@@ -101,6 +101,23 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
       // Don't fail signup if token creation fails, but log the error
     }
 
+    // Create the user_profiles row alongside the users row. Custom-auth signup
+    // does not fire the Supabase Auth trigger that normally populates
+    // user_profiles, so the row would otherwise be missing and the first
+    // preferred_language upsert would fail on the email NOT NULL constraint.
+    const { error: profileCreateError } = await supabase
+      .from('user_profiles')
+      .upsert(
+        { id: userData.id, email: userData.email, updated_at: new Date().toISOString() },
+        { onConflict: 'id' }
+      )
+
+    if (profileCreateError) {
+      // Don't fail signup if this fails (user is already created); log it so
+      // the row can be repaired later.
+      logger.error('user_profiles row create error: {}', profileCreateError.message, profileCreateError)
+    }
+
     // Send verification email (don't fail signup if email fails)
     const emailSent = await sendVerificationEmail(email, userData.id, emailToken, languageFromAcceptHeader(req.headers['accept-language'] as string | undefined))
     if (!emailSent) {
@@ -549,7 +566,7 @@ authRoutes.post('/reset-password', async (req: AuthRequest, res: Response) => {
     // Find valid reset token
     const { data: resetData, error: resetError } = await supabase
       .from('password_reset_tokens')
-      .select('user_id, expires_at')
+      .select('id, user_id, expires_at')
       .eq('token', token)
       .single()
 
@@ -578,7 +595,7 @@ authRoutes.post('/reset-password', async (req: AuthRequest, res: Response) => {
     }
 
     // Delete used reset token
-    await supabase.from('password_reset_tokens').delete().eq('id', resetData.user_id)
+    await supabase.from('password_reset_tokens').delete().eq('id', resetData.id)
 
     captureEvent(resetData.user_id, 'password_reset_completed')
 
@@ -624,10 +641,14 @@ authRoutes.post('/refresh', async (req: AuthRequest, res: Response) => {
     // Revoke old refresh token
     await revokeRefreshToken(refreshToken)
 
+    // Honor the original login's rememberMe choice: 30 days if they checked it,
+    // 7 days if they didn't. Default to 30 for legacy rows missing the column value.
+    const sessionTtlDays = (tokenRecord as any).session_ttl_days ?? 30
+
     // Generate new tokens
     const newAccessToken = generateAccessToken({ userId: user.id, email: user.email })
     const newRefreshToken = generateRefreshToken()
-    await createRefreshToken(user.id, newRefreshToken, 30) // 30 days
+    await createRefreshToken(user.id, newRefreshToken, sessionTtlDays)
 
     logger.info('Token refreshed successfully')
 

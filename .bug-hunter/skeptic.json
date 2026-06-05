@@ -1,0 +1,38 @@
+[
+  {
+    "bugId": "BUG-1",
+    "response": "ACCEPT",
+    "analysisSummary": "Re-read auth.ts:566-571 — the SELECT explicitly limits to 'user_id, expires_at', so resetData.id is undefined. The DELETE on line 598 uses .eq('id', resetData.user_id), comparing the user_id UUID against the tokens.id UUID column — these are distinct columns with distinct values. PostgREST will match zero rows. Token rows accumulate. The Hunter's confidence of 88 is appropriate. The 1h expiry bounds the security impact, but the data-integrity claim is real.",
+    "counterEvidence": "None. The code is exactly as described."
+  },
+  {
+    "bugId": "BUG-2",
+    "response": "ACCEPT",
+    "analysisSummary": "Re-read email.ts:29-58 (tx function) and lines 151-176 (htmlBody). tx returns translatedText verbatim. The HTML template interpolates ${heading}, ${intro}, ${button}, ${copyHint}, ${expiryNote} with no escaping helper. Confirmed for verification email (151-176), password reset (206-230), and reminder (268-300). Practical exploitability is low — Google Translate returns clean text and most email clients strip active content — but the defense-in-depth gap is real, and a cache-poisoning scenario (if translation_cache were ever writeable from an untrusted path) would propagate to every recipient. Severity Medium → Low is appropriate.",
+    "counterEvidence": "None significant. Could not find any HTML-escape helper in the file."
+  },
+  {
+    "bugId": "BUG-3",
+    "response": "ACCEPT",
+    "analysisSummary": "Re-read middleware/auth.ts:25 verbatim. The fallback string 'dev-secret-change-in-production' is a hardcoded literal. If JWT_SECRET is unset, all tokens are forgeable with HS256 + the known secret. The Skeptic checked server/src/index.ts startup for any fail-fast on missing JWT_SECRET — none found (only the SUPABASE_SERVICE_KEY check at index.ts:186-191). This is a real footgun. Mitigation in practice: env is always set in production. Severity Medium is correct (Critical if the env is ever missed).",
+    "counterEvidence": "None. The literal is exactly as the Hunter quoted."
+  },
+  {
+    "bugId": "BUG-4",
+    "response": "ACCEPT",
+    "analysisSummary": "Re-read users.ts:69-138. Line 81 destructures preferred_language from body with no validation. The value flows to: (a) Google Translate as target= (rejected by API on invalid codes), (b) PostHog events, (c) cron-job query results. No XSS path (the value is not interpolated into HTML in any user-facing surface), no SQLi (PostgREST parameterizes). CWE-20 (improper input validation) is the right CWE. The threat is theoretical — the value has no significant downstream impact. Severity Low is correct.",
+    "counterEvidence": "None. The validation is genuinely absent."
+  },
+  {
+    "bugId": "BUG-5",
+    "response": "ACCEPT",
+    "analysisSummary": "Re-read middleware/auth.ts:171-178. The service-role client is attached to every authenticated request. Verified all current route handlers scope by req.userId, so the practical risk is zero today. The Hunter framed this as defense-in-depth — the risk is for future code. CWE-862 (Missing Authorization) is the right CWE, though 'defense-in-depth gap' describes it more accurately than 'missing authorization'. Severity Low is correct (the bug is forward-looking, not exploitable now).",
+    "counterEvidence": "None. No existing handler is unscoped."
+  },
+  {
+    "bugId": "BUG-6",
+    "response": "ACCEPT",
+    "analysisSummary": "Re-read auth.ts:619-663. The refresh handler does not receive the rememberMe flag and hardcodes 30 days on line 647. The original login handler (line 368) computes tokenExpiryDays = rememberMe ? 30 : 7 but this is not persisted anywhere — neither the refresh_tokens table nor the user record. Confirmed: a non-rememberMe session escalates to 30 days on first refresh. Severity Low is correct (privacy/consent violation, not a security bypass).",
+    "counterEvidence": "None. The hardcode is exactly as described."
+  }
+]

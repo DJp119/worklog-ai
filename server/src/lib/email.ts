@@ -14,6 +14,21 @@ const SUPPORTED_EMAIL_LANGS = new Set([
   'ar', 'he', 'hi', 'bn', 'id', 'vi', 'th', 'ja', 'ko', 'zh',
 ])
 
+export function isSupportedEmailLang(lang: string | null | undefined): boolean {
+  if (!lang) return false
+  const normalized = lang.split('-')[0].toLowerCase()
+  return SUPPORTED_EMAIL_LANGS.has(normalized)
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 // Memoized email string translations (process-lifetime cache).
 // Key: "<lang>:<source-text>" → translated text. Avoids repeated API calls.
 const emailTranslationCache = new Map<string, string>()
@@ -150,25 +165,25 @@ export async function sendVerificationEmail(to: string, userId: string, emailTok
 
   const htmlBody = `
 <!DOCTYPE html>
-<html lang="${lang}">
+<html lang="${escapeHtml(lang)}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-    <h1 style="color: #4F46E5;">${heading}</h1>
-    <p>${intro}</p>
+    <h1 style="color: #4F46E5;">${escapeHtml(heading)}</h1>
+    <p>${escapeHtml(intro)}</p>
     <p style="margin: 30px 0;">
       <a href="${link}"
         style="display: inline-block; padding: 12px 30px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
-        ${button}
+        ${escapeHtml(button)}
       </a>
     </p>
-    <p>${copyHint}</p>
+    <p>${escapeHtml(copyHint)}</p>
     <p style="word-break: break-all; color: #4F46E5;">${link}</p>
     <p style="margin-top: 30px; color: #666; font-size: 14px;">
-      ${expiryNote}
+      ${escapeHtml(expiryNote)}
     </p>
   </div>
 </body>
@@ -205,25 +220,25 @@ export async function sendPasswordResetEmail(to: string, userId: string, resetTo
 
   const htmlBody = `
 <!DOCTYPE html>
-<html lang="${lang}">
+<html lang="${escapeHtml(lang)}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-    <h1 style="color: #4F46E5;">${heading}</h1>
-    <p>${intro}</p>
+    <h1 style="color: #4F46E5;">${escapeHtml(heading)}</h1>
+    <p>${escapeHtml(intro)}</p>
     <p style="margin: 30px 0;">
       <a href="${link}"
         style="display: inline-block; padding: 12px 30px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 6px; font-weight: bold;">
-        ${button}
+        ${escapeHtml(button)}
       </a>
     </p>
-    <p>${copyHint}</p>
+    <p>${escapeHtml(copyHint)}</p>
     <p style="word-break: break-all; color: #4F46E5;">${link}</p>
     <p style="margin-top: 30px; color: #666; font-size: 14px;">
-      ${expiryNote}
+      ${escapeHtml(expiryNote)}
     </p>
   </div>
 </body>
@@ -267,7 +282,7 @@ export async function sendReminderEmail(to: string, userName?: string, lang: str
 
   const htmlBody = `
 <!DOCTYPE html>
-<html lang="${lang}">
+<html lang="${escapeHtml(lang)}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -275,23 +290,23 @@ export async function sendReminderEmail(to: string, userName?: string, lang: str
 <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f9fafb;">
   <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
     <div style="background-color: #ffffff; border-radius: 12px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-      <h1 style="color: #4F46E5; margin-top: 0;">${heading}</h1>
-      <p style="font-size: 16px;">${greeting},</p>
+      <h1 style="color: #4F46E5; margin-top: 0;">${escapeHtml(heading)}</h1>
+      <p style="font-size: 16px;">${escapeHtml(greeting)},</p>
       <p style="font-size: 16px;">
-        ${intro1}
+        ${escapeHtml(intro1)}
       </p>
       <p style="font-size: 16px;">
-        ${intro2}
+        ${escapeHtml(intro2)}
       </p>
       <p style="margin: 30px 0; text-align: center;">
         <a href="${logUrl}"
           style="display: inline-block; padding: 14px 36px; background-color: #4F46E5; color: white; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
-          ${button}
+          ${escapeHtml(button)}
         </a>
       </p>
       <p style="margin-top: 30px; color: #666; font-size: 13px; border-top: 1px solid #eee; padding-top: 16px;">
-        ${footerHint}
-        <a href="${settingsUrl}" style="color: #4F46E5; text-decoration: none;">${manageLink}</a>
+        ${escapeHtml(footerHint)}
+        <a href="${settingsUrl}" style="color: #4F46E5; text-decoration: none;">${escapeHtml(manageLink)}</a>
       </p>
     </div>
   </div>
