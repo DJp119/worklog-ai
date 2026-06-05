@@ -1,11 +1,13 @@
 import { useState, useEffect, FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth, AuthError } from '../context/AuthContext'
 import { usePageMeta } from '../hooks/usePageMeta'
 
 export default function Login() {
+    const { t } = useTranslation()
     usePageMeta({
-      title: 'Sign In',
+      title: t('auth.signIn'),
       description:
         'Sign in to Impactly AI to log your weekly achievements and generate promotion-ready self-appraisals. Email or Google/GitHub OAuth. No credit card required.',
       path: '/login',
@@ -36,12 +38,12 @@ export default function Login() {
         e.preventDefault()
 
         if (!email || !email.includes('@')) {
-            setError('Please enter a valid email address')
+            setError(t('auth.invalidCredentials'))
             return
         }
 
         if (!password || password.length < 8) {
-            setError('Password must be at least 8 characters')
+            setError(t('auth.passwordTooShort'))
             return
         }
 
@@ -55,11 +57,11 @@ export default function Login() {
         try {
             if (isLogin) {
                 await login(email, password)
-                setMessage('Login successful! Redirecting...')
+                setMessage(t('auth.welcomeBack'))
                 setTimeout(() => navigate('/dashboard'), 1500)
             } else {
                 await signup(email, password, 'New User', 'Company', 'Developer')
-                setMessage('Account created! Please login with your credentials.')
+                setMessage(t('auth.checkEmail'))
                 setIsLogin(true)
             }
         } catch (err) {
@@ -67,7 +69,7 @@ export default function Login() {
                 setUnverifiedEmail(err.email)
                 setError(null)
             } else {
-                setError(err instanceof Error ? err.message : 'Operation failed')
+                setError(err instanceof Error ? err.message : t('errors.generic'))
             }
         } finally {
             setLoading(false)
@@ -83,10 +85,10 @@ export default function Login() {
 
         try {
             await resendVerificationEmail(unverifiedEmail)
-            setResendMessage('Verification email sent! Check your inbox.')
+            setResendMessage(t('auth.verificationResent'))
             setResendCooldown(60)
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Failed to resend verification email'
+            const message = err instanceof Error ? err.message : t('errors.generic')
             setResendError(message)
             if (message.toLowerCase().includes('wait')) {
                 setResendCooldown(60)
@@ -112,16 +114,16 @@ export default function Login() {
                             </svg>
                         </div>
                     </div>
-                    <h1 className="text-3xl font-bold gradient-text">Worklog AI</h1>
+                    <h1 className="text-3xl font-bold gradient-text">{t('brand.name')}</h1>
                     <h2 className="mt-2 text-xl text-white">
-                        {isLogin ? 'Sign in to your account' : 'Create a new account'}
+                        {isLogin ? t('auth.welcomeBack') : t('auth.createAccount')}
                     </h2>
                 </div>
 
                 <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
                     <div>
                         <label htmlFor="email" className="block text-sm font-medium text-gray-300">
-                            Email address
+                            {t('auth.email')}
                         </label>
                         <input
                             id="email"
@@ -130,16 +132,16 @@ export default function Login() {
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
                             className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                            placeholder="you@example.com"
+                            placeholder={t('auth.emailPlaceholder')}
                         />
                     </div>
 
                     <div className="flex items-center justify-between">
                         <label htmlFor="password" className="block text-sm font-medium text-gray-300">
-                            Password
+                            {t('auth.password')}
                         </label>
                         <Link to="/forgot-password" className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">
-                            Forgot password?
+                            {t('auth.forgotPassword')}
                         </Link>
                     </div>
                     <div>
@@ -150,7 +152,7 @@ export default function Login() {
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             className="block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                            placeholder="Enter your password"
+                            placeholder={t('auth.passwordPlaceholder')}
                         />
                     </div>
 
