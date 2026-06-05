@@ -2,6 +2,7 @@ import { ReactNode, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
+import { LanguageSwitcher } from './LanguageSwitcher'
 
 interface LayoutProps {
   children: ReactNode
@@ -110,6 +111,7 @@ export function Layout({ children }: LayoutProps) {
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                     </span>
                   </Link>
+                  <LanguageSwitcher />
                   <Link
                     to="/login"
                     className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 transition-all glow-primary"
