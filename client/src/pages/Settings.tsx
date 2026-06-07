@@ -107,9 +107,11 @@ export default function Settings() {
     // Apply to UI immediately so the user sees the change without waiting
     // for the network round-trip.
     if (value === 'auto') {
+      localStorage.removeItem('impactly_language')
       const detected = (navigator.language || 'en').split('-')[0]
       void i18n.changeLanguage(detected)
     } else {
+      localStorage.setItem('impactly_language', value)
       void i18n.changeLanguage(value)
     }
 

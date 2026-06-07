@@ -42,17 +42,14 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
                 key={lang.code}
                 type="button"
                 onClick={() => {
-                  const next = lang.code === 'auto' ? undefined : lang.code
-                  try {
-                    if (next) {
-                      localStorage.setItem('impactly_language', next)
-                    } else {
-                      localStorage.removeItem('impactly_language')
-                    }
-                  } catch {
-                    /* ignore */
+                  if (lang.code === 'auto') {
+                    localStorage.removeItem('impactly_language')
+                    const detected = (navigator.language || 'en').split('-')[0]
+                    void i18n.changeLanguage(detected)
+                  } else {
+                    localStorage.setItem('impactly_language', lang.code)
+                    void i18n.changeLanguage(lang.code)
                   }
-                  void i18n.changeLanguage(next)
                   setOpen(false)
                 }}
                 className={`w-full text-left px-4 py-2 text-sm transition-colors hover:bg-white/5 flex items-center justify-between ${
