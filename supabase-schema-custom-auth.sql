@@ -34,34 +34,35 @@ CREATE INDEX idx_users_email ON users(email);
 CREATE TABLE email_verifications (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token TEXT UNIQUE NOT NULL,
+    token_hash TEXT UNIQUE NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
     verified BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE INDEX idx_email_verifications_user ON email_verifications(user_id);
-CREATE INDEX idx_email_verifications_token ON email_verifications(token);
+CREATE INDEX idx_email_verifications_token_hash ON email_verifications(token_hash);
 
 -- 1.3 Refresh tokens table
 CREATE TABLE refresh_tokens (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token TEXT UNIQUE NOT NULL,
+    token_hash TEXT UNIQUE NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
+    session_ttl_days INT NOT NULL DEFAULT 30,
     revoked BOOLEAN DEFAULT false,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     revoked_at TIMESTAMPTZ
 );
 
 CREATE INDEX idx_refresh_tokens_user ON refresh_tokens(user_id);
-CREATE INDEX idx_refresh_tokens_token ON refresh_tokens(token);
+CREATE INDEX idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
 
 -- 1.4 Password reset tokens table
 CREATE TABLE password_resets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    token TEXT UNIQUE NOT NULL,
+    token_hash TEXT UNIQUE NOT NULL,
     expires_at TIMESTAMPTZ NOT NULL,
     used BOOLEAN DEFAULT false,
     used_at TIMESTAMPTZ,
@@ -69,7 +70,7 @@ CREATE TABLE password_resets (
 );
 
 CREATE INDEX idx_password_resets_user ON password_resets(user_id);
-CREATE INDEX idx_password_resets_token ON password_resets(token);
+CREATE INDEX idx_password_resets_token_hash ON password_resets(token_hash);
 
 -- ============================================
 -- PHASE 2: Work Log Entries (unchanged)

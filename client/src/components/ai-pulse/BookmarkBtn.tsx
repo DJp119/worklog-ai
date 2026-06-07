@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_URL } from '../../lib/api';
 import { getStoredTokens } from '../../lib/authStorage';
 
 interface BookmarkBtnProps {
@@ -16,7 +17,6 @@ export const BookmarkBtn: React.FC<BookmarkBtnProps> = ({
 }) => {
   const [bookmarked, setBookmarked] = useState(false);
   const [loading, setLoading] = useState(false);
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
   const handleBookmark = async () => {
     if (!isAuthenticated) {
@@ -36,13 +36,16 @@ export const BookmarkBtn: React.FC<BookmarkBtnProps> = ({
         : { impact_card_id: targetId };
 
       const { accessToken } = getStoredTokens();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
       const response = await fetch(`${API_URL}/api/ai-pulse/bookmarks`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-        },
-        credentials: 'include',
+        headers,
         body: JSON.stringify(payload),
       });
 
