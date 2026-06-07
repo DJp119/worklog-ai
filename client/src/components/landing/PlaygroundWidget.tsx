@@ -8,6 +8,7 @@ import ChevronRight from "lucide-react/dist/esm/icons/chevron-right.mjs";
 import User from "lucide-react/dist/esm/icons/user.mjs";
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw.mjs";
 import MessageSquare from "lucide-react/dist/esm/icons/message-square.mjs";
+import { API_URL } from "../../lib/api";
 
 interface Preset {
   role: string;
@@ -114,6 +115,7 @@ export default function PlaygroundWidget() {
   const [isTyping, setIsTyping] = useState(false);
   const [displayedText, setDisplayedText] = useState("");
   const [showResult, setShowResult] = useState(false);
+  const [generatedAccomplishment, setGeneratedAccomplishment] = useState("");
 
   const currentPreset = PRESETS.find((p) => p.role === activeRole) || PRESETS[0];
 
@@ -122,30 +124,62 @@ export default function PlaygroundWidget() {
     setUserInput(currentPreset.rawInput);
   }, [activeRole, currentPreset.rawInput]);
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     setIsGenerating(true);
     setShowResult(false);
     setDisplayedText("");
+    setGeneratedAccomplishment("");
 
-    // Simulate AI pipeline delay
-    setTimeout(() => {
-      setIsGenerating(false);
-      setIsTyping(true);
-      setShowResult(true);
+    try {
+      const response = await fetch(`${API_URL}/api/appraisal/playground-generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userInput,
+          role: activeRole,
+          tone: activeTone,
+        }),
+      });
 
-      const targetText = currentPreset.tones[activeTone].appraisal;
-      let index = 0;
-      
-      const interval = setInterval(() => {
-        if (index < targetText.length) {
-          setDisplayedText((prev) => prev + targetText.charAt(index));
-          index += 5; // Fast typing speed (5 chars at a time)
-        } else {
-          clearInterval(interval);
-          setIsTyping(false);
-        }
-      }, 10);
-    }, 1500);
+      if (!response.ok) {
+        throw new Error("API request failed");
+      }
+
+      const resData = await response.json();
+      if (resData.success && resData.data) {
+        const { accomplishment, appraisal } = resData.data;
+        setGeneratedAccomplishment(accomplishment);
+        startTyping(appraisal);
+        return;
+      }
+    } catch (error) {
+      console.warn("Dynamic playground generation failed, falling back to preset static text:", error);
+    }
+
+    // Graceful Fallback
+    const presetData = currentPreset.tones[activeTone];
+    setGeneratedAccomplishment(presetData.accomplishment);
+    startTyping(presetData.appraisal);
+  };
+
+  const startTyping = (targetText: string) => {
+    setIsGenerating(false);
+    setIsTyping(true);
+    setShowResult(true);
+
+    let index = 0;
+    const interval = setInterval(() => {
+      if (index < targetText.length) {
+        setDisplayedText(targetText.substring(0, index + 5));
+        index += 5;
+      } else {
+        setDisplayedText(targetText);
+        clearInterval(interval);
+        setIsTyping(false);
+      }
+    }, 10);
   };
 
   return (
@@ -339,7 +373,7 @@ export default function PlaygroundWidget() {
                   {t('landing.widget.accomplishmentHeader')}
                 </p>
                 <div className="text-xs font-mono text-gray-500 mb-4 bg-white/[0.02] p-2.5 rounded border border-white/5">
-                  <span className="text-indigo-400">{t('landing.widget.accomplishmentLabel')}</span> {currentPreset.tones[activeTone].accomplishment}
+                  <span className="text-indigo-400">{t('landing.widget.accomplishmentLabel')}</span> {generatedAccomplishment || currentPreset.tones[activeTone].accomplishment}
                 </div>
                 <p className="whitespace-pre-line text-[13px] md:text-sm">
                   {displayedText}

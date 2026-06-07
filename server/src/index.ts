@@ -200,12 +200,14 @@ app.listen(PORT, () => {
   // Check AI providers
   const hasNim = !!process.env.NVIDIA_NIM_API_KEY
   const hasMistral = !!process.env.MISTRAL_API_KEY
-  if (!hasNim && !hasMistral) {
-    logger.warn('⚠️ WARNING: No AI provider configured (NVIDIA_NIM_API_KEY or MISTRAL_API_KEY)')
+  const hasOpenRouter = !!process.env.OPENROUTER_API_KEY
+  if (!hasNim && !hasMistral && !hasOpenRouter) {
+    logger.warn('⚠️ WARNING: No AI provider configured (NVIDIA_NIM_API_KEY, MISTRAL_API_KEY, or OPENROUTER_API_KEY)')
     logger.warn('   Chat and appraisal features will FAIL!')
   } else {
     if (hasNim) logger.info('✓ NVIDIA NIM configured')
     if (hasMistral) logger.info('✓ Mistral AI configured')
+    if (hasOpenRouter) logger.info('✓ OpenRouter AI configured')
   }
   logger.info('---------------')
 
@@ -218,6 +220,7 @@ app.listen(PORT, () => {
       has_supabase: !!process.env.SUPABASE_SERVICE_KEY,
       has_nim: hasNim,
       has_mistral: hasMistral,
+      has_openrouter: hasOpenRouter,
     })
   } else {
     logger.info('PostHog not configured (set POSTHOG_API_KEY env var)')
