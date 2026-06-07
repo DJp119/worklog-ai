@@ -4,7 +4,7 @@ import { logger } from './logger.js'
 dotenv.config()
 
 const openrouterApiKey = process.env.OPENROUTER_API_KEY
-const openrouterModel = process.env.OPENROUTER_PLAYGROUND_MODEL || 'nvidia/nemotron-3-ultra-550b-a55b:free'
+const openrouterModel = process.env.OPENROUTER_PLAYGROUND_MODEL || 'google/gemma-2-9b-it:free'
 
 export const hasOpenRouter = !!openrouterApiKey
 
@@ -37,7 +37,7 @@ export async function callOpenRouter(options: OpenRouterGenerateOptions): Promis
         model: openrouterModel,
         messages,
         temperature: 0.7,
-        max_tokens: 1024,
+        max_tokens: 400,
       })
     })
 
