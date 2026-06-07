@@ -92,6 +92,11 @@ export default function RootLayout({
       <head>
         <link rel="preconnect" href="https://app.impactlyai.com" />
         <link rel="dns-prefetch" href="https://app.impactlyai.com" />
+        <script
+          async
+          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-7620811634558573"
+          crossOrigin="anonymous"
+        />
       </head>
       <body
         className={`${jakarta.variable} font-sans bg-[#0a0a0f] text-slate-100 min-h-full flex flex-col antialiased`}
