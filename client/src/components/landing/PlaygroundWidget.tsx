@@ -119,9 +119,12 @@ export default function PlaygroundWidget() {
 
   const currentPreset = PRESETS.find((p) => p.role === activeRole) || PRESETS[0];
 
-  // Sync preset text on role change
+  // Sync preset text on role change ONLY if the input is empty or matches one of the presets
   useEffect(() => {
-    setUserInput(currentPreset.rawInput);
+    const isPreset = PRESETS.some((p) => p.rawInput === userInput) || userInput.trim() === "";
+    if (isPreset) {
+      setUserInput(currentPreset.rawInput);
+    }
   }, [activeRole, currentPreset.rawInput]);
 
   const handleGenerate = async () => {
