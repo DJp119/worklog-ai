@@ -1,12 +1,102 @@
 import { Router } from 'express'
+import rateLimit from 'express-rate-limit'
 import { mistral, chatModel } from '../lib/mistral.js'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import type { GeneratedAppraisal, GenerateAppraisalRequest, ApiResponse } from 'shared'
 import { captureEvent, captureException } from '../lib/posthog.js'
 import { logger } from '../lib/logger.js'
 import { resolveUserLanguage, languageInstruction } from '../lib/userLanguage.js'
+import { callOpenRouter } from '../lib/openRouter.js'
 
 export const appraisalRoutes = Router()
+
+// Strict rate limiting for public playground endpoint to prevent abuse
+const playgroundLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: 10, // Limit each IP to 10 generations per hour
+  message: {
+    success: false,
+    error: 'Playground generation limit exceeded. Please sign up or log in for unlimited use.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+/**
+ * POST /api/appraisal/playground-generate
+ * Generate playground self-appraisal draft (public rate-limited endpoint)
+ */
+appraisalRoutes.post('/playground-generate', playgroundLimiter, async (req, res) => {
+  try {
+    const { userInput, role, tone } = req.body
+
+    if (!userInput || typeof userInput !== 'string' || !userInput.trim()) {
+      return res.status(400).json({ success: false, error: 'User input is required' })
+    }
+
+    if (userInput.length > 1000) {
+      return res.status(400).json({ success: false, error: 'User input is too long (maximum 1000 characters)' })
+    }
+
+    const systemPrompt = `You are a professional performance appraisal generator.
+Analyze the user's raw achievement, role, and desired writing tone, and generate a professional self-appraisal draft.
+
+You MUST respond ONLY with a valid JSON object in this exact format:
+{
+  "accomplishment": "A concise, high-impact one-sentence accomplishment summary",
+  "appraisal": "A detailed, professional self-appraisal paragraph or two using first-person ('I') and matching the selected tone"
+}
+
+Do NOT include any markdown code block formatting (no \`\`\`json, no \`\`\`), no extra text, explanations, or notes. Just raw JSON.`
+
+    const prompt = `
+Raw achievement: "${userInput}"
+Role: "${role || 'general'}"
+Tone: "${tone || 'data'}"
+`
+
+    logger.info('Starting OpenRouter API call for playground appraisal generation')
+
+    const rawResponse = await callOpenRouter({
+      prompt,
+      systemPrompt
+    })
+
+    if (!rawResponse) {
+      logger.error('Empty response received from OpenRouter')
+      return res.status(500).json({ success: false, error: 'Failed to generate playground appraisal' })
+    }
+
+    // Clean JSON content if wrapped in markdown
+    const cleanText = rawResponse.replace(/```json\s?/g, '').replace(/```/g, '').trim()
+    
+    let parsedData
+    try {
+      parsedData = JSON.parse(cleanText)
+    } catch (parseError) {
+      logger.error('Failed to parse JSON response from OpenRouter: {}', cleanText, parseError)
+      return res.status(500).json({ success: false, error: 'Failed to parse generated response format' })
+    }
+
+    if (!parsedData.accomplishment || !parsedData.appraisal) {
+      logger.error('Parsed OpenRouter response is missing required fields: {}', cleanText)
+      return res.status(500).json({ success: false, error: 'Incomplete generated content' })
+    }
+
+    res.json({
+      success: true,
+      data: {
+        accomplishment: parsedData.accomplishment,
+        appraisal: parsedData.appraisal
+      }
+    })
+
+  } catch (error) {
+    logger.error('Playground generation error: {}', error instanceof Error ? error.message : String(error), error)
+    res.status(500).json({ success: false, error: 'Internal server error' })
+  }
+})
+
 
 /**
  * POST /api/appraisal/generate
