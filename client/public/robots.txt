@@ -34,5 +34,3 @@ Allow: /
 
 User-agent: Applebot-Extended
 Allow: /
-
-Sitemap: https://impactlyai.com/sitemap.xml
