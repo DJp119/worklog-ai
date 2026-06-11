@@ -33,9 +33,6 @@ coverage/
 
 # Misc
 .cache/
-.env
-
-.claude/ralph-loop.local.md
 
 # AI Agent Workspaces
 .agents/
@@ -46,3 +43,28 @@ memory/
 
 # Temp files
 all-tracked.txt
+
+# Additional common ignores
+.vite/
+.next/
+.nuxt/
+.gatsby/
+.vercel/
+.svelte-kit/
+.parcel-cache/
+.eslintcache
+.pnpm-store/
+.yarn/
+.npm/
+.tmp/
+.temp/
+*.bak
+*.backup
+*.orig
+*.tmp
+*.temp
+*.sublime-workspace
+*.sublime-project
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

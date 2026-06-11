@@ -26,7 +26,6 @@
   "common.hour": "hour",
   "common.minutes": "minutes",
   "common.minute": "minute",
-
   "nav.dashboard": "Dashboard",
   "nav.logWork": "Log Work",
   "nav.appraisals": "Appraisals",
@@ -41,10 +40,8 @@
   "landing.nav.playground": "Playground",
   "landing.nav.security": "Security",
   "landing.nav.faq": "FAQ",
-
   "brand.name": "Impactly AI",
   "brand.tagline": "AI Self-Appraisal Generator",
-
   "auth.welcomeBack": "Welcome back",
   "auth.signInContinue": "Sign in to continue tracking your impact",
   "auth.createAccount": "Create your account",
@@ -74,7 +71,6 @@
   "auth.passwordMismatch": "Passwords do not match",
   "auth.termsNotice": "By signing up, you agree to our Terms and Privacy Policy",
   "auth.signOutConfirm": "Are you sure you want to sign out?",
-
   "dashboard.title": "Dashboard",
   "dashboard.subtitle": "Track your logging progress",
   "dashboard.logThisWeek": "Log This Week",
@@ -105,7 +101,6 @@
   "dashboard.days_other": "{{count}} days",
   "dashboard.hours_one": "{{count}} hour",
   "dashboard.hours_other": "{{count}} hours",
-
   "logEntry.title": "Log Your Week",
   "logEntry.subtitle": "Capture your accomplishments, challenges, and learnings",
   "logEntry.weekOf": "Week of {{date}}",
@@ -136,7 +131,6 @@
   "logEntry.requiredFields": "Please fill in the accomplishments field at minimum",
   "logEntry.tooShort": "This looks a bit short — try adding more detail",
   "logEntry.savedSuccess": "Your work log has been saved.",
-
   "appraisal.title": "Generate Self-Appraisal",
   "appraisal.subtitle": "Turn your weekly logs into promotion-ready narratives",
   "appraisal.dateRange": "Date range",
@@ -169,7 +163,6 @@
   "appraisal.critiqueHint": "I'll suggest clearer phrasing, stronger impact, and missing details.",
   "appraisal.errorNoEntries": "No work logs in the selected range. Log some weeks first.",
   "appraisal.errorGenerate": "Could not generate the appraisal. Please try again.",
-
   "chat.title": "AI Career Coach",
   "chat.subtitle": "Ask anything about your career, performance, or growth",
   "chat.critiqueTitle": "AI Critique Assistant",
@@ -200,7 +193,6 @@
   "chat.placeholder": "Ask about your work logs...",
   "chat.disclaimer": "May produce inaccurate information about your work. Always verify important claims.",
   "chat.stopGeneration": "Stop generation",
-
   "settings.title": "Settings",
   "settings.subtitle": "Manage your profile and reminder preferences",
   "settings.profile": "Profile",
@@ -231,7 +223,6 @@
   "settings.danger": "Danger zone",
   "settings.deleteAccount": "Delete account",
   "settings.deleteAccountWarning": "This will permanently delete your account and all data. This cannot be undone.",
-
   "feedback.title": "Send Feedback",
   "feedback.subtitle": "Help us improve Impactly AI",
   "feedback.category": "What kind of feedback?",
@@ -289,13 +280,11 @@
   "feedback.viewHistory": "View",
   "feedback.hideHistory": "Hide",
   "feedback.historyToggle": "{{action}} Your Previous Feedback ({{count}})",
-
   "forgotPassword.title": "Reset your password",
   "forgotPassword.subtitle": "Enter your email and we'll send you a reset link",
   "forgotPassword.send": "Send reset link",
   "forgotPassword.sent": "If that email is registered, a reset link is on its way.",
   "forgotPassword.backToSignIn": "Back to sign in",
-
   "resetPassword.title": "Set a new password",
   "resetPassword.subtitle": "Choose a strong password you don't reuse elsewhere",
   "resetPassword.newPassword": "New password",
@@ -324,7 +313,6 @@
   "resetPassword.goToLogin": "Go to Login",
   "resetPassword.formSubtitle": "Enter your new password",
   "resetPassword.resettingBtn": "Resetting…",
-
   "verifyEmail.title": "Verifying your email…",
   "verifyEmail.success": "Email verified! Redirecting…",
   "verifyEmail.error": "We couldn't verify your email.",
@@ -336,7 +324,6 @@
   "verifyEmail.errorInvalidLink": "Invalid verification link. Please try again.",
   "verifyEmail.errorExpired": "Failed to verify email. The link may have expired.",
   "verifyEmail.errorRetry": "Failed to verify email. Please try again or contact support.",
-
   "aiPulse.title": "AI Pulse",
   "aiPulse.subtitle": "See what's new across the AI assistant landscape",
   "aiPulse.filterAll": "All",
@@ -350,7 +337,6 @@
   "aiPulse.lastUpdated": "Updated {{time}}",
   "aiPulse.empty": "No updates match your filter.",
   "aiPulse.weeklyDigest": "Weekly digest",
-
   "landing.hero.eyebrow": "AI Self-Appraisal Generator",
   "landing.hero.title": "Turn weekly work logs into promotion-ready self-appraisals",
   "landing.hero.subtitle": "Impactly AI captures what you ship every week and turns it into compelling, evidence-backed performance narratives — automatically. Private, secure, and free.",
@@ -360,8 +346,7 @@
   "landing.hero.weeklyTime": "5 min/week",
   "landing.hero.promotionReady": "Promotion-ready",
   "landing.hero.private": "End-to-end encrypted",
-
-  "landing.proof.title": "Trusted by engineers, designers, and PMs at companies of every size",
+  "landing.proof.title": "Trusted by engineers, designers, and PMs at companies",
   "landing.proof.stat1Value": "15,000+",
   "landing.proof.stat1Label": "weekly logs captured",
   "landing.proof.stat2Value": "92%",
@@ -370,7 +355,6 @@
   "landing.proof.stat3Label": "average log entry time",
   "landing.proof.stat4Value": "100%",
   "landing.proof.stat4Label": "private — your data stays yours",
-
   "landing.features.title": "Everything you need to never stare at a blank appraisal again",
   "landing.features.subtitle": "Built for the way modern teams actually work",
   "landing.features.starTitle": "STAR-format output",
@@ -385,7 +369,6 @@
   "landing.features.toneDesc": "Confident, modest, direct, or professional — match the voice that's actually authentic to you.",
   "landing.features.remindersTitle": "Gentle weekly reminders",
   "landing.features.remindersDesc": "A 9 AM Monday nudge so you never forget to log — quiet, easy to skip, easy to tune.",
-
   "landing.howItWorks.title": "Three steps from work logged to promotion earned",
   "landing.howItWorks.step1Title": "Log your week in 5 minutes",
   "landing.howItWorks.step1Desc": "Quick prompts pull out what you shipped, what blocked you, and what you learned — no essay required.",
@@ -393,12 +376,10 @@
   "landing.howItWorks.step2Desc": "Pick a date range and tone. The AI weaves your weeks into a coherent, evidence-backed narrative.",
   "landing.howItWorks.step3Title": "Refine with critique and exports",
   "landing.howItWorks.step3Desc": "Get line-level AI feedback, regenerate, copy, or download as Markdown — ready to paste into any HR system.",
-
   "landing.privacy.title": "Your work is yours. We take that seriously.",
   "landing.privacy.principle1": "Row-level security isolates your data — only you can see your logs.",
   "landing.privacy.principle2": "Your data is never used to train any AI model, including ours.",
   "landing.privacy.principle3": "Encrypted in transit and at rest, with full export and delete at any time.",
-
   "landing.faq.title": "Frequently asked questions",
   "landing.faq.q1": "Is Impactly AI really free?",
   "landing.faq.a1": "Yes. The current feature set is free while we're in early access. We'll add a paid plan later for teams and HR integrations, but the personal log-and-appraise flow will always have a free tier.",
@@ -412,11 +393,9 @@
   "landing.faq.a5": "You can download the output as Markdown and paste it into Lattice, Culture Amp, Workday, Rippling, or any other tool. Direct integrations are on the roadmap.",
   "landing.faq.q6": "What languages are supported?",
   "landing.faq.a6": "Impactly AI works in 20+ languages out of the box — English, Spanish, French, German, Portuguese, Italian, Dutch, Polish, Russian, Turkish, Arabic, Hebrew, Hindi, Bengali, Indonesian, Vietnamese, Thai, Japanese, Korean, and Chinese. The AI generates appraisals in your language automatically.",
-
   "landing.finalCta.title": "Ready to never write a self-appraisal from scratch again?",
   "landing.finalCta.subtitle": "Start logging in 2 minutes. Cancel anytime — there's nothing to cancel.",
   "landing.finalCta.button": "Start free →",
-
   "footer.product": "Product",
   "footer.company": "Company",
   "footer.legal": "Legal",
@@ -425,7 +404,6 @@
   "footer.feedback": "Feedback",
   "footer.copyright": "© {{year}} Impactly AI. All rights reserved.",
   "footer.tagline": "Privacy-first AI for working professionals.",
-
   "errors.generic": "Something went wrong. Please try again.",
   "errors.network": "Network error. Check your connection.",
   "errors.unauthorized": "Please sign in to continue.",
@@ -433,7 +411,6 @@
   "errors.notFound": "We couldn't find that.",
   "errors.rateLimited": "Too many requests. Please slow down and try again.",
   "errors.server": "The server hit an error. We're looking into it.",
-
   "landing.playground.title": "See it in action",
   "landing.playground.subtitle": "Pick a department and a tone — get a preview of what the AI generates for you.",
   "landing.playground.deptLabel": "Department",
@@ -445,7 +422,6 @@
   "landing.playground.placeholder": "Output appears here…",
   "landing.playground.generate": "Generate preview",
   "landing.playground.generating": "Drafting…",
-
   "landing.pain.title": "Built for the pain you've actually felt",
   "landing.pain.subtitle": "You know the feeling. You sit down two weeks before review and… blank.",
   "landing.pain.colOld": "Old way",
@@ -460,7 +436,6 @@
   "landing.pain.r4new": "Line-level critique on specificity, impact, and tone",
   "landing.pain.r5old": "Forgetting wins from 6 months ago",
   "landing.pain.r5new": "Searchable, dated, exportable record of every week",
-
   "privacy.title": "Privacy Policy",
   "privacy.lastUpdated": "Last updated: {{date}}",
   "privacy.intro": "This Privacy Policy describes how Impactly AI collects, uses, and protects your information.",
@@ -480,7 +455,6 @@
   "privacy.section7Body": "If we make material changes, we'll email you and update the date at the top of this page. Continued use of the service after a change indicates acceptance.",
   "privacy.section8Title": "8. Contact",
   "privacy.section8Body": "Questions or concerns: privacy@impactlyai.com.",
-
   "terms.title": "Terms of Service",
   "terms.lastUpdated": "Last updated: {{date}}",
   "terms.intro": "By using Impactly AI, you agree to these Terms of Service.",
@@ -502,7 +476,6 @@
   "terms.section8Body": "If we make material changes, we'll email you. Continued use of the service after a change indicates acceptance. If you don't accept the new terms, you can delete your account.",
   "terms.section9Title": "9. Contact",
   "terms.section9Body": "Questions: legal@impactlyai.com.",
-
   "aiPulse.hub.title": "AI Pulse Hub",
   "aiPulse.hub.subtitle": "Your daily destination for AI trends, breakthroughs, and industry impact",
   "aiPulse.hub.share": "Share",
@@ -529,7 +502,6 @@
   "aiPulse.hub.catWorldAi": "World AI",
   "aiPulse.hub.catOpenSource": "Open Source",
   "aiPulse.hub.catAiNews": "AI News",
-
   "landing.widget.title": "Interactive Playground",
   "landing.widget.heading": "Try the AI Appraisal Generator",
   "landing.widget.desc": "Select your role, pick a communication tone, and see how simple bullet points turn into high-impact self-appraisals.",
@@ -556,7 +528,6 @@
   "landing.widget.unlock": "Unlock Full Performance Document",
   "landing.widget.unlockDesc": "Export STAR reviews, career reflections, and AI chat critiques.",
   "landing.widget.joinFree": "Join Free",
-
   "landing.painGrid.painfulReality": "The Painful Reality",
   "landing.painGrid.decemberPanic": "The \"December Panic\" Method",
   "landing.painGrid.betterSolution": "The Better Solution",

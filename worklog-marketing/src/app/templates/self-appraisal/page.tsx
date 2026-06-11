@@ -188,6 +188,7 @@ export default function TemplatesIndexPage() {
           <span>© 2026 Impactly AI. All rights reserved.</span>
           <div className="flex gap-6">
             <Link href="/" className="hover:text-gray-300 transition-colors">Home</Link>
+            <Link href="/blog" className="hover:text-gray-300 transition-colors">Blog</Link>
             <Link href="/privacy" className="hover:text-gray-300 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-gray-300 transition-colors">Terms</Link>
           </div>
