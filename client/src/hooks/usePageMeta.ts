@@ -63,7 +63,7 @@ export function usePageMeta(opts: PageMetaOptions): void {
     ensureMeta('name', 'description').setAttribute('content', description)
     ensureMeta('name', 'robots').setAttribute(
       'content',
-      opts.noIndex ? 'noindex, nofollow' : 'index, follow'
+      opts.noIndex ? 'noindex, follow' : 'index, follow'
     )
 
     // Canonical
