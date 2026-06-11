@@ -51,54 +51,69 @@ export default function PrivacyPage() {
         <article className="glass-strong rounded-2xl p-8 md:p-10 space-y-8 text-gray-300 border border-white/5">
           <section>
             <h2 className="text-xl md:text-2xl font-semibold text-white mb-3">1. Information We Collect</h2>
-            <p className="leading-relaxed text-sm md:text-base">
-              We collect information you provide directly to us — your email address, name, job title, and the contents
-              of the weekly work logs and AI-generated appraisals you create inside Impactly AI.
+            <p className="leading-relaxed text-sm md:text-base mb-3">
+              We collect information you provide directly to us — your email address, name, job title, target seniority levels, and the contents
+              of the weekly work logs and AI-generated appraisals you create inside Impactly AI. This includes accomplishments, project metrics,
+              hurdles overcome, and team contribution summaries.
+            </p>
+            <p className="leading-relaxed text-sm md:text-base text-gray-400">
+              We also collect automated telemetry and system data when you interact with the app. This includes cookies, local browser storage,
+              anonymized usage logs, browser type, device information, and referral sources to help optimize performance and user experience.
             </p>
           </section>
 
           <section>
             <h2 className="text-xl md:text-2xl font-semibold text-white mb-3">2. How We Use Your Information</h2>
-            <p className="leading-relaxed text-sm md:text-base">
-              Your work-log entries are processed by Mistral-hosted AI models to generate self-appraisals scoped to your
-              account. We do not use your private logs to train large language models — neither ours nor anyone else&apos;s.
+            <p className="leading-relaxed text-sm md:text-base mb-3">
+              Your work-log entries are processed by Mistral-hosted AI models to generate structured, STAR-formatted self-appraisals scoped to your
+              account. We use this data strictly to provide, maintain, and support the application.
+            </p>
+            <p className="leading-relaxed text-sm md:text-base text-indigo-300/95 font-medium">
+              We enforce a strict privacy boundary: we do not use your private work logs, goals, metrics, or generated evaluations to train large language models — neither ours nor any third-party providers. Your data remains strictly isolated.
             </p>
           </section>
 
           <section>
             <h2 className="text-xl md:text-2xl font-semibold text-white mb-3">3. Information Sharing</h2>
-            <p className="leading-relaxed text-sm md:text-base">
-              We do not sell your personal data. Data is shared only with the third-party service providers strictly
-              required to operate Impactly AI: Supabase (database + auth), Mistral (AI inference), Resend (email),
-              Vercel and Render (hosting), and PostHog / Google Analytics (anonymized product analytics).
+            <p className="leading-relaxed text-sm md:text-base mb-3">
+              We do not sell, rent, or trade your personal data. Data is shared only with trusted third-party service providers strictly
+              required to host and operate the Impactly AI infrastructure:
             </p>
+            <ul className="list-disc pl-5 space-y-1 text-sm text-gray-400">
+              <li><strong>Supabase:</strong> For cloud database storage, authentication routing, and Row-Level Security containment.</li>
+              <li><strong>Mistral AI:</strong> For processing work logs into structured appraisal drafts via secure API channels.</li>
+              <li><strong>Resend:</strong> For transactional emails, account notifications, and weekly check-in reminders.</li>
+              <li><strong>Vercel and Render:</strong> For hosting web application servers and front-end assets.</li>
+              <li><strong>PostHog and Google Analytics:</strong> For tracking anonymized user flows and interaction telemetry.</li>
+            </ul>
           </section>
 
           <section className="p-6 bg-indigo-500/5 border border-indigo-500/20 rounded-xl">
             <h2 className="text-xl md:text-2xl font-bold text-white mb-3">4. Data Security</h2>
             <p className="leading-relaxed text-sm md:text-base mb-3">
-              All data is encrypted in transit (TLS 1.3) and at rest. We enforce database-level Row-Level Security so
-              that every query returns only the rows owned by the authenticated user — your accomplishments are
-              cryptographically isolated from every other tenant.
+              All data is encrypted in transit using TLS 1.3 and at rest using AES-256 standards. We enforce database-level Row-Level Security (RLS) so
+              that every backend database query is cryptographically filtered to return only the rows owned by the currently authenticated user session.
             </p>
             <p className="leading-relaxed text-sm md:text-base text-gray-400">
-              No system is impenetrable. You accept that Impactly AI is not liable for breaches outside our reasonable
-              control. Please exercise discretion and avoid entering classified or trade-secret information.
+              While we implement state-of-the-art protections, no database or network is entirely impenetrable. You accept that Impactly AI is not liable for breaches outside our reasonable control. Please exercise discretion and avoid entering classified company secrets.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl md:text-2xl font-semibold text-white mb-3">5. Data Retention</h2>
-            <p className="leading-relaxed text-sm md:text-base">
-              We retain your data for as long as your account is active. You can request deletion of your account and
-              associated data at any time by emailing us from the address on your account.
+            <h2 className="text-xl md:text-2xl font-semibold text-white mb-3">5. Data Retention & Deletion</h2>
+            <p className="leading-relaxed text-sm md:text-base mb-3">
+              We retain your data for as long as your account is active to provide you with historical log features. You can request deletion of your account and
+              associated data at any time.
+            </p>
+            <p className="leading-relaxed text-sm md:text-base text-gray-400">
+              Upon requesting deletion via support channels, your database entries will be wiped from active database tables, and backup logs will cycle out within a standard 30-day window.
             </p>
           </section>
 
           <section>
             <h2 className="text-xl md:text-2xl font-semibold text-white mb-3">6. Contact</h2>
             <p className="leading-relaxed text-sm md:text-base">
-              For privacy questions, use the in-app feedback form or email the address listed in your account settings.
+              For any questions regarding this Privacy Policy or your data, please contact us using the in-app feedback forms or email the support address listed in your account settings dashboard.
             </p>
           </section>
         </article>
@@ -109,6 +124,8 @@ export default function PrivacyPage() {
           <span>© 2026 Impactly AI. All rights reserved.</span>
           <div className="flex gap-6">
             <Link href="/" className="hover:text-gray-300 transition-colors">Home</Link>
+            <Link href="/blog" className="hover:text-gray-300 transition-colors">Blog</Link>
+            <Link href="/templates/self-appraisal" className="hover:text-gray-300 transition-colors">Templates</Link>
             <Link href="/terms" className="hover:text-gray-300 transition-colors">Terms</Link>
           </div>
         </div>
