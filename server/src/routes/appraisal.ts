@@ -154,6 +154,17 @@ appraisalRoutes.post('/generate', requireAuth, async (req: AuthRequest, res) => 
     const lang = await resolveUserLanguage(req, profileRow?.preferred_language)
     const langInstruction = languageInstruction(lang)
 
+    // Org-goals alignment: when the user opted in (during onboarding or in
+    // Settings), steer the AI to frame wins against company/team objectives.
+    const { data: userRow } = await supabase
+      .from('users')
+      .select('org_goals_alignment')
+      .eq('id', userId)
+      .single()
+    const orgGoalsInstruction = userRow?.org_goals_alignment
+      ? '\nThe user has opted to align their appraisal with their organisation\'s goals. Frame each accomplishment to show how it advances broader company and team objectives, using outcome-oriented, organisation-aligned language.\n'
+      : ''
+
     // Build the prompt for Mistral
     const workLogsText = workLogs.map((log, i) => `
 Week ${i + 1} (${log.week_start_date}):
@@ -165,7 +176,7 @@ ${log.hours_logged ? `- Hours logged: ${log.hours_logged}` : ''}
 `).join('\n\n')
 
     const prompt = `You are helping someone write their self-appraisal. Write a professional, polished self-appraisal based on their work logs and the company's appraisal criteria.
-${langInstruction}
+${langInstruction}${orgGoalsInstruction}
 COMPANY APPRAISAL CRITERIA:
 ${body.criteria_text}
 ${body.company_goals ? `\nCOMPANY GOALS:\n${body.company_goals}` : ''}

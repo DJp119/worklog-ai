@@ -22,7 +22,7 @@ userRoutes.get('/profile', async (req: AuthRequest, res: Response) => {
 
         const { data: user, error } = await supabase
             .from('users')
-            .select('id, email, name, company_name, job_title, reminder_day, reminder_time, reminder_enabled, email_verified, created_at')
+            .select('id, email, name, first_name, company_name, job_title, industry, function, years_experience, company_size, review_frequency, org_goals_alignment, onboarding_completed, reminder_day, reminder_time, reminder_enabled, email_verified, created_at')
             .eq('id', userId)
             .single()
 
@@ -47,8 +47,16 @@ userRoutes.get('/profile', async (req: AuthRequest, res: Response) => {
                 id: user.id,
                 email: user.email,
                 name: user.name,
+                firstName: user.first_name ?? null,
                 companyName: user.company_name,
                 jobTitle: user.job_title,
+                industry: user.industry ?? null,
+                function: user.function ?? null,
+                yearsExperience: user.years_experience ?? null,
+                companySize: user.company_size ?? null,
+                reviewFrequency: user.review_frequency ?? null,
+                orgGoalsAlignment: user.org_goals_alignment ?? false,
+                onboardingCompleted: user.onboarding_completed ?? false,
                 reminderDay: user.reminder_day,
                 reminderTime: user.reminder_time,
                 reminderEnabled: user.reminder_enabled,
@@ -74,8 +82,16 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
 
         // Accept both camelCase (from API client) and snake_case
         const name = body.name
+        const first_name = body.first_name ?? body.firstName
         const company_name = body.company_name ?? body.companyName
         const job_title = body.job_title ?? body.jobTitle
+        const industry = body.industry
+        const job_function = body.function ?? body.jobFunction
+        const years_experience = body.years_experience ?? body.yearsExperience
+        const company_size = body.company_size ?? body.companySize
+        const review_frequency = body.review_frequency ?? body.reviewFrequency
+        const org_goals_alignment = body.org_goals_alignment ?? body.orgGoalsAlignment
+        const onboarding_completed = body.onboarding_completed ?? body.onboardingCompleted
         const reminder_day = body.reminder_day ?? body.reminderDay
         const reminder_time = body.reminder_time ?? body.reminderTime
         const reminder_enabled = body.reminder_enabled ?? body.reminderEnabled
@@ -96,8 +112,16 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
         const updateData: Record<string, any> = {}
 
         if (name !== undefined) updateData.name = name
+        if (first_name !== undefined) updateData.first_name = first_name
         if (company_name !== undefined) updateData.company_name = company_name
         if (job_title !== undefined) updateData.job_title = job_title
+        if (industry !== undefined) updateData.industry = industry
+        if (job_function !== undefined) updateData.function = job_function
+        if (years_experience !== undefined) updateData.years_experience = years_experience
+        if (company_size !== undefined) updateData.company_size = company_size
+        if (review_frequency !== undefined) updateData.review_frequency = review_frequency
+        if (org_goals_alignment !== undefined) updateData.org_goals_alignment = org_goals_alignment
+        if (onboarding_completed !== undefined) updateData.onboarding_completed = onboarding_completed
         if (reminder_day !== undefined) updateData.reminder_day = reminder_day
         if (reminder_time !== undefined) updateData.reminder_time = reminder_time
         if (reminder_enabled !== undefined) updateData.reminder_enabled = reminder_enabled
@@ -177,8 +201,16 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
                 id: user.id,
                 email: user.email,
                 name: user.name,
+                firstName: user.first_name ?? null,
                 companyName: user.company_name,
                 jobTitle: user.job_title,
+                industry: user.industry ?? null,
+                function: user.function ?? null,
+                yearsExperience: user.years_experience ?? null,
+                companySize: user.company_size ?? null,
+                reviewFrequency: user.review_frequency ?? null,
+                orgGoalsAlignment: user.org_goals_alignment ?? false,
+                onboardingCompleted: user.onboarding_completed ?? false,
                 reminderDay: user.reminder_day,
                 reminderTime: user.reminder_time,
                 reminderEnabled: user.reminder_enabled,

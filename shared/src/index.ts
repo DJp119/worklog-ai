@@ -107,8 +107,16 @@ export interface UserProfile {
     id: string
     email: string
     name?: string
+    first_name?: string | null
     company_name?: string
     job_title?: string
+    industry?: string | null
+    function?: string | null
+    years_experience?: string | null
+    company_size?: string | null
+    review_frequency?: string | null
+    org_goals_alignment?: boolean
+    onboarding_completed?: boolean
     reminder_day: number
     reminder_time: string
     reminder_enabled: boolean
@@ -119,11 +127,25 @@ export interface UserProfile {
 
 export interface UpdateProfileRequest {
     name?: string
+    first_name?: string | null
     company_name?: string
     job_title?: string
+    industry?: string | null
+    function?: string | null
+    years_experience?: string | null
+    company_size?: string | null
+    review_frequency?: string | null
+    org_goals_alignment?: boolean
+    onboarding_completed?: boolean
     reminder_day?: number
     reminder_time?: string
     reminder_enabled?: boolean
+}
+
+// Waitlist types
+export interface JoinWaitlistRequest {
+    email: string
+    source?: string
 }
 
 // Auth types

@@ -13,6 +13,7 @@ import { chatRoutes } from './routes/chat.js'
 import { feedbackRoutes } from './routes/feedback.js'
 import { aiPulseRoutes } from './routes/aiPulse.js'
 import { translateRoutes } from './routes/translate.js'
+import { waitlistRoutes } from './routes/waitlist.js'
 import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { newsCollectionJob } from './jobs/newsCollectionJob.js'
@@ -142,6 +143,7 @@ app.use('/api/chat', chatRoutes)
 app.use('/api/feedback', feedbackRoutes)
 app.use('/api/ai-pulse', aiPulseRoutes)
 app.use('/api/translate', translateRoutes)
+app.use('/api/waitlist', waitlistRoutes)
 
 // Root route
 app.get('/', (req, res) => {

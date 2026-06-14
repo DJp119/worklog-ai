@@ -25,6 +25,26 @@ interface Preset {
 
 const PRESETS: Preset[] = [
   {
+    role: "engineering",
+    label: "landing.widget.roleEngineering",
+    icon: Terminal,
+    rawInput: "Fixed the lag in database queries and made the dashboard load faster.",
+    tones: {
+      data: {
+        accomplishment: "Optimized complex SQL queries and indexed database tables to slash dashboard load times.",
+        appraisal: "During this review period, I identified and resolved a critical latency issue in our primary analytics dashboard. By auditing active database sessions, refactoring inefficient nested queries, and implementing optimal database indexing, I successfully reduced SQL query execution times by 68%. This directly improved the dashboard's average page load time from 4.2 seconds down to a highly responsive 1.1 seconds."
+      },
+      collaborative: {
+        accomplishment: "Worked closely with frontend devs and QA to identify performance bottlenecks and speed up the page.",
+        appraisal: "To tackle dashboard load delays, I collaborated closely with frontend developers and QA engineers. I organized a performance workshop to profile our API layer, aligning the team on a unified caching strategy. By working together to deploy redis middleware and resolve query bottlenecks, we achieved a smooth page experience, vastly improving usability for our client base."
+      },
+      leadership: {
+        accomplishment: "Led the performance task force to optimize core data models and establish site speed standards.",
+        appraisal: "Recognizing that loading latency was impacting user retention, I initiated and led a performance optimization task force. I took charge of auditing our core data access layers, delegating optimization tasks, and setting strict load-time SLA benchmarks. Under my guidance, the team restructured our indexing schema, resulting in an immediate 70% decrease in server latency and establishing new optimization templates for future features."
+      }
+    }
+  },
+  {
     role: "general",
     label: "landing.widget.roleGeneral",
     icon: User,
@@ -83,32 +103,12 @@ const PRESETS: Preset[] = [
         appraisal: "Confronted with potential contract cancellations, I developed and spearheaded a new 'Account Rescue Protocol'. I took direct ownership of our primary enterprise account during a critical transition period, coordinating cross-functional resources to address product gaps. The success of this methodology not only salvaged a major account but has now been adopted as our official team-wide playbook for handling high-risk accounts."
       }
     }
-  },
-  {
-    role: "engineering",
-    label: "landing.widget.roleEngineering",
-    icon: Terminal,
-    rawInput: "Fixed the lag in database queries and made the dashboard load faster.",
-    tones: {
-      data: {
-        accomplishment: "Optimized complex SQL queries and indexed database tables to slash dashboard load times.",
-        appraisal: "During this review period, I identified and resolved a critical latency issue in our primary analytics dashboard. By auditing active database sessions, refactoring inefficient nested queries, and implementing optimal database indexing, I successfully reduced SQL query execution times by 68%. This directly improved the dashboard's average page load time from 4.2 seconds down to a highly responsive 1.1 seconds."
-      },
-      collaborative: {
-        accomplishment: "Worked closely with frontend devs and QA to identify performance bottlenecks and speed up the page.",
-        appraisal: "To tackle dashboard load delays, I collaborated closely with frontend developers and QA engineers. I organized a performance workshop to profile our API layer, aligning the team on a unified caching strategy. By working together to deploy redis middleware and resolve query bottlenecks, we achieved a smooth page experience, vastly improving usability for our client base."
-      },
-      leadership: {
-        accomplishment: "Led the performance task force to optimize core data models and establish site speed standards.",
-        appraisal: "Recognizing that loading latency was impacting user retention, I initiated and led a performance optimization task force. I took charge of auditing our core data access layers, delegating optimization tasks, and setting strict load-time SLA benchmarks. Under my guidance, the team restructured our indexing schema, resulting in an immediate 70% decrease in server latency and establishing new optimization templates for future features."
-      }
-    }
   }
 ];
 
 export default function PlaygroundWidget() {
   const { t } = useTranslation();
-  const [activeRole, setActiveRole] = useState("general");
+  const [activeRole, setActiveRole] = useState("engineering");
   const [activeTone, setActiveTone] = useState("data");
   const [userInput, setUserInput] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
