@@ -45,7 +45,7 @@ export const ImpactCard: React.FC<ImpactCardProps> = ({
   const style = impactStyles[impactLevel];
 
   // Helper to ensure values are arrays, parsing strings if necessary
-  const ensureArray = (val: any): string[] => {
+  const ensureArray = (val: string | string[] | null | undefined | unknown): string[] => {
     if (Array.isArray(val)) return val;
     if (typeof val === 'string') {
       const trimmed = val.trim();

@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { getEntries } from '../lib/api'
+import { getEntries, getProfile } from '../lib/api'
 import type { WorkLogEntry } from 'shared'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { formatDate } from '../lib/formatters'
+
+const PROFILE_NUDGE_DISMISSED_KEY = 'impactly_profile_nudge_dismissed'
 
 interface DashboardStats {
   totalWeeks: number
@@ -23,10 +25,38 @@ export default function Dashboard() {
   const [entries, setEntries] = useState<WorkLogEntry[]>([])
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [currentWeekLogged, setCurrentWeekLogged] = useState(false)
+  const [showProfileNudge, setShowProfileNudge] = useState(false)
 
   useEffect(() => {
     loadDashboard()
+    checkProfileCompleteness()
   }, [])
+
+  async function checkProfileCompleteness() {
+    if (typeof window !== 'undefined' && localStorage.getItem(PROFILE_NUDGE_DISMISSED_KEY) === '1') {
+      return
+    }
+    try {
+      const profile = await getProfile()
+      // Show the nudge when key personalization details are missing (e.g. the
+      // user skipped onboarding). Review frequency drives reminder timing, so
+      // the banner copy calls it out specifically.
+      if (!profile.reviewFrequency) {
+        setShowProfileNudge(true)
+      }
+    } catch (error) {
+      console.error('Failed to check profile completeness:', error)
+    }
+  }
+
+  function dismissProfileNudge() {
+    setShowProfileNudge(false)
+    try {
+      localStorage.setItem(PROFILE_NUDGE_DISMISSED_KEY, '1')
+    } catch {
+      /* quota — ignore */
+    }
+  }
 
   async function loadDashboard() {
     setLoading(true)
@@ -171,6 +201,38 @@ export default function Dashboard() {
           </Link>
         )}
       </div>
+
+      {/* Complete-profile nudge (shown when onboarding was skipped/incomplete) */}
+      {showProfileNudge && (
+        <div className="glass border border-indigo-500/20 rounded-xl p-5">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-white">{t('dashboard.completeProfileTitle')}</h3>
+              <p className="mt-1 text-sm text-gray-400">{t('dashboard.completeProfileDesc')}</p>
+              <div className="mt-3 flex items-center gap-4">
+                <Link
+                  to="/onboarding"
+                  className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  {t('dashboard.completeProfileCta')}
+                </Link>
+                <button
+                  type="button"
+                  onClick={dismissProfileNudge}
+                  className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  {t('dashboard.dismiss')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Current Week Status */}
       {currentWeekLogged ? (

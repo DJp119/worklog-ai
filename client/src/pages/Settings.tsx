@@ -5,10 +5,23 @@ import { getProfile, updateProfile } from '../lib/api'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { supportedLanguages } from '../i18n/useAutoLocale'
 import { getLocalizedDayNames, formatHourOption } from '../lib/formatters'
+import {
+  INDUSTRY_OPTIONS,
+  FUNCTION_OPTIONS,
+  YEARS_EXPERIENCE_OPTIONS,
+  COMPANY_SIZE_OPTIONS,
+  REVIEW_FREQUENCY_OPTIONS,
+} from '../lib/onboardingOptions'
 
 interface Profile {
   company_name: string
   job_title: string
+  industry: string
+  function: string
+  years_experience: string
+  company_size: string
+  review_frequency: string
+  org_goals_alignment: boolean
   reminder_day: number
   reminder_hour: number
   reminder_enabled: boolean
@@ -53,6 +66,12 @@ export default function Settings() {
   const [profile, setProfile] = useState<Profile>({
     company_name: '',
     job_title: '',
+    industry: '',
+    function: '',
+    years_experience: '',
+    company_size: '',
+    review_frequency: '',
+    org_goals_alignment: false,
     reminder_day: 1,
     reminder_hour: 9,
     reminder_enabled: true,
@@ -83,6 +102,12 @@ export default function Settings() {
       setProfile({
         company_name: data.companyName || '',
         job_title: data.jobTitle || '',
+        industry: data.industry || '',
+        function: data.function || '',
+        years_experience: data.yearsExperience || '',
+        company_size: data.companySize || '',
+        review_frequency: data.reviewFrequency || '',
+        org_goals_alignment: data.orgGoalsAlignment ?? false,
         reminder_day: data.reminderDay ?? 1,
         reminder_hour: utcTimeToLocalHour(data.reminderTime || '09:00'),
         reminder_enabled: data.reminderEnabled ?? true,
@@ -163,6 +188,12 @@ export default function Settings() {
       await updateProfile({
         companyName: profile.company_name,
         jobTitle: profile.job_title,
+        industry: profile.industry || null,
+        function: profile.function || null,
+        yearsExperience: profile.years_experience || null,
+        companySize: profile.company_size || null,
+        reviewFrequency: profile.review_frequency || null,
+        orgGoalsAlignment: profile.org_goals_alignment,
         reminderDay: profile.reminder_day,
         reminderTime: localHourToUtc(profile.reminder_hour),
         reminderEnabled: profile.reminder_enabled,
@@ -369,6 +400,116 @@ export default function Settings() {
               ) : (
                 t('settings.saveProfile')
               )}
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* Personalization Settings */}
+      <div className="glass-strong rounded-xl p-6 border border-white/10">
+        <h2 className="text-lg font-semibold text-white mb-1">{t('settings.personalization')}</h2>
+        <p className="text-sm text-gray-400 mb-4">{t('settings.personalizationHelp')}</p>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="industry" className="block text-sm font-medium text-gray-300">
+              {t('settings.industryLabel')}
+            </label>
+            <select
+              id="industry"
+              value={profile.industry}
+              onChange={(e) => handleChange('industry', e.target.value)}
+              className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            >
+              <option value="" className="bg-[#0a0a0f]">{t('settings.notSet')}</option>
+              {INDUSTRY_OPTIONS.map((o) => <option key={o} value={o} className="bg-[#0a0a0f]">{o}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label htmlFor="function" className="block text-sm font-medium text-gray-300">
+              {t('settings.functionLabel')}
+            </label>
+            <select
+              id="function"
+              value={profile.function}
+              onChange={(e) => handleChange('function', e.target.value)}
+              className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            >
+              <option value="" className="bg-[#0a0a0f]">{t('settings.notSet')}</option>
+              {FUNCTION_OPTIONS.map((o) => <option key={o} value={o} className="bg-[#0a0a0f]">{o}</option>)}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="years_experience" className="block text-sm font-medium text-gray-300">
+                {t('settings.yearsLabel')}
+              </label>
+              <select
+                id="years_experience"
+                value={profile.years_experience}
+                onChange={(e) => handleChange('years_experience', e.target.value)}
+                className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              >
+                <option value="" className="bg-[#0a0a0f]">{t('settings.notSet')}</option>
+                {YEARS_EXPERIENCE_OPTIONS.map((o) => <option key={o} value={o} className="bg-[#0a0a0f]">{o}</option>)}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="company_size" className="block text-sm font-medium text-gray-300">
+                {t('settings.companySizeLabel')}
+              </label>
+              <select
+                id="company_size"
+                value={profile.company_size}
+                onChange={(e) => handleChange('company_size', e.target.value)}
+                className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+              >
+                <option value="" className="bg-[#0a0a0f]">{t('settings.notSet')}</option>
+                {COMPANY_SIZE_OPTIONS.map((o) => <option key={o} value={o} className="bg-[#0a0a0f]">{o}</option>)}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="review_frequency" className="block text-sm font-medium text-gray-300">
+              {t('settings.reviewFrequencyLabel')}
+            </label>
+            <select
+              id="review_frequency"
+              value={profile.review_frequency}
+              onChange={(e) => handleChange('review_frequency', e.target.value)}
+              className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            >
+              <option value="" className="bg-[#0a0a0f]">{t('settings.notSet')}</option>
+              {REVIEW_FREQUENCY_OPTIONS.map((o) => <option key={o} value={o} className="bg-[#0a0a0f]">{o}</option>)}
+            </select>
+          </div>
+
+          {/* Org goals alignment toggle */}
+          <div className="flex items-start justify-between gap-4 rounded-lg border border-white/10 bg-white/[0.02] p-4">
+            <div>
+              <p className="text-sm font-medium text-gray-200">{t('settings.orgGoalsLabel')}</p>
+              <p className="text-xs text-gray-500 mt-1">{t('settings.orgGoalsHelp')}</p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={profile.org_goals_alignment}
+              onClick={() => handleChange('org_goals_alignment', !profile.org_goals_alignment)}
+              className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${profile.org_goals_alignment ? 'bg-indigo-500' : 'bg-white/10'}`}
+            >
+              <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${profile.org_goals_alignment ? 'translate-x-6' : 'translate-x-1'}`} />
+            </button>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full flex justify-center py-3 px-4 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 hover:from-indigo-600 hover:via-purple-600 hover:to-indigo-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all glow-primary"
+            >
+              {loading ? t('common.saving') : t('settings.savePreferences')}
             </button>
           </div>
         </form>
