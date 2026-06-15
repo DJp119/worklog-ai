@@ -576,3 +576,315 @@ CREATE INDEX idx_org_integrations_jira_org
 ```
 
 *Review completed 2026-06-16. Bugs 1-3 are blocking (runtime/compile errors or security). Issues 4-8 are high confidence structural fixes. Improvements 9-15 are quality/correctness enhancements. Notes 16-20 are minor.*
+
+---
+
+## Second Review Pass — Additional Findings (2026-06-16)
+
+### 🔴 Bug A — **CORRECTION CONTRADICTS ITSELF** (Plan Review section — line 291 vs 295)
+Items 11 and 27 in the Plan Review section directly contradict each other, and the contradiction is invisible because both are labeled "Correction":
+
+- **Item 11 (line 291)**: *"Added PostgreSQL advisory locking (`pg_try_advisory_xact_lock`) for each user ID."* — transaction-level.
+- **Item 27 (line 295)**: *"Use a lock-free status check... or session-level advisory locks (`pg_try_advisory_lock` / `pg_advisory_unlock`) instead of transaction-level locks."* — corrects item 11.
+
+Item 11 is a **copy of the broken original plan decision** that should NOT be in the review section at all — it was the original architecture. Including it as Item 11 with "Correction:" prefix is misleading. An implementer reading sequentially could implement item 11's approach (transaction-level locks that hold connections during API calls), never noticing it was already contradicted at item 27.
+
+**Fix:** Remove Item 11 from the review section. The session-level advisory lock approach at item 27 is the correct final state. The review section should only contain the 33 corrections derived from prior review passes — not a mix of original mistakes and corrections with no label distinguishing what is "original" vs "corrected."
+
+---
+
+### 🔴 Bug B — **My own `viewable_user_ids` function (written in Bug 1) uses wrong role threshold — managers excluded**
+The SQL I wrote in **Bug 1** has a semantic error in the role check for descendant team visibility:
+
+```sql
+-- WRONG (what I wrote): uses 'admin', 'owner' only
+my_managed_teams AS (
+  SELECT descendant_id AS team_id
+  FROM team_members tm
+  JOIN team_closure tc ON tm.team_id = tc.ancestor_id
+  WHERE tm.user_id = p_user_id AND tm.org_id = p_org_id
+    AND tm.role IN ('admin', 'owner')  -- ← BUG: misses 'manager'
+)
+```
+
+The architecture decision (line 36) clearly states: *"team descendant visibility is granted at role ≥ manager"*. The rank map is `{member:1, manager:2, admin:3, owner:4}`. A **manager** must be able to see descendants' team members. My function excludes them.
+
+Additionally, my member teams check uses `role = 'member'` only. A **manager** on a specific team should also be able to see other members of that same team (role = member, via the member-teams branch). A manager who has no admin/owner status on any team would get zero results from the member check.
+
+**Fix:** Correct the function:
+```sql
+-- CORRECTED
+my_managed_teams AS (
+  -- Admin/owner/manager: see all descendant team members
+  SELECT descendant_id AS team_id
+  FROM team_members tm
+  JOIN team_closure tc ON tm.team_id = tc.ancestor_id
+  WHERE tm.user_id = p_user_id AND tm.org_id = p_org_id
+    AND tm.role IN ('manager', 'admin', 'owner')
+),
+my_member_teams AS (
+  -- member/admin/owner/manager: see members of teams I'm directly on
+  SELECT team_id FROM team_members
+  WHERE user_id = p_user_id AND org_id = p_org_id
+    AND role IN ('member', 'manager', 'admin', 'owner') -- all roles can see their team's members
+)
+```
+
+---
+
+### 🔴 Bug C — **`getEffectiveTeamRole` function algorithm not specified**
+Phase 1 (line 100) describes the function output as the **max** of three role sources:
+- Direct team role
+- Inherited admin/owner from any ancestor team (via closure)
+- Org owner/admin
+
+But the algorithm for computing this max is nowhere in the plan. An implementer would have to derive it. It's non-trivial because it requires:
+1. Query `team_members` for direct role on `teamId`
+2. Query `team_closure` for all ancestor teams, join to `team_members` for those ancestors, find max role among them
+3. Query `org_members` for org role
+
+The correct implementation uses the numeric rank map: `Math.max(directRank, maxAncestorRank, orgRank)`. If any rank is null, treat as 0. The function should return `null` if the user is not on the team AND not org admin/owner (i.e., no access to this team at all).
+
+**Fix:** Write the pseudocode in the `authz.ts` section:
+```ts
+async function getEffectiveTeamRole(
+  db: SupabaseClient,
+  userId: string,
+  teamId: string
+): Promise<TeamRole | null> {
+  // Must be org member to have any team access
+  const orgId = await getOrgIdForTeam(db, teamId);
+  if (!orgId) return null;
+  const orgRole = await getUserOrgRole(db, userId, orgId);
+  if (orgRole === 'admin' || orgRole === 'owner') return orgRole; // org escape hatch
+
+  // Direct team role
+  const direct = await db.from('team_members')
+    .select('role').eq('user_id', userId).eq('team_id', teamId).single();
+
+  // Ancestor team roles
+  const ancestors = await db.from('team_closure tc')
+    .select('tm.role')
+    .join('team_members tm', 'tc.ancestor_id', 'tm.team_id')
+    .where('tc.descendant_id', teamId)
+    .where('tm.user_id', userId);
+
+  const allRoles = [
+    direct?.role,
+    ...ancestors.map(r => r.role as TeamRole),
+    orgRole as TeamRole | null,
+  ].filter((r): r is TeamRole => r !== null && r !== undefined);
+
+  if (allRoles.length === 0) return null;
+
+  const ranks = allRoles.map(r => TEAM_ROLE_RANK[r]);
+  const maxRank = Math.max(...ranks);
+  return (Object.entries(TEAM_ROLE_RANK) as [TeamRole, number][])
+    .find(([, v]) => v === maxRank)?.[0] ?? null;
+}
+```
+
+---
+
+### 🟡 Bug D — **`canEditGoal` check-in case doesn't verify assignees**
+Line 102: *"individual self-goal assignee ⇒ true for progress check-ins only."*
+
+The check-in path (updating progress via `goal_updates`) is gated by "individual self-goal assignee." But the described logic does not actually CHECK that the calling user is assigned to the goal. It only verifies:
+1. User is org member
+2. User is admin/owner OR (goal.created_by = user AND scope = 'individual') OR (team/dept scope ⇒ canManageTeam)
+
+For "individual self-goal assignee," the plan says true for progress check-ins. But `goal.created_by = user` is NOT the same as being an ASSIGNEE. Someone could be assigned to a goal they didn't create. They should be able to check in even though `created_by ≠ userId`. The condition should check `goal_assignees.user_id = $userId`, not `created_by`.
+
+**Fix:** Change the Phase 1 `canEditGoal` logic for the check-in case to:
+```ts
+// For progress check-ins (updates to goal_updates):
+if (goal.scope === 'individual') {
+  // Can check in if: you created it OR you are assigned to it
+  return goal.created_by === userId ||
+    await db.from('goal_assignees').select('goal_id')
+      .eq('goal_id', goal.id).eq('user_id', userId).single() !== null;
+}
+```
+
+---
+
+### 🟡 Bug E — **Advisory locks have no expiry — crash orphans block future runs indefinitely**
+Issue 27 corrected the lock type from `pg_try_advisory_xact_lock` (transaction-level) to `pg_try_advisory_lock` (session-level), which is correct. But session-level advisory locks have **no TTL** — if the Node process holding the lock crashes or is hard-killed, `pg_advisory_unlock` is never called. The lock persists until PostgreSQL detects the session is dead (typically on next query from that connection back to the pool), but in a pooling scenario (e.g., PgBouncer), the connection might be reused before PostgreSQL notices.
+
+Additionally, the plan says to use a session-level advisory lock with `finally { pg_advisory_unlock }`, but there's **no lock acquisition timeout**. If two instances of the job try to lock the same org's goals simultaneously, one waits indefinitely.
+
+**Fix:** Add explicit timeout handling:
+```ts
+const lockResult = await db.raw(
+  `SELECT pg_try_advisory_lock(?) AS acquired`,
+  [lockKey]
+).timeout(5000); // 5-second timeout
+
+if (!lockResult.rows[0].acquired) {
+  logger.warn(`Could not acquire lock for org {} — another instance running`, orgId);
+  continue; // skip this org, try next
+}
+```
+Also document that a daily cleanup job should handle stale locks:
+```sql
+-- Run daily to release locks held by dead sessions
+SELECT pg_advisory_unlock(key)
+FROM (
+  SELECT key, pid FROM pg_locks WHERE locktype = 'advisory'
+    AND granted AND NOT EXISTS (
+      SELECT 1 FROM pg_stat_activity WHERE pid = pg_locks.pid AND state = 'active'
+    )
+) dead WHERE EXTRACT(EPOCH FROM NOW() - query_start) > 3600;
+```
+
+---
+
+### 🟡 Bug F — **JIRA `accessible-resources` returns MULTIPLE sites — plan doesn't handle**
+Phase 2 says: "call `accessible-resources` for available sites." The Atlassian `GET /rest/api/2/accessible-resources` endpoint returns **all JIRA sites** the authenticated user has access to — potentially multiple, across multiple organizations. For org-level JIRA (one site per org), the plan assumes exactly one site. But if the org admin has access to 3 JIRA sites and calls `accessible-resources`, the plan doesn't specify which `cloudId` to store in `org_integrations`.
+
+Additionally, the user-level JIRA connection also calls `accessible-resources` (for cloudId) — but if multiple sites are returned, which one is the user's "personal" JIRA?
+
+**Fix:** For org-level:
+- If exactly 1 site: auto-select
+- If multiple: show site selection UI (this is already described for some flows), require admin to pick
+- If 0: show error "No JIRA sites found"
+
+For user-level:
+- Store ALL accessible `cloudId` values in `user_integrations.config.cloudIds[]` (array)
+- When listing user issues, iterate all clouds
+- When linking to a goal, the user specifies which JIRA site the issue comes from
+
+---
+
+### 🟡 Bug G — **GitHub App callback WITHOUT `state` payload — installation_id still available**
+Line 145 says: *"If the app installation is initiated directly from GitHub without a `state` payload, redirect the logged-in user to an organization linking page in the client."*
+
+But GitHub's OAuth callback for GitHub Apps **always includes `installation_id`** in the URL query parameter, even when no `state` was passed. We can look up the installation via GitHub's API (`GET /app/installations/{installation_id}`) to get the account (org) name, then match it against our `organizations` table by slug or name. This should be attempted before redirecting to a "link org" page, reducing user friction.
+
+**Fix:** Update `server/src/lib/githubApp.ts` callback:
+```ts
+const installationId = req.query.installation_id;
+if (!state && installationId) {
+  // GitHub ALWAYS passes installation_id in the callback URL
+  const { data: installation } = await app.client.apps.getInstallation({
+    installation_id: parseInt(installationId, 10)
+  });
+  if (installation.target_type === 'Organization') {
+    // Try to auto-match by org slug
+    const org = await db.from('organizations')
+      .select('id').ilike('slug', installation.account.login.toLowerCase())
+      .single();
+    if (org) {
+      // Store installation.id under matched org
+      await storeInstallation(org.id, installation);
+      return res.redirect(`${FRONTEND_URL}/integrations?github_connected=true`);
+    }
+  }
+}
+// Fallback to manual org linking
+return res.redirect(`${FRONTEND_URL}/integrations/link-github?installation_id=${installationId}`);
+```
+
+---
+
+### 🟡 Bug H — **`department_id` unique constraint is wrong**
+Line 49: `departments(id, org_id, name, UNIQUE(id, org_id))` — this is a no-op. `UNIQUE(id, org_id)` where `id` is the PRIMARY KEY of the same table means `(id, org_id)` is unique whenever `id` is unique, which is always since `id` is the PK. This constraint adds nothing.
+
+The actual intent is probably to enforce UNIQUE `(org_id, name)` within an organization (no duplicate department names). But the plan doesn't specify this at all, leaving the unique department name constraint missing entirely.
+
+**Fix:** Replace with:
+```sql
+UNIQUE(org_id, name)  -- one department name per org
+```
+And add: `CHECK (name <> '')` to prevent empty names.
+
+---
+
+### 🟡 Bug I — **JIRA webhook event types not specified — could process wrong events**
+Phase 3 webhook processing for JIRA at line 165 says "update goal_links based on status change." But JIRA sends many webhook event types (e.g., `jira:issue_updated`, `comment_created`, `issuelink_created`). The plan doesn't filter by event type. If JIRA sends ANY event (even a comment edit), it would trigger a goal link update. JQL queries might also produce stale results.
+
+The `integration_events` table has `event_type` but the plan never specifies which `event_type` values to accept for JIRA vs GitHub. Processing all events wastes resources; some could corrupt `goal_links` state.
+
+**Fix:** Explicitly specify allowlist per provider:
+```ts
+// jira.ts webhook
+const ALLOWED_EVENTS = new Set([
+  'jira:issue_updated',    // status field changed
+  'jira:issue_created',    // for future auto-linking
+  'issuelink.created',     // for issuelink type goals
+  'worklogcreated',        // for time-tracking goals
+]);
+if (!ALLOWED_EVENTS.has(event.type)) {
+  return res.status(200).json({ skipped: true });
+}
+// For jira:issue_updated: also check that 'status' field changed
+// (check fieldNames in the webhook payload's changelog)
+```
+
+---
+
+### 🟢 Issue J — **Slack OAuth scopes: comma vs space delimited**
+Line 143 says scopes: `chat:write,commands,users:read,users:read.email`
+
+Slack's OAuth 2.0 `scope` parameter expects **space-separated** strings. Passing a comma-separated list (as shown) will cause Slack's OAuth server to reject the request with `invalid_scope`. The comma format shown in the plan is not valid Slack API syntax.
+
+**Fix:** Update to space-separated:
+```ts
+scopes: 'chat:write commands users:read users:read.email'
+```
+
+---
+
+### 🟢 Issue K — **`goalRollupJob` for JIRA — no handling of rate limits or 404s on per-issue fetch**
+Line 167: "batch queries: JQL `id IN (...)` up to 50 items/request for JIRA." If even one issue in the batch is deleted or the user lost access to it, JIRA returns a partial response with some successful and some 404 errors. The plan doesn't specify graceful handling. A single missing issue should not cause the entire batch to fail.
+
+**Fix:** In the rollback job, validate each result in the batch; skip and log items that return 404, don't abort the whole batch:
+```ts
+for (const linked of activeLinks) {
+  const jiraIssue = await getJiraIssue(jiraClient, linked.external_id); // may 404
+  if (jiraIssue === null) {
+    await markLinkStale(linked.id, 'issue_deleted_or_inaccessible');
+    continue;
+  }
+  // process normally
+}
+```
+
+---
+
+### 🟢 Issue L — **`metric_type` field on `goal_key_results` — defined but never used**
+Line 57 includes `metric_type` in `goal_key_results`. This field implies there are different metric types (e.g., `percentage`, `currency`, `number`, `boolean`). The `recomputeGoalProgress` function at line 112 uses a uniform formula `clamp01((current-start)/(target-start))`. This formula doesn't account for different metric types. For a `boolean` metric (0 or 1), the formula degenerates to `clamp01((0-0)/(1-0)) = 0` for false, `clamp01((1-0)/(1-0)) = 1` for true — which happens to work. But for `currency` or `number`, the formula is correct. For `percentage`, you might double-count (treating 50% as the target, not the unit).
+
+The plan defines `metric_type` but never specifies its enum values or how the progress function branches on it.
+
+**Fix:** Add explicit `metric_type` enum and branching in progress calculation:
+```sql
+ALTER TABLE goal_key_results ADD COLUMN metric_type TEXT DEFAULT 'number'
+  CHECK (metric_type IN ('number', 'percentage', 'currency', 'boolean', 'ratio'));
+```
+
+And in `recomputeGoalProgress`:
+```sql
+CASE metric_type
+  WHEN 'boolean' THEN
+    CASE WHEN current_value = 1 THEN 1.0 WHEN target_value = 1 THEN 0.0 ELSE 0.5 END
+  WHEN 'percentage' THEN
+    -- current/target interpreted as 0-100, not 0-1
+    LEAST(GREATEST(current_value / NULLIF(target_value, 0), 0), 1)
+  WHEN 'currency' THEN  -- same as number
+    clamp_formula...
+  ELSE  -- number / ratio / default
+    clamp_formula...
+END
+```
+
+---
+
+### 🟢 Issue M — **`departments` table: no unique name constraint per org**
+Line 49 creates `departments` but doesn't enforce that two departments in the same org can't share the same name. An org admin could create "Engineering" twice. The teams table has no such constraint either (line 50 only has `UNIQUE(id, org_id)` which is a no-op).
+
+**Fix:** `ALTER TABLE departments ADD UNIQUE(org_id, name)`.
+
+---
+
+*Second review completed 2026-06-16. Identified: 1 contradiction in Plan Review (Bug A), 1 bug in my own Bug 1 fix (Bug B), 1 missing algorithm spec (Bug C), plus Issues D-M covering authorization gaps, crash handling, multi-site JIRA handling, GitHub App fallback, schema constraints, event filtering, Slack scope syntax, rate limit handling, metric_type semantics, and department/team name uniqueness.*
