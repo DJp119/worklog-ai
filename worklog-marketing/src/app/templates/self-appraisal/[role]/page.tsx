@@ -544,6 +544,7 @@ export default async function RoleTemplatePage({
             <Link href="/templates/self-appraisal" className="hover:text-gray-300 transition-colors">Templates</Link>
             <Link href="/privacy" className="hover:text-gray-300 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-gray-300 transition-colors">Terms</Link>
+            <a href="mailto:impactlyai@zohomail.in" className="hover:text-gray-300 transition-colors">Contact</a>
             <a href="https://app.impactlyai.com/login" className="hover:text-gray-300 transition-colors">App Workspace</a>
           </div>
           <span className="text-xs text-gray-500">© 2026 Impactly AI. All rights reserved.</span>

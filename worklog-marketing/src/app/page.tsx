@@ -446,6 +446,9 @@ export default function Home() {
             <Link href="/terms" className="hover:text-gray-300 transition-colors">
               Terms
             </Link>
+            <a href="mailto:impactlyai@zohomail.in" className="hover:text-gray-300 transition-colors">
+              Contact
+            </a>
             <a href="https://app.impactlyai.com/login" className="hover:text-gray-300 transition-colors flex items-center gap-0.5">
               <span>Go to App</span>
               <ExternalLink className="w-3 h-3" />

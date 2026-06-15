@@ -191,6 +191,7 @@ export default function TemplatesIndexPage() {
             <Link href="/blog" className="hover:text-gray-300 transition-colors">Blog</Link>
             <Link href="/privacy" className="hover:text-gray-300 transition-colors">Privacy</Link>
             <Link href="/terms" className="hover:text-gray-300 transition-colors">Terms</Link>
+            <a href="mailto:impactlyai@zohomail.in" className="hover:text-gray-300 transition-colors">Contact</a>
           </div>
         </div>
       </footer>
