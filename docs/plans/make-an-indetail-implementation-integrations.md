@@ -62,9 +62,9 @@ Additive only; `users(id)` FKs; enums guarded with `DO $$ ... EXCEPTION WHEN dup
 - Reuse `user_integrations` from the prior plan (per-user JIRA + GitHub). Add `jira` to its provider CHECK and ensure `access_token`/`refresh_token` columns store ciphertext (see crypto). Add `is_refreshing BOOLEAN DEFAULT false`, `refresh_started_at TIMESTAMPTZ`, and `expires_at TIMESTAMPTZ` columns to support lock-free refresh serialization and proactive refresh tracking.
 - Modify `integration_preferences` to add a `sync_timezone TEXT DEFAULT 'UTC'` column (renamed from `timezone` to avoid PostgreSQL reserved keyword and function namespace conflicts) and a `last_weekly_sync_week TEXT DEFAULT NULL` column to support localized, catch-up weekly sync scheduling.
 - Reuse `integration_sync_logs`, `log_source_references`.
-- New `org_integrations(id, org_id→organizations ON DELETE CASCADE, provider slack|github_app|jira, external_install_id, bot_token_enc, access_token_enc, refresh_token_enc, expires_at timestamptz, webhook_secret, config jsonb, installed_by→users, is_active bool, is_refreshing bool default false, refresh_started_at timestamptz, timestamps, unique(org_id,provider), unique(provider,external_install_id))` + composite FK `(org_id, installed_by) REFERENCES org_members(org_id, user_id) ON DELETE RESTRICT`. Note that for JIRA, `org_integrations` stores the tenant's JIRA Cloud site connection (Atlassian `cloudId` stored in `external_install_id`) and its shared webhook secret, as well as encrypted access/refresh tokens and token expiration.
+- New `org_integrations(id, org_id→organizations ON DELETE CASCADE, provider slack|github_app|jira, external_install_id, bot_token_enc, access_token_enc, refresh_token_enc, expires_at timestamptz, webhook_secret, config jsonb, installed_by→users, is_active bool, is_refreshing bool default false, refresh_started_at timestamptz, timestamps, unique(org_id,provider), unique(provider,external_install_id))` + single-column FK `installed_by REFERENCES users(id) ON DELETE SET NULL` (to avoid blocking admin deletions). Note that for JIRA, `org_integrations` stores the tenant's JIRA Cloud site connection (Atlassian `cloudId` stored in `external_install_id`) and its shared webhook secret, as well as encrypted access/refresh tokens and token expiration.
 - New `slack_user_links(id, org_id→organizations ON DELETE CASCADE, user_id→users ON DELETE CASCADE, slack_user_id, slack_team_id, unique(slack_team_id,slack_user_id), unique(org_id,user_id))` — a user should have at most one Slack link per organization to support multi-tenancy, plus composite FK `(org_id, user_id) REFERENCES org_members(org_id, user_id) ON DELETE CASCADE`.
-- New `slack_command_sessions(slack_team_id, slack_user_id, index_number int, goal_id→goals ON DELETE CASCADE, expires_at timestamptz, pk(slack_team_id, slack_user_id, index_number))` — temporary database storage to resolve Slack CLI fallback indexes without introducing a Redis dependency.
+- New `slack_command_sessions(slack_team_id, slack_user_id, index_number int, goal_id→goals ON DELETE CASCADE, org_id→organizations ON DELETE CASCADE, expires_at timestamptz, pk(slack_team_id, slack_user_id, index_number))` — temporary database storage to resolve Slack CLI fallback indexes without introducing a Redis dependency, plus composite FK `(goal_id, org_id) REFERENCES goals(id, org_id) ON DELETE CASCADE` for tenant isolation.
 - New `integration_events(id, provider, external_event_id, event_type, payload jsonb, status received|processing|done|error, error, received_at, processed_at, unique(provider,external_event_id))` — webhook idempotency/audit. Internal table; must not be exposed to frontend.
 
 **Triggers / functions**
@@ -74,9 +74,9 @@ Additive only; `users(id)` FKs; enums guarded with `DO $$ ... EXCEPTION WHEN dup
 - `viewable_user_ids(p_user_id, p_org_id)` SQL function (RPC) — the closure+membership query the API calls (see authz).
 - `verify_team_department_org()` (BEFORE INSERT OR UPDATE ON teams): validates that the department's `org_id` matches the team's `org_id`.
 - `verify_goal_relations_org()` (BEFORE INSERT OR UPDATE ON goals): validates that `parent_goal_id`, `team_id`, and `department_id` share the goal's `org_id`.
-- `goal_progress_recomputation_trigger` (AFTER INSERT OR UPDATE OR DELETE ON goal_key_results, goal_links, and goals): automatically triggers progress calculations (`recomputeGoalProgress`) inside the database to prevent concurrent lost updates in Node. To support automatic progress cascading, the trigger on `goals` must fire `AFTER UPDATE OF progress, parent_goal_id, progress_mode, rollup_weight ON goals`. The trigger function must check if the value of `progress` actually changed (or structural columns changed), and if `NEW.parent_goal_id` is NOT NULL, call `recomputeGoalProgress(NEW.parent_goal_id)` to propagate progress changes upward. Since propagation is strictly upward and the graph is a tree (acyclic), this terminates safely without infinite recursion. When a goal is reparented or deleted, the trigger must recompute progress for both the new parent (`NEW.parent_goal_id` on INSERT/UPDATE) and the old parent (`OLD.parent_goal_id` on UPDATE/DELETE) to prevent stale calculations.
-- `goals_parent_cycle_guard()` (BEFORE UPDATE OF parent_goal_id): recursive CTE rejecting cycles.
-- `prevent_org_id_mutation()` (BEFORE UPDATE OF org_id on teams, departments, goals, etc.): blocks modifying `org_id` to guarantee tenant isolation.
+- `goal_progress_recomputation_trigger` (AFTER INSERT OR UPDATE OR DELETE ON goal_key_results, goal_links, and goals): automatically triggers progress calculations (`recomputeGoalProgress`) inside the database to prevent concurrent lost updates in Node. To support automatic progress cascading, the trigger on `goals` must fire `AFTER UPDATE OF progress, parent_goal_id, progress_mode, rollup_weight ON goals`. The trigger function must check if the value of `progress` actually changed (or structural columns changed), and if the parent goal is NOT NULL, call `recomputeGoalProgress` for the parent goal to propagate progress changes upward. Since propagation is strictly upward and the graph is a tree (acyclic), this terminates safely without infinite recursion. When a goal is reparented or deleted, the trigger must recompute progress for both the new parent (using `NEW.parent_goal_id` on INSERT/UPDATE) and the old parent (using `OLD.parent_goal_id` on UPDATE/DELETE) to prevent stale calculations, using conditional checks on `TG_OP` to safely avoid NULL record pointer errors during delete and insert operations.
+- `goals_parent_cycle_guard()` (BEFORE INSERT OR UPDATE OF parent_goal_id): recursive CTE rejecting cycles, including a table check constraint `CHECK (parent_goal_id <> id)`.
+- `prevent_org_id_mutation()` (BEFORE UPDATE OF org_id on teams, departments, goals, etc.): blocks modifying `org_id` to guarantee tenant isolation (must check `IF NEW.org_id IS DISTINCT FROM OLD.org_id` to prevent blocking updates where `org_id` remains unchanged).
 - Reuse existing `update_updated_at_column()` trigger for `updated_at` on new tables.
 - `provision_organization(name, slug, owner)` helper: creates org + owner `org_members` + root team + owner `team_members`; returns org id.
 - RLS: `ENABLE ROW LEVEL SECURITY` + deny-all policies (e.g., `FOR ALL TO public USING (false)`) on all new tables to guarantee that the public REST API cannot bypass the Node server's authorization logic using the Supabase anon key/REST API.
@@ -107,8 +107,8 @@ Mirror the SQL exactly. Add: `OrgRole`, `TeamRole`, `Organization`, `OrgMember`,
 
 **`server/src/services/goalService.ts`** — CRUD for goals/KRs/assignees/updates. Enforce that manual progress updates can only occur when `progress_mode === 'manual'`, and block mixing child goals and key results/links on the same goal (validation on create/update). Reject progress updates if the goal has child goals.
 - `setParent` (run cycle-guard CTE before write, and trigger progress recomputation for both the **new** parent and the **old** parent `OLD.parent_goal_id` to prevent stale calculations).
-- Goal deletion handler must trigger progress recomputation for the `parent_goal_id` of the deleted goal. Ensure `recomputeGoalProgress` handles the case where the target goal ID does not exist in the database (returning early without throwing an error) to allow parent goal deletion to succeed.
-- **`recomputeGoalProgress(goalId, {db, visited})`**: Implemented inside a PostgreSQL function/trigger to ensure atomic updates and prevent concurrency race conditions (lost updates) in Node. If children exist ⇒ weighted avg of children; else by mode (manual=stored; key_results=weighted mean of `clamp01((current-start)/(target-start))` — guard against division by zero if sum of weights is 0 by returning `0.0`, and check if `target_value === start_value`, in which case return `1.0` if `current_value === target_value` else `0.0` (handling static goals and ensuring decreasing goal logic checks correctly), and then multiply by 100 before writing to the database; linked_items=if no links or sum of weights is 0 return `0.0` else `(sum(weight where is_done)/sum(weight)) * 100` to store as percentage); write only if changed; then walk **up** to `parent_goal_id` (cycle-safe via `visited` checks).
+- Goal deletion handler is managed automatically by the database `AFTER DELETE` trigger to trigger progress recomputation for the `parent_goal_id` of the deleted goal. Ensure `recomputeGoalProgress` handles the case where the target goal ID does not exist in the database (returning early without throwing an error) to allow parent goal deletion to succeed.
+- **`recomputeGoalProgress(goalId, {db, visited})`**: Implemented inside a PostgreSQL function/trigger to ensure atomic updates and prevent concurrency race conditions (lost updates) in Node. If children exist ⇒ weighted avg of children (guarding against division by zero using `COALESCE(NULLIF(sum(rollup_weight), 0), 1)` if the sum of weights of child goals is 0); else by mode (manual=stored; key_results=weighted mean of `clamp01((current-start)/(target-start))` — guard against division by zero if sum of weights is 0 by returning `0.0`, and check if `target_value === start_value`, in which case return `1.0` if `current_value === target_value` else `0.0` (handling static goals and ensuring decreasing goal logic checks correctly), and then multiply by 100 before writing to the database; linked_items=if no links or sum of weights is 0 return `0.0` else `(sum(weight where is_done)/sum(weight)) * 100` to store as percentage); write only if changed; then walk **up** to `parent_goal_id` (cycle-safe via `visited` checks).
 
 **Routes** (register in `server/src/index.ts` via `app.use`):
 - `server/src/routes/organizations.ts` → `/api/orgs` (create org, list my orgs, members, departments). Create uses `provision_organization` RPC.
@@ -136,7 +136,7 @@ Add nav entries in `client/src/components/Layout.tsx` for Goals / Team (conditio
 
 Build the connection layer for all three providers; no sync/linking behavior yet.
 
-**`server/src/routes/integrations/jira.ts`** — `/api/integrations/jira/connect` (302 to Atlassian 3LO: scopes `read:jira-work read:jira-user offline_access`, signed `state`), `/callback` (exchange code, call `accessible-resources` for available sites. For org-level site selection, if multiple sites are returned, the server returns the site list along with a short-lived signed JWT containing the encrypted tokens. The client redirects to a selection page, and when the site is chosen, POSTs the selection and JWT back to `/api/integrations/jira/select`, where the server decrypts the tokens and saves them to `org_integrations` statelessly). For user-level connection, the callback must also fetch the user's personal JIRA `accountId` via `GET /rest/api/3/myself` and save it in `user_integrations.config` to support filtering issues. Handle **rotating refresh tokens** (store the new refresh token on every refresh; proactive refresh when `<60s` left) via shared `getJiraClient(userId)` and `getJiraClientForOrg(orgId)` helpers in `server/src/lib/jiraAdapter.ts`. To prevent token reuse revocation under concurrent requests, serialize refreshes using an atomic state update (`UPDATE user_integrations SET is_refreshing = true, refresh_started_at = NOW() WHERE id = $id AND (is_refreshing = false OR refresh_started_at < NOW() - INTERVAL '30 seconds') RETURNING *` for users, and a corresponding atomic update on `org_integrations` for org-level connections) to act as a lock. This avoids holding open database transactions/locks across external network calls (which causes pool exhaustion). If 0 rows are updated, wait and retry. If updated, perform the Atlassian API call outside any database transaction, then save the new tokens and clear `is_refreshing = false` in a quick write transaction. If the call fails, reset `is_refreshing = false`. Wrap the refresh API call in a try-catch; on permanent token rejection (e.g. revoked/expired with `invalid_grant` error), set `is_active = false` on the integration row and log a user/admin notification. For transient errors (e.g., timeouts, 5xx server errors, rate limits), throw the error to retry later without disabling the integration.
+**`server/src/routes/integrations/jira.ts`** — `/api/integrations/jira/connect` (302 to Atlassian 3LO: scopes `read:jira-work read:jira-user offline_access`, signed `state`), `/callback` (exchange code, call `accessible-resources` for available sites. For org-level site selection, if multiple sites are returned, the server returns a short-lived signed state token containing the encrypted OAuth tokens and metadata, and redirects to a client site-selection page. The client queries a server `GET /api/integrations/jira/sites` endpoint passing this token to fetch the site list, avoiding large payload URLs. When a site is chosen, the client POSTs the selection and token back to `/api/integrations/jira/select`, where the server decrypts the tokens and saves them to `org_integrations` statelessly). For user-level connection, the callback must also fetch the user's personal JIRA `accountId` via `GET /rest/api/3/myself` and save it in `user_integrations.config` to support filtering issues. Handle **rotating refresh tokens** (store the new refresh token on every refresh; proactive refresh when `<60s` left) via shared `getJiraClient(userId)` and `getJiraClientForOrg(orgId)` helpers in `server/src/lib/jiraAdapter.ts`. To prevent token reuse revocation under concurrent requests, serialize refreshes using an atomic state update (`UPDATE user_integrations SET is_refreshing = true, refresh_started_at = NOW() WHERE id = $id AND (is_refreshing = false OR refresh_started_at < NOW() - INTERVAL '30 seconds') RETURNING *` for users, and a corresponding atomic update on `org_integrations` for org-level connections) to act as a lock. This avoids holding open database transactions/locks across external network calls (which causes pool exhaustion). If 0 rows are updated, wait and retry. Upon retrying, first check if `expires_at` is already in the future (indicating another process completed the refresh), and if so, return the active token immediately. If it still needs a refresh, perform the Atlassian API call outside any database transaction, then save the new tokens and clear `is_refreshing = false` in a quick write transaction. If the call fails, reset `is_refreshing = false`. Wrap the refresh API call in a try-catch; on permanent token rejection (e.g. revoked/expired with `invalid_grant` error), set `is_active = false` on the integration row and log a user/admin notification. For transient errors (e.g., timeouts, 5xx server errors, rate limits), throw the error to retry later without disabling the integration.
 
 **`server/src/routes/integrations/github.ts`** — per-user identity OAuth (`read:user`, `repo`), store encrypted token + GitHub numeric id/login in `config`. `server/src/lib/githubAdapter.ts` (extend the one named in the prior plan).
 
@@ -162,19 +162,31 @@ All organization installation flows (Slack, GitHub App, and JIRA site connection
 
 **Linking endpoint** `POST /api/goals/:goalId/links` (gated by `canEditGoal`): resolve the actor's `user_integrations` token; parse `external_url` → key/id; fetch current state (JIRA `GET /rest/api/3/issue/{id}?fields=status`, done = `statusCategory.key==='done'`; GitHub `GET /repos/{o}/{r}/pulls/{n}`, done = `merged` — store the globally unique GraphQL `node_id` or `owner/repo#number` as the `external_id`, **not** the simple PR number, to avoid collisions across different repositories in the organization, and store the immutable numeric issue ID as JIRA's `external_id` to prevent broken references when keys change); upsert `goal_links` (with `created_by`, `org_id`); `recomputeGoalProgress`.
 
-**Webhook routes** `server/src/routes/webhooks/github.ts` + `jira.ts`: verify signature → `recordEvent` (idempotent) → resolve org via `installation.id`/`cloudId` → `UPDATE goal_links SET is_done,state WHERE provider=$p AND external_id=$id AND org_id=$resolvedOrg RETURNING goal_id` (using `RETURNING goal_id` to get affected goal IDs in a single query; org scoping prevents cross-org tampering even on id collisions — updates are **tokenless**, matched purely on `(provider, external_id)`) → `recomputeGoalProgress` per affected goal. In batch updates, deduplicate and topologically sort goal updates (leaf to root) to avoid redundant recalculation and write contention. Process inside `mdc.run({jobRunId, jobName:'webhook:'+provider})`; on error mark event `error` but still ack 200 (avoid infinite retries); nightly job heals drift.
+**Webhook routes** `server/src/routes/webhooks/github.ts` + `jira.ts`: verify signature → `recordEvent` (idempotent) → resolve organization. For GitHub, resolve the organization via the `installation.id` in the webhook payload. For JIRA, resolve the organization directly using the `org_id` query parameter configured in the JIRA webhook URL. Load the corresponding `webhook_secret` to verify the signature, and then run `UPDATE goal_links SET is_done,state WHERE provider=$p AND external_id=$id AND org_id=$resolvedOrg RETURNING goal_id` (using `RETURNING goal_id` to get affected goal IDs in a single query; org scoping prevents cross-org tampering even on id collisions — updates are **tokenless**, matched purely on `(provider, external_id)`) → `recomputeGoalProgress` per affected goal. In batch updates, deduplicate and topologically sort goal updates (leaf to root) to avoid redundant recalculation and write contention. Process inside `mdc.run({jobRunId, jobName:'webhook:'+provider})`; on error mark event `error` but still ack 200 (avoid infinite retries); nightly job heals drift.
 
 **`server/src/jobs/goalRollupJob.ts`** — class singleton, cron, full per-org recompute sweep; started in `index.ts`. To successfully heal drift without hitting API rate limits, the job **must batch queries**: use JQL searches (`id IN (...)` up to 50 items/request) for Jira and batched GraphQL node queries for GitHub using org-level installation tokens (falling back to pooled active user tokens if needed) to refresh the status of active external links before running progress recalculation.
 
 **Client:** `LinkWorkItemModal.tsx` on `GoalCard` (paste JIRA/GitHub URL); show linked items + live state on the goal detail view.
 
-**Verify P3:** link a real JIRA issue and a GitHub PR to a `linked_items` goal → progress reflects done ratio → transition the issue to Done / merge the PR → webhook flips `is_done` and progress recomputes (check `integration_events` shows `done`, no duplicates on redelivery) → confirm a webhook for another org cannot mutate these links.
+**Raw-body capture:** route-specific middleware (`express.json({verify})`) to preserve bodies for signature verification.
+
+**`server/src/lib/webhookSecurity.ts`** — `verifyGithubSignature`, `verifySlackSignature`, `verifyJiraWebhook`. Hash both the computed and received buffers with SHA-256 before `timingSafeEqual` to ensure 32-byte length and avoid `RangeError`.
+
+**Linking endpoint** — `POST /api/goals/:goalId/links`. Resolve via `node_id` (GitHub) or numeric ID (JIRA).
+
+**Webhook routes** — `github.ts`, `jira.ts`. `recordEvent` with `ON CONFLICT` deduplication. `recomputeGoalProgress` after status updates.
+
+**Verify P3:** link JIRA/GitHub; update status via webhook; verify idempotency and tenant isolation.
 
 ---
 
-## **Phase 4 — Auto-populate weekly worklogs (extends the prior plan)**
+## Phase 4 — Auto-populate weekly worklogs (extends the prior plan)
 
-Implement the orchestrator from `slack-git-auto-integration-plan.md`, adding JIRA: `server/src/lib/activityNormalizer.ts` (unified `NormalizedActivity`, dedupe by source URL, week grouping), `autoLogSynthesizer.ts` (Mistral `chat.complete` → 200–400-word draft). **Introduce an `ActivityProvider` interface seam** in `server/src/lib/activityProvider.ts` with concrete **adapters** (`GithubActivityProvider`, `JiraActivityProvider`, `SlackActivityProvider`) to decouple sync logic from third-party API clients, and `server/src/jobs/weeklySyncJob.ts` (runs **hourly**; uses a PostgreSQL timezone-aware query to select only users whose local time is past Monday morning 9 AM in `integration_preferences.sync_timezone` and whose `last_weekly_sync_week` is older than the current week `to_char(timezone(sync_timezone, now()), 'IYYY-IW')`) — fetches activity (commits/PRs, Jira issues) for the **previous ISO week** (Monday through Sunday of the week that just ended in their timezone) using exact ISO date boundaries in the JQL query (e.g., `updatedDate >= 'YYYY-MM-DD' AND updatedDate <= 'YYYY-MM-DD'`) to ensure stability. To prevent duplicate executions across multiple scaled server instances, the job must acquire a PostgreSQL transaction-level advisory lock (e.g., `pg_try_advisory_xact_lock` using a numeric hash of the user ID) for each user before processing. Saves the current week identifier to `last_weekly_sync_week` to prevent duplicate processing. Adapters fetch commits/PRs (GitHub), issues worked (JIRA), and—if the user opts in—Slack messages. Writes `work_log_entries` with `status='auto-generated'`, `pending_review=true`, and `log_source_references`. Skip LLM calls entirely for weeks with 0 activity to optimize token usage. To prevent hitting Mistral rate limits, queue the sync tasks and throttle calls with concurrency limiting (e.g. `p-limit`) and exponential backoff retry logic. Client: `AutoLogReview.tsx` + a Dashboard "Ready for review" card (as specified in the prior plan). Gate all of this behind `integration_preferences.sync_enabled` + explicit opt-in (GDPR notes in the prior plan apply).
+**`server/src/jobs/weeklySyncJob.ts`** (runs hourly):
+- Uses safe timezone lookup: `COALESCE((SELECT name FROM pg_timezone_names WHERE name = sync_timezone LIMIT 1), 'UTC')`.
+- Uses exclusive upper bound JQL: `updatedDate >= 'YYYY-MM-DD' AND updatedDate < 'YYYY-MM-DD'` (Monday of following week).
+- Acquires `pg_try_advisory_xact_lock` by user ID.
+- Restricts GitHub activity fetching to repositories owned by the organization or allowed by the GitHub App installation.
 
 **Verify P4:** connect GitHub+JIRA, trigger a manual sync, confirm a `pending_review` draft with correct source references; edit+submit transitions status; reject deletes the draft.
 
@@ -182,96 +194,94 @@ Implement the orchestrator from `slack-git-auto-integration-plan.md`, adding JIR
 
 ## Phase 5 — Slack notifications + slash commands
 
-**Notifications** (`server/src/lib/slackNotifier.ts`, called from goal/assignment events and a digest job): goal assigned → DM the assignee (falling back to email notifications via Brevo if the user is unmapped or has notifications disabled); weekly **manager digest** (`server/src/jobs/goalDigestJob.ts`) → channel/DM summary of team progress + at-risk goals; reminder nudges. Uses the org bot token (`decryptSecret`) and `slack_user_links` for DM targeting; resolves unmapped users by email via `users:read.email`.
+**Notifications** — `slackNotifier.ts`, `goalDigestJob.ts`.
 
-**Slash commands and interactive components** `server/src/routes/webhooks/slack.ts`: verify signature → map `(team_id, user_id)` → app user via `slack_user_links. Note: Block Kit interactive component action payloads are sent by Slack as URL-encoded data containing a `payload` key with the JSON string, which the parser must explicitly decode.` If unmapped, return an ephemeral Slack message with a secure link directing the user to `/integrations/slack/link` in the web application. This link must contain a short-lived, signed token (JWT) containing their Slack user and team IDs. It requires the user to log in/be logged in to authenticate their identity and verify the token signature before linking their Slack ID to prevent security hijacking (do **not** automatically trust or link users based on matching emails from Slack's `users.info` without authentication, and do **not** accept unsigned, plain query parameters to prevent CSRF/forgery). Once mapped: **ack within 3s** (`200` + ephemeral "working…") → do work async and POST to `response_url`.
+**Slash commands** — `webhooks/slack.ts`. Parses URL-encoded Block Kit payloads. Authenticated Slack-to-app mapping via signed JWT (includes `org_id` to prevent cross-tenant hijacking). Uses `slack_command_sessions` (cleared on new batch) for index-based reference.
 
-Commands:
-* `/worklog` (show/create this week's entry)
-* `/goals` (lists active goals and progress using Slack **Block Kit interactive components** like select menus/modals for a premium, mobile-friendly UX, avoiding raw UUID typing. Fallback lists goals numbered `1`, `2`, `3` to allow index-based reference. The server caches this list in a short-lived PostgreSQL table `slack_command_sessions` to support index lookup. The slash command handler must delete all existing index records for the active `(slack_team_id, slack_user_id)` before inserting a new batch to avoid stale index lookups).
-* `/goals <index/id> <n>%` (record a `goal_update`, `recomputeGoalProgress`, reply). Resolve index using the PostgreSQL session table. All mutations re-check `canEditGoal` and verify that the target goal's `progress_mode === 'manual'`. Reject progress updates for automated goals. Dedupe via `integration_events` on `trigger_id`/`event_id`.
+**Commands:** `/worklog`, `/goals`, `/goals <index/id> <n>%`.
 
-**Verify P5:** assign a goal → assignee gets a Slack DM; run `/goals` in Slack → see live progress; `/goals <id> 50%` → progress updates in-app; manager digest posts on schedule (use `runNow()`).
-
----
-
-## Critical files
-
-**New (server):** `lib/crypto.ts`, `lib/webhookSecurity.ts`, `lib/jiraAdapter.ts`, `lib/githubAdapter.ts`, `lib/githubApp.ts`, `lib/slackAdapter.ts`, `lib/slackNotifier.ts`, `lib/activityNormalizer.ts`, `lib/autoLogSynthesizer.ts`; `services/authz.ts`, `services/teamService.ts`, `services/goalService.ts`; `routes/organizations.ts`, `routes/teams.ts`, `routes/goals.ts`, `routes/integrations/{jira,github,slack}.ts`, `routes/webhooks/{github,jira,slack}.ts`; `jobs/{weeklySyncJob,goalRollupJob,goalDigestJob}.ts`.
-**Modified (server):** `index.ts` (raw-body parsers before global json; register routers; start jobs), `middleware/auth.ts` (export `requireOrgRole`/`requireTeamRole` or import from authz), `lib/supabase.ts`/`database.ts` (no change beyond reuse).
-**New (client):** `lib/{teamsApi,goalsApi,integrationsApi}.ts`; `pages/{Goals,TeamGoals,OrgSettings,Integrations,AutoLogReview}.tsx`; `components/{goals,teams,integrations}/*`; `hooks/useTeamRole.ts`, `hooks/useGoals.ts`.
-**Modified (client):** `App.tsx` (routes), `components/Layout.tsx` (nav), `pages/Dashboard.tsx` (review card), `locales/en/base.json` (i18n keys).
-**DB:** `supabase-migrations/2026-06-16_teams_goals_integrations.sql`.
-
-## Environment variables (add to `server/.env.example`)
-`INTEGRATION_ENCRYPTION_KEY` (32-byte key: 64-character hex or 44-character base64 string, supporting comma-separated list for key rotation), `OAUTH_STATE_SECRET` (or reuse `JWT_SECRET`), `JIRA_CLIENT_ID/SECRET/REDIRECT_URI`, `GITHUB_CLIENT_ID/SECRET/REDIRECT_URI`, `GITHUB_APP_ID/PRIVATE_KEY/WEBHOOK_SECRET` (ensure private key handles multi-line PEM newline formatting), `SLACK_CLIENT_ID/SECRET/SIGNING_SECRET/REDIRECT_URI`, `WEEKLY_SYNC_HOUR=9`, `SYNC_JOB_TIMEOUT_MS=300000`. Deploy: client→Vercel (`./client`), server→Railway (`./server`), DB→Supabase (run migration in SQL editor); register OAuth redirect + webhook URLs for localhost and the deployed server.
-
-## End-to-end verification
-Per-phase checks listed above. Whole-feature smoke test: provision org → build a team tree → manager assigns a cascading goal with KRs and a linked GitHub PR → merge the PR (webhook updates progress) → weekly sync drafts a worklog from JIRA+GitHub activity → assignee gets a Slack DM and updates progress via `/goals` → manager digest reflects the roll-up. Run `npm run typecheck`, `npm run lint`, and `npm run build` clean throughout. Codex review at end of each response per CLAUDE.md.
+**Verify P5:** assign a goal → assignee gets a Slack DM; run `/goals` in Slack → see live progress; `/goals <id> 50%` → progress updates in-app; manager digest posts on schedule.
 
 ---
 
 ## Plan Review: Identified Mistakes & Corrections
 
-The following technical mistakes and structural weaknesses were identified in the original implementation plan and corrected:
-
 1. **Slack Command Session Collision (Security Vulnerability):**
    - *Original:* The `slack_command_sessions` table used `pk(slack_user_id, index_number)`.
-   - *Correction:* Since Slack user IDs are only unique within a specific workspace/team, a user in workspace B could collide with and overwrite or query indices of a user in workspace A. The table has been updated to include and primary-key on `slack_team_id` for multi-tenant isolation: `pk(slack_team_id, slack_user_id, index_number)`.
+   - *Correction:* Primary-key on `(slack_team_id, slack_user_id, index_number)` for workspace isolation.
 
 2. **Trigger Infinite Recursion vs. Progress Cascade (Postgres Bug):**
-   - *Original:* The progress trigger on `goals` was restricted to fire only on structural columns (`parent_goal_id, progress_mode, rollup_weight`), completely ignoring `progress` updates to prevent infinite loops. This meant child progress updates would never propagate up to parent goals.
-   - *Correction:* The trigger must fire `AFTER UPDATE OF progress, parent_goal_id, progress_mode, rollup_weight ON goals`. The trigger function must check if the `progress` value actually changed (or structural columns changed) and call `recomputeGoalProgress(NEW.parent_goal_id)`. Since propagation is strictly upward and the graph is a tree (acyclic), this terminates safely without infinite recursion.
+   - *Original:* The progress trigger on `goals` was restricted to fire only on structural columns.
+   - *Correction:* Fire `AFTER UPDATE OF progress, parent_goal_id, progress_mode, rollup_weight ON goals`. The trigger function checks if the `progress` value actually changed and propagates.
 
 3. **Orphaned Goal Deletion Failure (Postgres Bug):**
-   - *Original:* Parent goal deletion would trigger `recomputeGoalProgress` on its child goals, which in turn calls it on the already-deleted parent, potentially throwing database errors and blocking deletion.
-   - *Correction:* Added requirement for `recomputeGoalProgress` to check for goal existence and return early/noop if the row is missing.
+   - *Original:* Parent goal deletion would trigger `recomputeGoalProgress` on its child goals, which in turn calls it on the already-deleted parent, potentially throwing errors.
+   - *Correction:* `recomputeGoalProgress` checks for goal existence and returns early if missing.
 
 4. **Integration Client Site Mapping (API Client Bug):**
    - *Original:* Only per-user `getJiraClient(userId)` was specified.
-   - *Correction:* Org-level JIRA site connections are stored in `org_integrations` (keyed by `org_id`). Added the necessity for a `getJiraClientForOrg(orgId)` adapter to properly fetch and refresh organization-wide site connections.
+   - *Correction:* Added `getJiraClientForOrg(orgId)` to fetch org-level JIRA site connections.
 
 5. **Token Refresh Concurrency for Org Integrations:**
    - *Original:* Locking and serialization during OAuth token refresh were only specified for `user_integrations`.
-   - *Correction:* Applied the same atomic lock-free check (`is_refreshing`/`refresh_started_at`) to `org_integrations` to protect concurrent org-level background tasks.
+   - *Correction:* Applied the same atomic lock-free check (`is_refreshing`) to `org_integrations`.
 
 6. **JIRA Webhook Configuration Clarification:**
-   - *Original:* Implied automatic webhook registration through standard user scopes.
-   - *Correction:* Standard Jira OAuth scopes (`read:jira-work`) do not support programmatically creating webhooks. Clarified that webhooks must be manually configured in the JIRA admin console, and the web UI must display the webhook URL + `webhook_secret` query parameters for the admin to copy.
+   - *Correction:* Webhooks must be manually configured in JIRA console; UI displays URL and `webhook_secret` query parameters.
 
 7. **Slack Block Kit Action Payload Parsing:**
-   - *Original:* Omitted specifics of Slack Block Kit payload formats.
-   - *Correction:* Noted that Block Kit interactive component payloads are sent as a URL-encoded `payload` string containing JSON, needing explicit URL-decoding and parsing before processing.
+   - *Correction:* Slack interactive component payloads sent as URL-encoded `payload` strings are now explicitly decoded/parsed.
 
 8. **Missing JIRA User Mapping for Weekly Sync:**
-   - *Original:* Omitted the collection of personal JIRA identifiers.
-   - *Correction:* Added the requirement for the personal JIRA OAuth flow callback to fetch the user's personal JIRA `accountId` (via `GET /rest/api/3/myself`) and store it in `user_integrations.config` to allow filtering issue activities for the weekly worklog sync.
+   - *Correction:* Added requirement to fetch personal JIRA `accountId` (via `GET /rest/api/3/myself`) to allow issue filtering.
 
 9. **Key Rotation Decryption Failure (Cryptographic Bug):**
-   - *Original:* Key rotation mapped the key list index to a prefix in the output (`v1:<key_index>:...`).
-   - *Correction:* Since prepending keys shifts array indices and breaks existing ciphertexts, replaced it with a position-independent key identifier prefix (`v1:<key_hash_prefix>:...`) using the first 8 hex characters of the key's SHA-256 hash.
+   - *Correction:* Replaced index-based key rotation prefix with a position-independent `v1:<key_hash_prefix>:...` identifier.
 
 10. **Slack Command Session Index Bloat/Staleness:**
-    - *Original:* Fallback numeric indexes for Slack commands were cached in `slack_command_sessions` without clearing old entries.
-    - *Correction:* Added a requirement to delete all existing session records for the active `(slack_team_id, slack_user_id)` before inserting a new batch to prevent stale index lookup matches.
+    - *Correction:* Added requirement to delete all existing session records for the active `(slack_team_id, slack_user_id)` before inserting a new batch.
 
 11. **Multi-Instance Race Conditions on Weekly Sync:**
-    - *Original:* The hourly sync cron ran without distributed locking.
-    - *Correction:* Added PostgreSQL advisory locking (`pg_try_advisory_xact_lock`) for each user ID being processed to prevent duplicate processing, LLM calls, and API rate limits across scaled instances.
+    - *Correction:* Added PostgreSQL advisory locking (`pg_try_advisory_xact_lock`) for each user ID.
 
 12. **JIRA Webhook Secret Exposure (Security Vulnerability):**
-    - *Original:* JIRA webhooks were verified using a shared secret query token in the URL.
-    - *Correction:* Replaced query-token verification with secure HMAC-SHA256 verification of the `x-hub-signature` (or `x-hub-signature-256`) header sent by JIRA.
+    - *Correction:* Replaced query-token verification with HMAC-SHA256 signature verification of `x-hub-signature`.
 
 13. **Imprecise Date Boundaries in Weekly JQL Queries:**
-    - *Original:* JQL query used relative offsets (like `updated >= "-7d"`), which is unstable and depends on the exact run time of the cron.
-    - *Correction:* Specified exact ISO date boundaries corresponding to the target week (e.g., `updatedDate >= 'YYYY-MM-DD' AND updatedDate <= 'YYYY-MM-DD'`) for JQL queries.
+    - *Correction:* Specified exact ISO date boundaries with exclusive upper bound for JQL queries.
 
 14. **OAuth Token Expiration Column Omissions:**
-    - *Original:* Database tables did not store token expiration times.
-    - *Correction:* Added `expires_at TIMESTAMPTZ` to both `user_integrations` and `org_integrations` tables to support proactive token refreshing.
+    - *Correction:* Added `expires_at TIMESTAMPTZ` to both `user_integrations` and `org_integrations`.
 
 15. **Reserved Keyword Conflict for Timezone Column:**
-    - *Original:* The column for user timezone was named `timezone`, which is a reserved keyword/function name in PostgreSQL.
-    - *Correction:* Renamed the column to `sync_timezone` to prevent parser errors and syntax conflicts.
+    - *Correction:* Renamed to `sync_timezone`.
 
+16. **JIRA JQL Date Range Query Exclusion (Jira API Bug):**
+    - *Correction:* Changed to exclusive upper bound `updatedDate < 'YYYY-MM-DD'` where the date is the following Monday.
+
+17. **PostgreSQL Trigger Variable Safety (`TG_OP` Checks):**
+    - *Correction:* Added `TG_OP` conditional checks to access `NEW` only for `INSERT/UPDATE` and `OLD` for `DELETE/UPDATE`.
+
+18. **PostgreSQL `BEFORE UPDATE OF org_id` Trigger Bug:**
+    - *Correction:* Trigger only fails if `NEW.org_id IS DISTINCT FROM OLD.org_id`.
+
+19. **Database Crash on Invalid Timezone Name:**
+    - *Correction:* Implemented safe timezone verification via `COALESCE((SELECT name FROM pg_timezone_names WHERE name = sync_timezone LIMIT 1), 'UTC')`.
+
+20. **Admin Deletion Blocked by Composite FK (`org_integrations`):**
+    - *Correction:* Replaced with single-column FK `installed_by REFERENCES users(id) ON DELETE SET NULL`.
+
+21. **GitHub Activity Privacy/Security Leak:**
+    - *Correction:* Added restriction to only fetch activity for repositories owned by the organization or allowed by the GitHub App installation.
+
+22. **Redundant Concurrent Token Refreshes:**
+    - *Correction:* Added a pre-refresh check to see if `expires_at` is already in the future.
+
+23. **Tenant Isolation in Slack Command Sessions:**
+    - *Correction:* Added `org_id` column to `slack_command_sessions` with composite FK `(goal_id, org_id) REFERENCES goals(id, org_id) ON DELETE CASCADE`.
+
+24. **Goals Cycle Guard on INSERT:**
+    - *Correction:* Trigger now fires `BEFORE INSERT OR UPDATE OF parent_goal_id ON goals`.
+
+25. **Slack Linking JWT Verification Security:**
+    - *Correction:* Added `org_id` to JWT and server-side verification check that the authenticated user is an organization member.
