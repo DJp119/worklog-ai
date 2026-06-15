@@ -317,3 +317,262 @@ All organization installation flows (Slack, GitHub App, and JIRA site connection
 33. **Missing Lock on Goals Parent Modification (Race Condition Bug):**
     - *Original:* Goal reparenting did not lock the organization row, allowing concurrent cycles to be formed in the goal tree.
     - *Correction:* Lock the organization row via `SELECT ... FOR UPDATE ON organizations WHERE id = orgId` before modifying `parent_goal_id`.
+
+---
+
+## 🔴 Critical Bugs Found After Review
+
+### Bug 1 — `viewable_user_ids` SQL function never defined (BLOCKING)
+The migration file has a bullet: `viewable_user_ids(p_user_id, p_org_id)` SQL function (RPC) but **no CREATE FUNCTION body** is written anywhere in Phase 0. Both `authz.ts` and the trigger layer reference it. An empty migration will pass syntactically (bullets aren't SQL), and the implementer gets "function does not exist" at runtime.
+
+**Correction:** Define the function in the migration. It returns all user IDs viewable by a given user in an org:
+- Org admin/owner → all org members
+- Otherwise → self + members of teams user is ≥ member of + members of descendant teams the user is ≥ manager of
+```sql
+CREATE OR REPLACE FUNCTION viewable_user_ids(p_user_id UUID, p_org_id UUID)
+RETURNS SETOF UUID LANGUAGE plpgsql STABLE AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM org_members WHERE user_id = p_user_id AND org_id = p_org_id) THEN
+    RETURN; -- not a member
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM org_members
+    WHERE user_id = p_user_id AND org_id = p_org_id AND role IN ('admin', 'owner')
+  ) THEN
+    RETURN QUERY SELECT user_id FROM org_members WHERE org_id = p_org_id;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH my_managed_teams AS (
+    -- teams where user is admin/owner (can see all descendant members)
+    SELECT descendant_id AS team_id
+    FROM team_members tm
+    JOIN team_closure tc ON tm.team_id = tc.ancestor_id
+    WHERE tm.user_id = p_user_id AND tm.org_id = p_org_id
+      AND tm.role IN ('admin', 'owner')
+  ),
+  my_member_teams AS (
+    -- teams where user is a member (can see team members)
+    SELECT team_id FROM team_members
+    WHERE user_id = p_user_id AND org_id = p_org_id AND role = 'member'
+  )
+  SELECT DISTINCT tm2.user_id
+  FROM (
+    SELECT team_id FROM my_managed_teams
+    UNION
+    SELECT team_id FROM my_member_teams
+  ) t
+  JOIN team_members tm2 ON t.team_id = tm2.team_id AND tm2.org_id = p_org_id
+  UNION SELECT p_user_id;
+END;
+$$;
+```
+
+### Bug 2 — JIRA OAuth `accountId` fetched with wrong API (runtime error)
+Phase 2 says: *"fetch the user's personal JIRA `accountId` via `GET /rest/api/3/myself`"*. This endpoint **rejects OAuth 2.0 bearer tokens** — Atlassian requires Basic Auth or API token for `/rest/api/3/myself`. The `accountId` must be extracted from the **`id_token` JWT** returned by Atlassian in the token-exchange response. No API call needed.
+
+**Correction:** In the JIRA OAuth callback:
+```ts
+const { id_token } = tokenResponse; // JWT from Atlassian
+const payload = JSON.parse(Buffer.from(id_token.split('.')[1], 'base64').toString());
+const jiraAccountId = payload.sub || payload.account_id;
+await db.update('user_integrations').set({ config: { accountId: jiraAccountId, cloudId } }).where(...)
+```
+
+### Bug 3 — GitHub webhook `installation.id` unverified against stored org (Security)
+The plan resolves org via `installation.id` in the webhook payload but never verifies that the **authenticated webhook** matches the installation registered for that org. Without this, a webhook with a spoofed `installation.id` pointing to a valid org would pass through.
+
+**Correction:** In `server/src/routes/webhooks/github.ts`, after resolving via `installation.id`:
+```ts
+const storedInstall = await req.supabase
+  .from('org_integrations')
+  .select('id, is_active')
+  .eq('provider', 'github_app')
+  .eq('external_install_id', installation.id)
+  .eq('is_active', true)
+  .single();
+
+if (!storedInstall || storedInstall.org_id !== resolvedOrg.id) {
+  logger.warn('GitHub webhook installation mismatch', { installationId: installation.id });
+  return res.status(403).json({ error: 'Forbidden' }); // ack 200 + silent? or 403?
+}
+```
+
+---
+
+## 🟡 High Priority Issues
+
+### Issue 4 — `user_integrations` provider CHECK must be DROPPED before ADD — cannot ALTER ADD VALUE
+Phase 0 says *"modify `user_integrations` to add `jira` to the provider CHECK"*. You cannot `ALTER TABLE ... ADD VALUE` to a CHECK constraint. The prior plan wrote `CHECK (provider IN ('slack', 'github', 'gitlab'))`. Must rebuild explicitly:
+
+```sql
+ALTER TABLE user_integrations DROP CONSTRAINT IF EXISTS user_integrations_provider_check;
+ALTER TABLE user_integrations ADD CONSTRAINT user_integrations_provider_check
+  CHECK (provider IN ('slack', 'github', 'gitlab', 'jira'));
+```
+
+### Issue 5 — Duplicate verbatim content in Phase 3 (Bugs 17, 27 in review section refer to the same issue)
+The block from `Raw-body capture (prerequisite):` (line ~157) through `**Verify P3:**` (line ~179) is **fully duplicated** at lines ~171-177 onward. Second copy must be deleted.
+
+### Issue 6 — `org_integrations` JIRA = one site per org, not documented
+`UNIQUE(org_id, provider)` means one JIRA site per org at the org level. If an org has two JIRA sites, only the first can be stored at org level. Add an explicit comment and document that multi-site orgs use per-user `user_integrations(provider='jira')` instead.
+
+### Issue 7 — `goalRollupJob` has no per-org iteration; job does nothing as written
+The job says *"batch queries, use org-level tokens"* but never specifies which organizations to process. Needs an explicit loop:
+
+```ts
+const activeOrgs = await db
+  .from('goal_links').select('org_id')
+  .groupBy('org_id');
+
+for (const { org_id } of activeOrgs) {
+  const lock = await db.raw(
+    `SELECT pg_try_advisory_lock(?)`,
+    BigInt('0x' + md5(org_id).substring(0, 16)) // session-level lock, releases after session
+  );
+  if (!lock.rows[0].pg_try_advisory_lock) continue;
+  try {
+    await syncOrgGoals(org_id);
+  } finally {
+    await db.raw(`SELECT pg_advisory_unlock(?)`, [lock.rows[0].pg_try_advisory_lock]);
+  }
+}
+```
+
+### Issue 8 — Trigger function bodies are unwritten — bullets are not SQL
+Every trigger bullet (lines 71-82) has a behavior description but **no `CREATE FUNCTION ... LANGUAGE plpgsql` body**. Example — `team_closure_after_insert` must insert `(NEW.id, NEW.id, 0)` (self) and then, if `NEW.parent_team_id IS NOT NULL`, insert `SELECT ancestor_id, NEW.id, depth+1 FROM team_closure WHERE descendant_id = NEW.parent_team_id`. Write all bodies explicitly in the migration file.
+
+---
+
+## 🔵 Medium Priority Improvements
+
+### Improvement 9 — `recomputeGoalProgress` missing decreasing goal case
+Formula `clamp01((current - start) / (target - start))` only works for increasing goals. For "lower is better" (start > target): use `clamp01((start - current) / (start - target))`. Static goals where `start = target`: return `1.0` if `current = target`, else `0.0`. Both cases must be handled:
+
+```sql
+IF target_value = start_value THEN
+  RETURN CASE WHEN current_value = target_value THEN 1.0 ELSE 0.0 END;
+END IF;
+IF target_value > start_value THEN
+  -- increasing
+  RETURN LEAST(GREATEST((current_value - start_value)::numeric
+    / NULLIF(target_value - start_value, 0), 0), 1);
+ELSE
+  -- decreasing / "lower is better"
+  RETURN LEAST(GREATEST((start_value - current_value)::numeric
+    / NULLIF(start_value - target_value, 0), 0), 1);
+END IF;
+```
+
+### Improvement 10 — Topological sort in batch goal updates not implemented
+P3 says *"topologically sort goal updates (leaf to root)"* without specifying an algorithm. Without it, concurrent updates can cause deadlocks or stale intermediate progress states. Implement DFS-based topological sort in the webhook handler:
+
+```ts
+function topologicalSortLeafFirst(goalIds: Set<string>, getParent: (id: string) => string | null): string[] {
+  const visited = new Set<string>();
+  const result: string[] = [];
+
+  function visit(id: string) {
+    if (visited.has(id)) return;
+    visited.add(id);
+    const parent = getParent(id);
+    if (parent && goalIds.has(parent)) visit(parent);
+    result.push(id); // parent is pushed after child = leaf-first
+  }
+
+  for (const id of goalIds) visit(id);
+  return result.reverse(); // now leaf-first order
+}
+```
+
+### Improvement 11 — `teamRoleAtLeast(null, min)` crashes — add null guard
+If a user is not on a team, `role = null`. Integer comparison on null in `TEAM_ROLE_RANK[role]` returns `undefined` and comparison works by accident rather than design.
+
+```ts
+export function teamRoleAtLeast(role: TeamRole | null, min: TeamRole): boolean {
+  if (role === null) return false;
+  return TEAM_ROLE_RANK[role] >= TEAM_ROLE_RANK[min];
+}
+```
+
+### Improvement 12 — `usersLookupByEmail` silently fails if Slack bot is uninstalled
+If workspace admin revokes the Slack bot, `usersLookupByEmail` returns `user_not_found`. Plan should check `auth.test` first and disable the org integration on installation failure:
+
+```ts
+const authTest = await slackClient.auth.test();
+if (!authTest.ok || authTest.team_id !== slackWorkspaceId) {
+  await db.update('org_integrations').set({ is_active: false }).eq('org_id', orgId);
+  await sendAdminNotification(orgId, 'Slack bot uninstalled — re-authorize required');
+  throw new Error('Slack bot uninstalled');
+}
+```
+
+### Improvement 13 — `requireOrgRole` and `requireTeamRole` chaining examples missing
+Explicit examples of how to compose `requireAuth` + role middleware:
+
+```ts
+router.post('/', requireAuth, requireOrgRole('owner'), async (req, res) => { ... }); // create org
+router.delete('/:orgId', requireAuth, requireOrgRole('owner'), deleteOrg);
+router.post('/teams', requireAuth, requireTeamRole('admin'), createTeam); // team mutation
+router.get('/:teamId/members', requireAuth, requireTeamRole('member'), listMembers); // anyone on team reads
+```
+
+### Improvement 14 — Goal listing loses all results when `getViewableUserIds` returns empty
+When all a user's teams are deleted, `viewableUserIds = {}`. Their own individual goals and assigned goals are then invisible.
+
+```sql
+-- In goals.ts WHERE clause, add fallback:
+AND (
+  g.id IN (SELECT goal_id FROM goal_assignees WHERE user_id = $userId)
+  OR g.created_by = $userId
+  OR g.created_by = ANY($viewableUserIds)
+  OR ga.user_id = ANY($viewableUserIds)
+)
+```
+
+### Improvement 15 — GitHub App callback must verify `target_type = 'Organization'`
+Storing a user-level GitHub App installation under an org would be incorrect.
+
+```ts
+const { data: installation } = await app.client.apps.getInstallation({
+  installation_id: parseInt(installationId, 10)
+});
+if (installation.target_type !== 'Organization') {
+  return res.redirect(`${FRONTEND_URL}/integrations?error=org_required`);
+}
+```
+
+---
+
+## 🟢 Minor / Editorial
+
+### Note 16 — `Brevo` in plan matches codebase; CLAUDE.md says `Resend`
+`server/src/lib/email.ts` uses `Brevo` (confirmed). The plan is correct. **CLAUDE.md should be updated:** change `Resend` → `Brevo` in the email section.
+
+### Note 17 — Duplicate Phase 3 block (same as Issue 5 above)
+Remove the second copy of `raw-body capture`, `Linking endpoint`, `Webhook routes` content at lines ~171-177.
+
+### Note 18 — `integration_events` partial index for webhook deduplication queries
+```sql
+CREATE INDEX idx_integration_events_active
+  ON integration_events(provider, external_event_id)
+  WHERE status IN ('received', 'processing');
+-- Partial index; 'done'/'error' rows excluded to keep index small
+```
+
+### Note 19 — Slack interactive `payload` field must be `JSON.parse`d
+`req.body.payload` arrives as a string containing JSON, not a parsed object. Call `JSON.parse(req.body.payload)` before accessing fields.
+
+### Note 20 — `org_integrations` missing explicit webhook routing indexes
+```sql
+CREATE INDEX idx_org_integrations_provider_install
+  ON org_integrations(provider, external_install_id)
+  WHERE provider IN ('github_app', 'slack');
+CREATE INDEX idx_org_integrations_jira_org
+  ON org_integrations(org_id, provider)
+  WHERE provider = 'jira';
+```
+
+*Review completed 2026-06-16. Bugs 1-3 are blocking (runtime/compile errors or security). Issues 4-8 are high confidence structural fixes. Improvements 9-15 are quality/correctness enhancements. Notes 16-20 are minor.*
