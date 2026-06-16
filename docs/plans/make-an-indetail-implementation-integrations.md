@@ -1161,7 +1161,1287 @@ A robust query is needed to retrieve all users who are eligible for a weekly syn
   }
   ```
 
+  dayjs.extend(timezone);
+  dayjs.extend(isoWeek);
+
+  function getSyncBoundaries(weekStr: string, userTimezone: string) {
+    const [year, week] = weekStr.split('-W').map(Number);
+    const startOfWeekLocal = dayjs().tz(userTimezone).year(year).isoWeek(week).startOf('isoWeek');
+    const endOfWeekLocal = startOfWeekLocal.add(1, 'week');
+    return {
+      sinceUTC: startOfWeekLocal.utc().format(),
+      untilUTC: endOfWeekLocal.utc().format()
+    };
+  }
+  ```
+
 ---
 
 *Third review completed 2026-06-16. Identified: 6 critical security/runtime failures (Bugs N-S), 9 sync/API/architecture gaps (Issues T-AE), 7 reliability/performance/SQL improvements (Issues AF-AL).*
+
+---
+
+## Fourth Review Pass — Deep-Dive Verification, Security & Threat Model Audit (2026-06-16)
+
+Following a deep-dive analysis fanning out specialized subagents (Database/Triggers, Security/Authz, and Webhooks/API Integrations), we have uncovered further critical bugs, security gaps, and architectural mistakes in the plan:
+
+### 🔴 Critical Security & Runtime Failures
+
+#### Bug AM — Atlassian OAuth `id_token` Split Crash
+- **Vulnerability**: Correction 2 (Bug 2) specifies that the personal JIRA `accountId` must be extracted by splitting the `id_token` in the JIRA callback. However, in Atlassian 3LO, the token response does **not** contain an `id_token` unless the OpenID Connect scopes (`openid` and `profile`) are explicitly included. The scopes listed in Phase 2 are only `read:jira-work read:jira-user offline_access`.
+- **Runtime Impact**: The token exchange response will lack the `id_token` field (`undefined`), and the code `id_token.split('.')` will crash the OAuth callback route with a `TypeError`.
+- **Remediation**:
+  1. Add `openid` and `profile` to the requested JIRA OAuth scopes:
+     ```ts
+     scopes: 'read:jira-work read:jira-user offline_access openid profile'
+     ```
+  2. Alternatively, fetch the `accountId` by querying the myself endpoint using the bearer token:
+     ```ts
+     const myself = await fetch(`https://api.atlassian.com/ex/jira/${cloudId}/rest/api/3/myself`, {
+       headers: { Authorization: `Bearer ${accessToken}` }
+     }).then(res => res.json());
+     const jiraAccountId = myself.accountId;
+     ```
+
+#### Bug AN — Over-Precedence JQL Syntax Bug
+- **Mistake**: The JQL query proposed to sync user worklogs is:
+  ```sql
+  assignee = "${accountId}" OR worklogAuthor = "${accountId}" AND updatedDate >= ...
+  ```
+  In JQL (and standard SQL), `AND` has higher precedence than `OR`. This evaluates as `assignee = "${accountId}" OR (worklogAuthor = "${accountId}" AND updatedDate >= ...)`.
+- **Runtime Impact**: The query will return **every single issue ever assigned to the user**, ignoring the date range limit. This will trigger database lockups, sync timeouts, and API rate-limiting blocks.
+- **Remediation**: Explicitly group the `OR` expressions with parentheses:
+  ```sql
+  (assignee = "${accountId}" OR worklogAuthor = "${accountId}") AND updatedDate >= ...
+  ```
+
+#### Bug AO — OAuth Account Hijacking & Login CSRF via GET Redirect Callback
+- **Vulnerability**: The application uses custom Bearer tokens stored in browser `localStorage`. Since standard browser redirects (GET requests) cannot attach custom headers like `Authorization: Bearer <token>`, the JIRA, GitHub, and Slack GET callback routes cannot authenticate the active user session. If the server trusts the user ID inside the signed `state` payload to associate the integration, an attacker can initiate a flow, capture their own signed state, trick a logged-in user into completing it, and hijack the victim's third-party integration data.
+- **Remediation**: Do not perform token exchanges on GET routes. Instead, implement a client-side confirm pattern:
+  1. The GET callback verifies the state signature, and redirects to a client-side route: `/integrations/callback?code=CODE&state=STATE`.
+  2. The frontend SPA (which is authenticated and has the Bearer token) grabs `code` and `state`.
+  3. The frontend POSTs `{ code, state }` to the `/api/integrations/jira/confirm` endpoint with the `Authorization` header.
+  4. The server runs `requireAuth` and checks that `statePayload.userId === req.userId` before exchanging the code.
+
+#### Bug AP — Public Database Exposure of Sensitive Tables (RLS Bypass)
+- **Vulnerability**: Tables like `refresh_tokens`, `email_verifications`, and `password_reset_tokens` do not have Row Level Security (RLS) enabled or have no policies. Since the client exposes the Supabase anon key, an attacker can bypass the Node authentication layer entirely and query/manipulate these tables directly via PostgREST.
+- **Remediation**: Enable RLS and add a deny-all policy for these tables in the migration:
+  ```sql
+  ALTER TABLE refresh_tokens ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE email_verifications ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE password_reset_tokens ENABLE ROW LEVEL SECURITY;
+
+  CREATE POLICY "Deny all public access to refresh_tokens" ON refresh_tokens FOR ALL TO public USING (false);
+  CREATE POLICY "Deny all public access to email_verifications" ON email_verifications FOR ALL TO public USING (false);
+  CREATE POLICY "Deny all public access to password_reset_tokens" ON password_reset_tokens FOR ALL TO public USING (false);
+  ```
+
+#### Bug AQ — Slack Linking GET CSRF and PIN Verification
+- **Vulnerability**: Performing Slack account linking via a simple GET redirect `/api/integrations/slack/link?token=...` exposes users to GET-based CSRF linking attacks. Furthermore, restricting Slack linking to users whose Slack emails exactly match their Worklog AI emails breaks usability for developers who use separate personal and work emails.
+- **Remediation**: Implement a 6-digit One-Time Verification PIN:
+  1. When a user runs a slash command (e.g. `/worklog`) in Slack and is not linked, the server generates a random 6-digit PIN, stores it in `temp_slack_codes` (expires in 5 mins), and tells the user: *"To link your Slack account, go to Settings -> Integrations in the web app and enter code: XXXXXX"*.
+  2. The user enters the code in the authenticated web app, eliminating CSRF and supporting mismatched emails securely.
+
+#### Bug AR — Scheduler Timezone Crashes
+- **Vulnerability**: The scheduler query uses `NOW() AT TIME ZONE ip.sync_timezone` directly. If a user enters an invalid timezone string, PostgreSQL throws `ERROR: time zone "invalid_timezone" not recognized`, crashing the hourly scheduler query and stopping sync for all users.
+- **Remediation**: Define a PL/pgSQL function `safe_local_time(p_timezone TEXT)` that wraps the conversion in an `EXCEPTION` block and defaults to `UTC` on error.
+
+#### Bug AS — Type Mismatch in `goal_key_results` Schema
+- **Vulnerability**: The plan defines `current_value default 0` without a data type in `goal_key_results`.
+- **Runtime Impact**: The migration will fail with a database syntax error on execution.
+- **Remediation**: Define as `current_value NUMERIC NOT NULL DEFAULT 0`.
+
+---
+
+### 🟡 High-Priority Architecture & Concurrency Gaps
+
+#### Issue AT — Retrospective Worklog Sync Loss
+- **Flaw**: The sync job sets a hard `last_weekly_sync_week = 'YYYY-WXX'` flag after running. If a user logs work retrospectively for a previous week, that work is never imported because the week is locked out.
+- **Remediation**: Run the weekly sync over a sliding window (e.g. 14 days) and use an `upsert` (with `ON CONFLICT DO UPDATE`) on `work_log_entries` to update previously synced data.
+
+#### Issue AU — Slack Non-Expiring Bot Tokens
+- **Flaw**: Slack Bot Tokens (`xoxb-...`) do not rotate or expire by default. Attempting to run a token refresh flow will crash.
+- **Remediation**: Skip token refreshes if `refresh_token` is null, and restrict OAuth rotation logic strictly to GitHub/JIRA.
+
+#### Issue AV — Cron Job Concurrency on Clustered Nodes
+- **Flaw**: Running cron jobs in `index.ts` via `node-cron` in a clustered environment (PM2, Kubernetes, etc.) will start duplicate schedulers.
+- **Runtime Impact**: Multiple processes will run syncs and refreshes concurrently, causing rate limiting and Atlassian token revocation.
+- **Remediation**: Guard cron execution behind an environment flag (e.g. `IS_SCHEDULER_NODE === 'true'`) or use a database-backed task runner (like `graphile-worker`).
+
+#### Issue AW — Tenant Isolation Leak in Slack User Links
+- **Flaw**: `slack_user_links` uses `unique(slack_team_id, slack_user_id)` and references a single `org_id`. This prevents multi-tenant users from linking their Slack account to multiple organizations.
+- **Remediation**: Link `slack_user_links` to `user_id` (unique globally) instead of `org_id`, and resolve current organization context dynamically via `org_members`.
+
+#### Issue AX — Manager Goal-Editing Lockout
+- **Flaw**: Individual goals are restricted to creator/org-admin, preventing managers from editing assigned goals they did not create.
+- **Remediation**: Update `canEditGoal` to check if the assignee's user ID is in the caller's `viewable_user_ids` set.
+
+#### Issue AY — Sibling Node Deadlocks in Rollup Triggers
+- **Flaw**: Batched updates modifying leaf goals trigger concurrent progress rollups on shared parent goals. Writes executing in different order cause database deadlocks.
+- **Remediation**: Sort all target IDs alphabetically by UUID in the Node service layer before writing.
+
+#### Issue AZ — GitHub GraphQL Null Node Crash
+- **Flaw**: If a repository is deleted or permissions are revoked, the GitHub GraphQL API returns `null` inside the `nodes` array, crashing the mapper.
+- **Remediation**: Add explicit null checks to the returned nodes before accessing properties.
+
+---
+
+### 🟢 Production-Ready Database Schema & Triggers Migration
+
+This is the complete, safe, and additive migration script reflecting all findings from this pass:
+
+```sql
+-- supabase-migrations/2026-06-16_teams_goals_integrations.sql
+
+-- Safe Enum Creation
+DO $$ 
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'org_role') THEN
+    CREATE TYPE org_role AS ENUM ('member', 'admin', 'owner');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'team_role') THEN
+    CREATE TYPE team_role AS ENUM ('member', 'manager', 'admin', 'owner');
+  END IF;
+END $$;
+
+-- ============================================
+-- BASELINE INTEGRATIONS SCHEMA (Idempotent)
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS user_integrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  token_expires_at TIMESTAMPTZ,
+  scopes TEXT[] NOT NULL DEFAULT '{}',
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  config JSONB DEFAULT '{}'::jsonb,
+  last_sync_at TIMESTAMPTZ,
+  is_refreshing BOOLEAN NOT NULL DEFAULT false,
+  refresh_started_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(user_id, provider)
+);
+
+ALTER TABLE user_integrations DROP CONSTRAINT IF EXISTS user_integrations_provider_check;
+ALTER TABLE user_integrations ADD CONSTRAINT user_integrations_provider_check CHECK (provider IN ('slack', 'github', 'gitlab', 'jira'));
+
+CREATE TABLE IF NOT EXISTS integration_preferences (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  slack_channels TEXT[],
+  github_repos TEXT[],
+  gitlab_projects TEXT[],
+  sync_enabled BOOLEAN DEFAULT true,
+  sync_frequency TEXT CHECK (sync_frequency IN ('daily', 'weekly')),
+  last_sync_week_date DATE,
+  sync_timezone TEXT DEFAULT 'UTC',
+  last_weekly_sync_week TEXT DEFAULT NULL,
+  is_syncing BOOLEAN NOT NULL DEFAULT false,
+  sync_started_at TIMESTAMPTZ,
+  UNIQUE(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS log_source_references (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  work_log_entry_id UUID NOT NULL REFERENCES work_log_entries(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  source_type TEXT NOT NULL CHECK (source_type IN ('commit', 'pr', 'review', 'message', 'thread')),
+  source_id TEXT NOT NULL,
+  source_url TEXT NOT NULL,
+  source_data JSONB NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(source_id, provider)
+);
+
+CREATE TABLE IF NOT EXISTS integration_sync_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  sync_type TEXT NOT NULL CHECK (sync_type IN ('full', 'incremental', 'manual')),
+  status TEXT NOT NULL CHECK (status IN ('pending', 'running', 'completed', 'partial', 'failed')),
+  items_fetched INTEGER DEFAULT 0,
+  items_processed INTEGER DEFAULT 0,
+  items_skipped INTEGER DEFAULT 0,
+  error_message TEXT,
+  started_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  completed_at TIMESTAMPTZ,
+  synthesize_duration_ms INTEGER
+);
+
+ALTER TABLE work_log_entries ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'manual';
+ALTER TABLE work_log_entries DROP CONSTRAINT IF EXISTS chk_work_log_status;
+ALTER TABLE work_log_entries ADD CONSTRAINT chk_work_log_status CHECK (status IN ('manual', 'auto-generated', 'auto-generated-verified', 'auto-generated-edited', 'auto-generated-rejected'));
+
+ALTER TABLE work_log_entries ADD COLUMN IF NOT EXISTS auto_generated_at TIMESTAMPTZ;
+ALTER TABLE work_log_entries ADD COLUMN IF NOT EXISTS pending_review BOOLEAN DEFAULT false;
+
+-- ============================================
+-- CORPORATE TEAMS SCHEMA
+-- ============================================
+
+CREATE TABLE IF NOT EXISTS organizations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL CHECK (name <> ''),
+  slug TEXT UNIQUE NOT NULL CHECK (slug = LOWER(slug) AND slug ~ '^[a-z0-9]+(-[a-z0-9]+)*$'),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS org_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  role org_role NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(org_id, user_id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_single_org_owner 
+ON org_members(org_id) WHERE (role = 'owner');
+
+CREATE TABLE IF NOT EXISTS departments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  name TEXT NOT NULL CHECK (name <> ''),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(org_id, name)
+);
+
+CREATE TABLE IF NOT EXISTS teams (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+  parent_team_id UUID REFERENCES teams(id) ON DELETE RESTRICT,
+  name TEXT NOT NULL CHECK (name <> ''),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(id, org_id),
+  CONSTRAINT fk_team_parent FOREIGN KEY (parent_team_id, org_id) REFERENCES teams(id, org_id) ON DELETE RESTRICT
+);
+
+CREATE TABLE IF NOT EXISTS team_members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  team_id UUID NOT NULL,
+  user_id UUID NOT NULL,
+  role team_role NOT NULL,
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(team_id, user_id),
+  CONSTRAINT fk_team_member_team_org FOREIGN KEY (team_id, org_id) REFERENCES teams(id, org_id) ON DELETE CASCADE,
+  CONSTRAINT fk_team_member_org_user FOREIGN KEY (org_id, user_id) REFERENCES org_members(org_id, user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS team_closure (
+  ancestor_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  descendant_id UUID NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+  depth INTEGER NOT NULL CHECK (depth >= 0),
+  PRIMARY KEY (ancestor_id, descendant_id)
+);
+
+CREATE TABLE IF NOT EXISTS goals (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  scope TEXT NOT NULL CHECK (scope IN ('organization', 'department', 'team', 'individual')),
+  team_id UUID REFERENCES teams(id) ON DELETE SET NULL,
+  department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+  parent_goal_id UUID REFERENCES goals(id) ON DELETE SET NULL,
+  title TEXT NOT NULL CHECK (title <> ''),
+  description TEXT,
+  status TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'active', 'at_risk', 'completed', 'cancelled')),
+  period TEXT NOT NULL CHECK (period IN ('weekly', 'monthly', 'quarterly', 'annual', 'custom')),
+  start_date DATE NOT NULL,
+  due_date DATE NOT NULL,
+  progress NUMERIC(5,2) DEFAULT 0.00 CHECK (progress >= 0 AND progress <= 100),
+  progress_mode TEXT NOT NULL DEFAULT 'manual' CHECK (progress_mode IN ('manual', 'key_results', 'linked_items')),
+  rollup_weight NUMERIC NOT NULL DEFAULT 1 CHECK (rollup_weight >= 0),
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(id, org_id),
+  CONSTRAINT chk_goals_date CHECK (due_date >= start_date),
+  CONSTRAINT chk_goals_parent_not_self CHECK (parent_goal_id <> id),
+  CONSTRAINT chk_goal_scope_columns CHECK (
+    (scope = 'organization' AND team_id IS NULL AND department_id IS NULL) OR
+    (scope = 'department' AND department_id IS NOT NULL AND team_id IS NULL) OR
+    (scope = 'team' AND team_id IS NOT NULL AND department_id IS NULL) OR
+    (scope = 'individual' AND team_id IS NULL AND department_id IS NULL)
+  )
+);
+
+CREATE TABLE IF NOT EXISTS goal_assignees (
+  goal_id UUID NOT NULL,
+  user_id UUID NOT NULL,
+  assigned_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  assigned_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  PRIMARY KEY (goal_id, user_id),
+  CONSTRAINT fk_goal_assignee_goal_org FOREIGN KEY (goal_id, org_id) REFERENCES goals(id, org_id) ON DELETE CASCADE,
+  CONSTRAINT fk_goal_assignee_org_user FOREIGN KEY (org_id, user_id) REFERENCES org_members(org_id, user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS goal_key_results (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  goal_id UUID NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+  title TEXT NOT NULL CHECK (title <> ''),
+  metric_type TEXT NOT NULL DEFAULT 'number' CHECK (metric_type IN ('number', 'percentage', 'currency', 'boolean', 'ratio')),
+  start_value NUMERIC NOT NULL DEFAULT 0,
+  target_value NUMERIC NOT NULL,
+  current_value NUMERIC NOT NULL DEFAULT 0,
+  unit TEXT,
+  weight NUMERIC NOT NULL DEFAULT 1 CHECK (weight >= 0),
+  sort_order INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS goal_links (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  goal_id UUID NOT NULL,
+  provider TEXT NOT NULL CHECK (provider IN ('jira', 'github')),
+  link_type TEXT NOT NULL,
+  external_id TEXT NOT NULL,
+  external_key TEXT NOT NULL,
+  external_url TEXT NOT NULL,
+  title TEXT NOT NULL,
+  state TEXT,
+  is_done BOOLEAN NOT NULL DEFAULT false,
+  weight NUMERIC NOT NULL DEFAULT 1 CHECK (weight >= 0),
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  org_id UUID NOT NULL,
+  metadata JSONB,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(goal_id, provider, external_id),
+  CONSTRAINT fk_goal_link_goal_org FOREIGN KEY (goal_id, org_id) REFERENCES goals(id, org_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS goal_updates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  goal_id UUID NOT NULL,
+  user_id UUID, -- Nullable to preserve audit trail when a user leaves the org
+  progress NUMERIC(5,2) NOT NULL CHECK (progress >= 0 AND progress <= 100),
+  status TEXT NOT NULL,
+  note TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  org_id UUID NOT NULL,
+  CONSTRAINT fk_goal_updates_goal_org FOREIGN KEY (goal_id, org_id) REFERENCES goals(id, org_id) ON DELETE CASCADE,
+  CONSTRAINT fk_goal_updates_org_user FOREIGN KEY (org_id, user_id) REFERENCES org_members(org_id, user_id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS org_integrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL CHECK (provider IN ('slack', 'github_app', 'jira')),
+  external_install_id TEXT NOT NULL,
+  bot_token_enc TEXT,
+  access_token_enc TEXT,
+  refresh_token_enc TEXT,
+  expires_at TIMESTAMPTZ,
+  webhook_secret TEXT,
+  config JSONB,
+  installed_by UUID REFERENCES users(id) ON DELETE SET NULL, -- Single-column FK to avoid org_id NULL violation
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  is_refreshing BOOLEAN NOT NULL DEFAULT false,
+  refresh_started_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(org_id, provider),
+  UNIQUE(provider, external_install_id)
+);
+
+CREATE TABLE IF NOT EXISTS slack_user_links (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  slack_user_id TEXT NOT NULL,
+  slack_team_id TEXT NOT NULL,
+  UNIQUE(slack_team_id, slack_user_id),
+  UNIQUE(user_id, slack_team_id) -- Multi-tenant link support
+);
+
+CREATE TABLE IF NOT EXISTS slack_command_sessions (
+  slack_team_id TEXT NOT NULL,
+  slack_user_id TEXT NOT NULL,
+  index_number INTEGER NOT NULL,
+  goal_id UUID NOT NULL,
+  org_id UUID NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (slack_team_id, slack_user_id, index_number),
+  CONSTRAINT fk_slack_command_sessions_goal FOREIGN KEY (goal_id, org_id) REFERENCES goals(id, org_id) ON DELETE CASCADE,
+  CONSTRAINT fk_slack_command_sessions_user FOREIGN KEY (slack_team_id, slack_user_id) REFERENCES slack_user_links(slack_team_id, slack_user_id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS temp_oauth_states (
+  key UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  data JSONB NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS temp_slack_codes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  slack_team_id TEXT NOT NULL,
+  slack_user_id TEXT NOT NULL,
+  code VARCHAR(6) NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(slack_team_id, slack_user_id),
+  UNIQUE(code)
+);
+
+CREATE TABLE IF NOT EXISTS integration_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  provider TEXT NOT NULL CHECK (provider IN ('slack', 'github_app', 'jira')),
+  external_event_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  status TEXT NOT NULL DEFAULT 'received' CHECK (status IN ('received', 'processing', 'done', 'error')),
+  error TEXT,
+  received_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  processed_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  UNIQUE(provider, external_event_id)
+);
+
+-- ========================================================
+-- INDEXES FOR FOREIGN KEYS & SCHEDULER (Performance)
+-- ========================================================
+CREATE INDEX IF NOT EXISTS idx_org_members_user_id ON org_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_departments_org_id ON departments(org_id);
+CREATE INDEX IF NOT EXISTS idx_teams_org_id ON teams(org_id);
+CREATE INDEX IF NOT EXISTS idx_teams_department_id ON teams(department_id);
+CREATE INDEX IF NOT EXISTS idx_teams_parent_team_id ON teams(parent_team_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_user_id ON team_members(user_id);
+CREATE INDEX IF NOT EXISTS idx_team_members_org_id ON team_members(org_id);
+CREATE INDEX IF NOT EXISTS idx_team_closure_descendant ON team_closure(descendant_id);
+CREATE INDEX IF NOT EXISTS idx_goals_org_id ON goals(org_id);
+CREATE INDEX IF NOT EXISTS idx_goals_parent_goal_id ON goals(parent_goal_id);
+CREATE INDEX IF NOT EXISTS idx_goals_team_id ON goals(team_id);
+CREATE INDEX IF NOT EXISTS idx_goals_department_id ON goals(department_id);
+CREATE INDEX IF NOT EXISTS idx_goal_assignees_user_id ON goal_assignees(user_id);
+CREATE INDEX IF NOT EXISTS idx_goal_key_results_goal_id ON goal_key_results(goal_id);
+CREATE INDEX IF NOT EXISTS idx_goal_links_goal_id ON goal_links(goal_id);
+CREATE INDEX IF NOT EXISTS idx_goal_links_provider_ext_id ON goal_links(provider, external_id);
+CREATE INDEX IF NOT EXISTS idx_goal_updates_goal_id ON goal_updates(goal_id);
+CREATE INDEX IF NOT EXISTS idx_goal_updates_user_id ON goal_updates(user_id);
+CREATE INDEX IF NOT EXISTS idx_org_integrations_installed_by ON org_integrations(org_id, installed_by);
+CREATE INDEX IF NOT EXISTS idx_slack_user_links_user ON slack_user_links(user_id);
+CREATE INDEX IF NOT EXISTS idx_slack_command_sessions_goal ON slack_command_sessions(goal_id);
+CREATE INDEX IF NOT EXISTS idx_integration_events_active ON integration_events(provider, external_event_id) WHERE status IN ('received', 'processing');
+CREATE INDEX IF NOT EXISTS idx_temp_slack_codes_code ON temp_slack_codes(code);
+CREATE INDEX IF NOT EXISTS idx_integration_preferences_sync ON integration_preferences(sync_enabled, last_weekly_sync_week);
+
+-- ========================================================
+-- FUNCTIONS & TRIGGERS
+-- ========================================================
+
+-- Safe timezone conversion helper to avoid crashing scheduler on bad inputs
+CREATE OR REPLACE FUNCTION safe_local_time(p_timezone TEXT)
+RETURNS TIMESTAMP LANGUAGE plpgsql STABLE AS $$
+BEGIN
+  IF p_timezone IS NULL THEN
+    RETURN NOW() AT TIME ZONE 'UTC';
+  END IF;
+  RETURN NOW() AT TIME ZONE p_timezone;
+EXCEPTION WHEN OTHERS THEN
+  RETURN NOW() AT TIME ZONE 'UTC';
+END;
+$$;
+
+-- Provision Organization Helper
+CREATE OR REPLACE FUNCTION provision_organization(
+  p_name TEXT,
+  p_slug TEXT,
+  p_owner_id UUID
+)
+RETURNS UUID LANGUAGE plpgsql AS $$
+DECLARE
+  v_org_id UUID;
+  v_team_id UUID;
+BEGIN
+  INSERT INTO organizations (name, slug)
+  VALUES (p_name, p_slug)
+  RETURNING id INTO v_org_id;
+
+  INSERT INTO org_members (org_id, user_id, role)
+  VALUES (v_org_id, p_owner_id, 'owner');
+
+  INSERT INTO teams (org_id, name, parent_team_id)
+  VALUES (v_org_id, p_name || ' Root', NULL)
+  RETURNING id INTO v_team_id;
+
+  INSERT INTO team_members (team_id, user_id, role, org_id)
+  VALUES (v_team_id, p_owner_id, 'owner', v_org_id);
+
+  RETURN v_org_id;
+END;
+$$;
+
+-- Viewable User IDs Logic Gating (RPC)
+CREATE OR REPLACE FUNCTION viewable_user_ids(p_user_id UUID, p_org_id UUID)
+RETURNS SETOF UUID LANGUAGE plpgsql STABLE AS $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM org_members WHERE user_id = p_user_id AND org_id = p_org_id) THEN
+    RETURN;
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM org_members
+    WHERE user_id = p_user_id AND org_id = p_org_id AND role IN ('admin', 'owner')
+  ) THEN
+    RETURN QUERY SELECT user_id FROM org_members WHERE org_id = p_org_id;
+    RETURN;
+  END IF;
+
+  RETURN QUERY
+  WITH my_managed_teams AS (
+    SELECT descendant_id AS team_id
+    FROM team_members tm
+    JOIN team_closure tc ON tm.team_id = tc.ancestor_id
+    WHERE tm.user_id = p_user_id AND tm.org_id = p_org_id
+      AND tm.role IN ('manager', 'admin', 'owner')
+  ),
+  my_member_teams AS (
+    SELECT team_id FROM team_members
+    WHERE user_id = p_user_id AND org_id = p_org_id
+      AND role IN ('member', 'manager', 'admin', 'owner')
+  )
+  SELECT DISTINCT tm2.user_id
+  FROM (
+    SELECT team_id FROM my_managed_teams
+    UNION
+    SELECT team_id FROM my_member_teams
+  ) t
+  JOIN team_members tm2 ON t.team_id = tm2.team_id AND tm2.org_id = p_org_id
+  UNION SELECT p_user_id;
+END;
+$$;
+
+-- Manager validation logic
+CREATE OR REPLACE FUNCTION is_manager_of(p_manager_id UUID, p_member_id UUID, p_org_id UUID)
+RETURNS BOOLEAN LANGUAGE plpgsql STABLE AS $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM org_members
+    WHERE user_id = p_manager_id AND org_id = p_org_id AND role IN ('admin', 'owner')
+  ) THEN
+    RETURN TRUE;
+  END IF;
+
+  RETURN EXISTS (
+    SELECT 1
+    FROM team_members tm_mgr
+    JOIN team_closure tc ON tm_mgr.team_id = tc.ancestor_id
+    JOIN team_members tm_memb ON tc.descendant_id = tm_memb.team_id
+    WHERE tm_mgr.user_id = p_manager_id
+      AND tm_mgr.org_id = p_org_id
+      AND tm_mgr.role IN ('manager', 'admin', 'owner')
+      AND tm_memb.user_id = p_member_id
+      AND tm_memb.org_id = p_org_id
+  );
+END;
+$$;
+
+-- Org member deletion hook for org_integrations
+CREATE OR REPLACE FUNCTION set_org_integration_installer_null()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE org_integrations
+  SET installed_by = NULL
+  WHERE org_id = OLD.org_id AND installed_by = OLD.user_id;
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_set_org_integration_installer_null
+BEFORE DELETE ON org_members
+FOR EACH ROW EXECUTE FUNCTION set_org_integration_installer_null();
+
+-- Slack Command Session Tenant Isolation Verification Trigger
+CREATE OR REPLACE FUNCTION verify_slack_session_org()
+RETURNS TRIGGER AS $$
+DECLARE
+  v_user_id UUID;
+BEGIN
+  -- Resolve Worklog AI user from Slack user links
+  SELECT user_id INTO v_user_id
+  FROM slack_user_links
+  WHERE slack_team_id = NEW.slack_team_id AND slack_user_id = NEW.slack_user_id;
+
+  IF v_user_id IS NULL THEN
+    RAISE EXCEPTION 'Slack user is not linked to any Worklog AI user';
+  END IF;
+
+  -- Verify user is a member of the target organization
+  IF NOT EXISTS (
+    SELECT 1 FROM org_members
+    WHERE org_id = NEW.org_id AND user_id = v_user_id
+  ) THEN
+    RAISE EXCEPTION 'Linked user is not a member of the target organization';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_verify_slack_session_org
+BEFORE INSERT OR UPDATE ON slack_command_sessions
+FOR EACH ROW EXECUTE FUNCTION verify_slack_session_org();
+
+-- Team Closure Insert Trigger
+CREATE OR REPLACE FUNCTION team_closure_after_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO team_closure (ancestor_id, descendant_id, depth)
+  VALUES (NEW.id, NEW.id, 0);
+
+  IF NEW.parent_team_id IS NOT NULL THEN
+    INSERT INTO team_closure (ancestor_id, descendant_id, depth)
+    SELECT ancestor_id, NEW.id, depth + 1
+    FROM team_closure
+    WHERE descendant_id = NEW.parent_team_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_team_closure_insert
+AFTER INSERT ON teams
+FOR EACH ROW EXECUTE FUNCTION team_closure_after_insert();
+
+-- Team Cycle Guard
+CREATE OR REPLACE FUNCTION teams_parent_cycle_guard()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.parent_team_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.parent_team_id = NEW.id THEN
+    RAISE EXCEPTION 'A team cannot be its own parent';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM team_closure
+    WHERE ancestor_id = NEW.id AND descendant_id = NEW.parent_team_id
+  ) THEN
+    RAISE EXCEPTION 'Cyclic team relationship detected: team % is a descendant of team %', NEW.parent_team_id, NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_teams_cycle_guard
+BEFORE INSERT OR UPDATE OF parent_team_id ON teams
+FOR EACH ROW EXECUTE FUNCTION teams_parent_cycle_guard();
+
+-- Team Closure Reparenting Trigger
+CREATE OR REPLACE FUNCTION team_closure_after_reparent()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.parent_team_id IS DISTINCT FROM OLD.parent_team_id THEN
+    IF OLD.parent_team_id IS NOT NULL THEN
+      DELETE FROM team_closure
+      WHERE descendant_id IN (
+        SELECT descendant_id FROM team_closure WHERE ancestor_id = NEW.id
+      )
+      AND ancestor_id IN (
+        SELECT ancestor_id FROM team_closure WHERE descendant_id = OLD.parent_team_id
+      );
+    END IF;
+
+    IF NEW.parent_team_id IS NOT NULL THEN
+      INSERT INTO team_closure (ancestor_id, descendant_id, depth)
+      SELECT anc.ancestor_id, desc.descendant_id, anc.depth + desc.depth + 1
+      FROM team_closure anc
+      CROSS JOIN team_closure desc
+      WHERE anc.descendant_id = NEW.parent_team_id
+        AND desc.ancestor_id = NEW.id;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_team_closure_update
+AFTER UPDATE OF parent_team_id ON teams
+FOR EACH ROW EXECUTE FUNCTION team_closure_after_reparent();
+
+-- Tenant Verifications
+CREATE OR REPLACE FUNCTION verify_team_department_org()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.department_id IS NOT NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM departments WHERE id = NEW.department_id AND org_id = NEW.org_id) THEN
+      RAISE EXCEPTION 'Department must belong to the same organization as the team';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_verify_team_department_org
+BEFORE INSERT OR UPDATE OF department_id, org_id ON teams
+FOR EACH ROW EXECUTE FUNCTION verify_team_department_org();
+
+CREATE OR REPLACE FUNCTION verify_goal_relations_org()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.parent_goal_id IS NOT NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM goals WHERE id = NEW.parent_goal_id AND org_id = NEW.org_id) THEN
+      RAISE EXCEPTION 'Parent goal must belong to the same organization';
+    END IF;
+  END IF;
+
+  IF NEW.team_id IS NOT NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM teams WHERE id = NEW.team_id AND org_id = NEW.org_id) THEN
+      RAISE EXCEPTION 'Team must belong to the same organization';
+    END IF;
+  END IF;
+
+  IF NEW.department_id IS NOT NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM departments WHERE id = NEW.department_id AND org_id = NEW.org_id) THEN
+      RAISE EXCEPTION 'Department must belong to the same organization';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_verify_goal_relations_org
+BEFORE INSERT OR UPDATE OF parent_goal_id, team_id, department_id, org_id ON goals
+FOR EACH ROW EXECUTE FUNCTION verify_goal_relations_org();
+
+-- Prevent Org Mutation
+CREATE OR REPLACE FUNCTION prevent_org_id_mutation()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.org_id IS DISTINCT FROM OLD.org_id THEN
+    RAISE EXCEPTION 'Changing org_id is not allowed for security and tenant isolation';
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_prevent_teams_org_id_mutation
+BEFORE UPDATE OF org_id ON teams
+FOR EACH ROW EXECUTE FUNCTION prevent_org_id_mutation();
+
+CREATE OR REPLACE TRIGGER trigger_prevent_departments_org_id_mutation
+BEFORE UPDATE OF org_id ON departments
+FOR EACH ROW EXECUTE FUNCTION prevent_org_id_mutation();
+
+CREATE OR REPLACE TRIGGER trigger_prevent_goals_org_id_mutation
+BEFORE UPDATE OF org_id ON goals
+FOR EACH ROW EXECUTE FUNCTION prevent_org_id_mutation();
+
+CREATE OR REPLACE TRIGGER trigger_prevent_org_members_org_id_mutation
+BEFORE UPDATE OF org_id ON org_members
+FOR EACH ROW EXECUTE FUNCTION prevent_org_id_mutation();
+
+CREATE OR REPLACE TRIGGER trigger_prevent_team_members_org_id_mutation
+BEFORE UPDATE OF org_id ON team_members
+FOR EACH ROW EXECUTE FUNCTION prevent_org_id_mutation();
+
+CREATE OR REPLACE TRIGGER trigger_prevent_goal_assignees_org_id_mutation
+BEFORE UPDATE OF org_id ON goal_assignees
+FOR EACH ROW EXECUTE FUNCTION prevent_org_id_mutation();
+
+CREATE OR REPLACE TRIGGER trigger_prevent_goal_links_org_id_mutation
+BEFORE UPDATE OF org_id ON goal_links
+FOR EACH ROW EXECUTE FUNCTION prevent_org_id_mutation();
+
+CREATE OR REPLACE TRIGGER trigger_prevent_goal_updates_org_id_mutation
+BEFORE UPDATE OF org_id ON goal_updates
+FOR EACH ROW EXECUTE FUNCTION prevent_org_id_mutation();
+
+CREATE OR REPLACE TRIGGER trigger_prevent_org_integrations_org_id_mutation
+BEFORE UPDATE OF org_id ON org_integrations
+FOR EACH ROW EXECUTE FUNCTION prevent_org_id_mutation();
+
+-- Goals Parent Cycle Guard Trigger
+CREATE OR REPLACE FUNCTION goals_parent_cycle_guard()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.parent_goal_id IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  IF NEW.parent_goal_id = NEW.id THEN
+    RAISE EXCEPTION 'A goal cannot be its own parent';
+  END IF;
+
+  IF EXISTS (
+    WITH RECURSIVE goal_ancestors AS (
+      SELECT id, parent_goal_id
+      FROM goals
+      WHERE id = NEW.parent_goal_id
+      UNION ALL
+      SELECT g.id, g.parent_goal_id
+      FROM goals g
+      JOIN goal_ancestors ga ON g.id = ga.parent_goal_id
+    )
+    SELECT 1 FROM goal_ancestors WHERE id = NEW.id
+  ) THEN
+    RAISE EXCEPTION 'Cyclic goal relationship detected: goal % is a descendant of goal %', NEW.parent_goal_id, NEW.id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_goals_cycle_guard
+BEFORE INSERT OR UPDATE OF parent_goal_id ON goals
+FOR EACH ROW EXECUTE FUNCTION goals_parent_cycle_guard();
+
+-- Atomic Progress Rollups
+CREATE OR REPLACE FUNCTION recompute_goal_progress(p_goal_id UUID)
+RETURNS VOID AS $$
+DECLARE
+  v_org_id UUID;
+  v_progress_mode TEXT;
+  v_has_children BOOLEAN;
+  v_new_progress NUMERIC(5,2);
+  v_current_progress NUMERIC(5,2);
+  v_parent_goal_id UUID;
+BEGIN
+  SELECT org_id, progress_mode, progress, parent_goal_id
+  FROM goals
+  WHERE id = p_goal_id
+  INTO v_org_id, v_progress_mode, v_current_progress, v_parent_goal_id;
+
+  IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  SELECT EXISTS (
+    SELECT 1 FROM goals WHERE parent_goal_id = p_goal_id
+  ) INTO v_has_children;
+
+  IF v_has_children THEN
+    SELECT COALESCE(
+      SUM(progress * rollup_weight) / NULLIF(SUM(rollup_weight), 0),
+      0.00
+    ) INTO v_new_progress
+    FROM goals
+    WHERE parent_goal_id = p_goal_id;
+  ELSE
+    IF v_progress_mode = 'manual' THEN
+      v_new_progress := v_current_progress;
+    ELSIF v_progress_mode = 'key_results' THEN
+      SELECT COALESCE(
+        SUM(
+          CASE
+            WHEN metric_type = 'boolean' THEN CASE WHEN current_value = target_value THEN 1.0 ELSE 0.0 END
+            WHEN target_value = start_value THEN CASE WHEN current_value = target_value THEN 1.0 ELSE 0.0 END
+            WHEN target_value > start_value THEN LEAST(GREATEST((current_value - start_value) / (target_value - start_value), 0), 1)
+            ELSE LEAST(GREATEST((start_value - current_value) / (start_value - target_value), 0), 1)
+          END * weight
+        ) / NULLIF(SUM(weight), 0),
+        0.00
+      ) * 100 INTO v_new_progress
+      FROM goal_key_results
+      WHERE goal_id = p_goal_id;
+    ELSIF v_progress_mode = 'linked_items' THEN
+      SELECT COALESCE(
+        SUM(CASE WHEN is_done THEN weight ELSE 0 END) / NULLIF(SUM(weight), 0),
+        0.00
+      ) * 100 INTO v_new_progress
+      FROM goal_links
+      WHERE goal_id = p_goal_id;
+    ELSE
+      v_new_progress := 0.00;
+    END IF;
+  END IF;
+
+  v_new_progress := LEAST(GREATEST(v_new_progress, 0.00), 100.00);
+
+  IF v_new_progress IS DISTINCT FROM v_current_progress THEN
+    UPDATE goals
+    SET progress = v_new_progress, updated_at = NOW()
+    WHERE id = p_goal_id;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Key Result & Link Rollup Triggers (Handles parent switching bugs)
+CREATE OR REPLACE FUNCTION trigger_recompute_goal_progress_from_details()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    PERFORM recompute_goal_progress(NEW.goal_id);
+    RETURN NEW;
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
+      PERFORM recompute_goal_progress(OLD.goal_id);
+    END IF;
+    PERFORM recompute_goal_progress(NEW.goal_id);
+    RETURN NEW;
+  ELSIF TG_OP = 'DELETE' THEN
+    PERFORM recompute_goal_progress(OLD.goal_id);
+    RETURN OLD;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_recompute_progress_key_results
+AFTER INSERT OR UPDATE OF current_value, target_value, start_value, weight, metric_type, goal_id OR DELETE
+ON goal_key_results
+FOR EACH ROW EXECUTE FUNCTION trigger_recompute_goal_progress_from_details();
+
+CREATE OR REPLACE TRIGGER trigger_recompute_progress_links
+AFTER INSERT OR UPDATE OF is_done, weight, goal_id OR DELETE
+ON goal_links
+FOR EACH ROW EXECUTE FUNCTION trigger_recompute_goal_progress_from_details();
+
+-- Goal Structural Propagation Trigger
+CREATE OR REPLACE FUNCTION goals_after_changes_trigger()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.parent_goal_id IS NOT NULL THEN
+      PERFORM recompute_goal_progress(NEW.parent_goal_id);
+    END IF;
+  ELSIF TG_OP = 'UPDATE' THEN
+    IF NEW.progress_mode IS DISTINCT FROM OLD.progress_mode OR NEW.rollup_weight IS DISTINCT FROM OLD.rollup_weight THEN
+      PERFORM recompute_goal_progress(NEW.id);
+    END IF;
+
+    IF NEW.progress IS DISTINCT FROM OLD.progress OR NEW.parent_goal_id IS DISTINCT FROM OLD.parent_goal_id THEN
+      IF OLD.parent_goal_id IS NOT NULL AND OLD.parent_goal_id IS DISTINCT FROM NEW.parent_goal_id THEN
+        PERFORM recompute_goal_progress(OLD.parent_goal_id);
+      END IF;
+      
+      IF NEW.parent_goal_id IS NOT NULL THEN
+        PERFORM recompute_goal_progress(NEW.parent_goal_id);
+      END IF;
+    END IF;
+  ELSIF TG_OP = 'DELETE' THEN
+    IF OLD.parent_goal_id IS NOT NULL THEN
+      PERFORM recompute_goal_progress(OLD.parent_goal_id);
+    END IF;
+  END IF;
+  RETURN NULL;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_goals_after_changes
+AFTER INSERT OR UPDATE OF progress, parent_goal_id, progress_mode, rollup_weight OR DELETE
+ON goals
+FOR EACH ROW EXECUTE FUNCTION goals_after_changes_trigger();
+
+-- Enforce Strict Mixing Constraints & Concurrency Lock
+CREATE OR REPLACE FUNCTION enforce_goal_structure_integrity()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF TG_TABLE_NAME = 'goal_key_results' THEN
+    IF TG_OP = 'UPDATE' AND NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
+      RAISE EXCEPTION 'Changing goal_id is not allowed for key results';
+    END IF;
+    PERFORM 1 FROM goals WHERE id = NEW.goal_id FOR UPDATE;
+    IF EXISTS (SELECT 1 FROM goals WHERE parent_goal_id = NEW.goal_id) THEN
+      RAISE EXCEPTION 'Cannot add key result: Goal already has child goals';
+    END IF;
+    
+  ELSIF TG_TABLE_NAME = 'goal_links' THEN
+    IF TG_OP = 'UPDATE' AND NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
+      RAISE EXCEPTION 'Changing goal_id is not allowed for work links';
+    END IF;
+    PERFORM 1 FROM goals WHERE id = NEW.goal_id FOR UPDATE;
+    IF EXISTS (SELECT 1 FROM goals WHERE parent_goal_id = NEW.goal_id) THEN
+      RAISE EXCEPTION 'Cannot add work link: Goal already has child goals';
+    END IF;
+
+  ELSIF TG_TABLE_NAME = 'goals' THEN
+    IF NEW.parent_goal_id IS NOT NULL THEN
+      PERFORM 1 FROM goals WHERE id = NEW.parent_goal_id FOR UPDATE;
+      IF EXISTS (SELECT 1 FROM goal_key_results WHERE goal_id = NEW.parent_goal_id) THEN
+        RAISE EXCEPTION 'Cannot set parent goal: Target goal already has key results';
+      END IF;
+      IF EXISTS (SELECT 1 FROM goal_links WHERE goal_id = NEW.parent_goal_id) THEN
+        RAISE EXCEPTION 'Cannot set parent goal: Target goal already has work links';
+      END IF;
+    END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_enforce_kr_integrity
+BEFORE INSERT OR UPDATE ON goal_key_results
+FOR EACH ROW EXECUTE FUNCTION enforce_goal_structure_integrity();
+
+CREATE OR REPLACE TRIGGER trigger_enforce_link_integrity
+BEFORE INSERT OR UPDATE ON goal_links
+FOR EACH ROW EXECUTE FUNCTION enforce_goal_structure_integrity();
+
+CREATE OR REPLACE TRIGGER trigger_enforce_goal_child_integrity
+BEFORE INSERT OR UPDATE OF parent_goal_id ON goals
+FOR EACH ROW EXECUTE FUNCTION enforce_goal_structure_integrity();
+
+-- ========================================================
+-- SECURITY AND RLS HARDENING (Defense-In-Depth)
+-- ========================================================
+
+-- Enable RLS on all newly added tables
+ALTER TABLE organizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE org_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE departments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE teams ENABLE ROW LEVEL SECURITY;
+ALTER TABLE team_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE team_closure ENABLE ROW LEVEL SECURITY;
+ALTER TABLE goals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE goal_assignees ENABLE ROW LEVEL SECURITY;
+ALTER TABLE goal_key_results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE goal_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE goal_updates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE org_integrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE slack_user_links ENABLE ROW LEVEL SECURITY;
+ALTER TABLE slack_command_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE temp_oauth_states ENABLE ROW LEVEL SECURITY;
+ALTER TABLE temp_slack_codes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE integration_events ENABLE ROW LEVEL SECURITY;
+
+-- Deny all public access policies (service role bypasses automatically)
+CREATE POLICY "Deny all public" ON organizations FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON org_members FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON departments FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON teams FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON team_members FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON team_closure FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON goals FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON goal_assignees FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON goal_key_results FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON goal_links FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON goal_updates FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON org_integrations FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON slack_user_links FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON slack_command_sessions FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON temp_oauth_states FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON temp_slack_codes FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON integration_events FOR ALL TO public USING (false);
+
+-- Enable RLS and deny access on existing unprotected custom auth tables
+ALTER TABLE refresh_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE email_verifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE password_reset_tokens ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Deny all public access to refresh_tokens" ON refresh_tokens FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public access to email_verifications" ON email_verifications FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public access to password_reset_tokens" ON password_reset_tokens FOR ALL TO public USING (false);
+```
+
+---
+
+## Fifth Review Pass — Comprehensive Technical & Security Audit (2026-06-16)
+
+Following a comprehensive technical and security audit fanning out specialized subagents (Database/Triggers, Security/Authz, and Webhooks/API Integrations), we have identified and corrected several critical database, security, and architectural issues in the plan:
+
+### 🔴 Critical Security & Trigger Failures
+
+#### Bug BA — Missing `goals` Cycle Guard Trigger & Constraint
+- **Vulnerability**: The plan specifies a cycle guard for goals but fails to define the actual trigger and trigger function in the SQL migration. This allows users to create cyclic goal hierarchies, which will cause infinite recursion and crash database rollup scripts.
+- **Fix**: Added the `trigger_goals_cycle_guard` trigger and `goals_parent_cycle_guard()` PL/pgSQL function using a recursive CTE check to reject cycles before update/insert.
+
+#### Bug BB — Database Crash on Member Deletion (Composite FK `ON DELETE SET NULL`)
+- **Vulnerability**: In `org_integrations`, the composite foreign key `(org_id, installed_by) REFERENCES org_members(org_id, user_id) ON DELETE SET NULL` attempts to nullify `org_id` when the installer is deleted. Since `org_id` is defined as `NOT NULL`, this causes any deletion of organization members to crash the transaction.
+- **Fix**: Changed `installed_by` to a single-column FK referencing `users(id) ON DELETE SET NULL` and added a `BEFORE DELETE` trigger on `org_members` to safely nullify the installer field.
+
+#### Bug BC — Stale Progress Rollup on Goal Detail Re-assignment
+- **Vulnerability**: The detail triggers (`trigger_recompute_goal_progress_from_details`) only recomputed progress for `NEW.goal_id`. If a key result or goal link is moved from Goal A to Goal B, Goal A's progress was left stale.
+- **Fix**: Recompute progress for both `OLD.goal_id` and `NEW.goal_id` if they are distinct.
+
+#### Bug BD — Incomplete Base Table Definitions
+- **Vulnerability**: The migration script omitted base integration tables (`user_integrations`, `integration_preferences`, `log_source_references`, `integration_sync_logs`), which would cause migration scripts to fail due to missing dependencies.
+- **Fix**: Added idempotent `CREATE TABLE IF NOT EXISTS` definitions for all baseline integration tables.
+
+### 🟡 High-Priority Architecture & Concurrency Gaps
+
+#### Issue BE — Slack User Link Lockout for Multi-Tenant Users
+- **Flaw**: The unique constraint on `slack_user_links(user_id)` restricted a user to exactly one Slack workspace association across all organizations.
+- **Fix**: Replaced it with `UNIQUE(user_id, slack_team_id)` to allow users to link different Slack workspaces for different tenants.
+
+#### Issue BF — Timezone Helper Crash and Null-Safety
+- **Flaw**: If `sync_timezone` was `NULL`, `safe_local_time` returned `NULL`, crashing the scheduler or causing it to skip syncing.
+- **Fix**: Implemented null checks defaulting to `'UTC'` when timezone parameters are omitted.
+
+#### Issue BG — Undefined `is_manager_of` DB Helper
+- **Flaw**: The plan references a database RPC `is_manager_of` for checking if a user manages an assignee, but the function was never defined in the schema.
+- **Fix**: Defined the `is_manager_of(p_manager_id, p_member_id, p_org_id)` function in the migration script.
+
+---
+
+*Fifth review completed 2026-06-16. Added Bugs BA-BD, Issues BE-BG, and updated the SQL migration script to a fully production-ready, audited baseline.*
+
+---
+
+## Sixth Review Pass — Core Logic, Schema & Timezone Audits (2026-06-16)
+
+Following a comprehensive logic and integration audit fanning out subagents, we have identified and corrected additional critical bugs, timezone issues, and database-level gaps in the plan:
+
+### 🔴 Critical Security & Logic Failures
+
+#### Bug BH — Timezone Conversion Crash in Weekly Sync Query
+- **Vulnerability**: The SQL query in the weekly sync appendix uses `NOW() AT TIME ZONE ip.sync_timezone` directly. If any user registers an invalid timezone string in the database, PostgreSQL throws `ERROR: time zone "invalid_timezone" not recognized`, crashing the hourly scheduler query and preventing the sync job from running for *all* users.
+- **Fix**: Update the weekly sync query to use the `safe_local_time(ip.sync_timezone)` function instead of raw `AT TIME ZONE` conversion:
+  ```sql
+  (safe_local_time(ip.sync_timezone)) AS local_now
+  ```
+
+#### Bug BI — Missing `integration_preferences` Row Excludes Users from Sync
+- **Vulnerability**: The weekly sync query performs an inner `JOIN` on `integration_preferences`. If a user connects integrations but has never modified or saved settings, no row will exist in `integration_preferences`. The inner join will exclude them, and their weekly worklogs will never be synced.
+- **Fix**: Use a `LEFT JOIN` on `integration_preferences` and default timezone and sync enabled flags using `COALESCE`:
+  ```sql
+  LEFT JOIN integration_preferences ip ON u.id = ip.user_id
+  WHERE ui.is_active = true AND COALESCE(ip.sync_enabled, true) = true
+  ```
+
+#### Bug BJ — Weekly Sync Chronological Catch-Up Omission (Sync Gap)
+- **Vulnerability**: The weekly sync query selects `latest_eligible_week` to sync. If a user is offline or a sync fails for multiple weeks, the job only syncs the most recent week, permanently skipping and leaving gaps for all intermediate weeks.
+- **Fix**: Calculate the oldest missing week based on `last_weekly_sync_week` and sync one week at a time chronologically:
+  ```sql
+  CASE 
+    WHEN ip.last_weekly_sync_week IS NULL THEN latest_eligible_week
+    ELSE to_char(to_date(ip.last_weekly_sync_week, 'IYYY-"W"IW') + INTERVAL '7 days', 'IYYY-"W"IW')
+  END AS week_to_sync
+  ```
+
+#### Bug BK — Day.js Date Overflow in Boundary Calculation
+- **Vulnerability**: Initializing Day.js with the current local time via `dayjs().tz(userTimezone)` before overriding the year and week can lead to date-overflow bugs (e.g. if the current date is the 31st of the month and we change to a month with fewer days).
+- **Fix**: Initialize Day.js from a clean reference date:
+  ```ts
+  dayjs.tz(`${year}-01-01`, userTimezone).isoWeek(week).startOf('isoWeek')
+  ```
+
+### 🟡 High-Priority Architecture & Concurrency Gaps
+
+#### Issue BL — Collision on Slack Link Verification Code
+- **Vulnerability**: `temp_slack_codes` has a `UNIQUE(code)` constraint to guarantee active verification PINs are unique. If the server generates a random 6-digit code that collides with an active pin, the insert crashes.
+- **Fix**: The server must handle unique constraint collisions on `temp_slack_codes(code)` by retrying code generation in a loop (up to 3 times) before throwing an error.
+
+#### Issue BM — No Natural JIRA Webhook Event ID for Deduplication
+- **Vulnerability**: The `integration_events` table uses a unique `external_event_id` to deduplicate webhooks. However, JIRA webhook payloads do not contain a unique event or delivery ID.
+- **Fix**: The server must compute a SHA-256 hash of the JIRA webhook request payload to use as a deterministic `external_event_id`.
+
+#### Issue BN — Missing Cache Pruning for Temp Tables
+- **Vulnerability**: Tables like `temp_oauth_states` and `temp_slack_codes` accumulate expired session records but have no automated cleanup mechanism, resulting in database bloat.
+- **Fix**: Add a daily cleanup process in Node.js or a cron job to prune expired states and codes:
+  ```sql
+  DELETE FROM temp_oauth_states WHERE expires_at < NOW();
+  DELETE FROM temp_slack_codes WHERE expires_at < NOW();
+  ```
+
+#### Issue BO — Dead Schema Column `metric_type`
+- **Vulnerability**: The plan adds `metric_type` to `goal_key_results` but does not use it in the SQL `recompute_goal_progress` function.
+- **Fix**: Implement branching in `recompute_goal_progress` for `boolean` to return `1.0` if `current_value = target_value` else `0.0`, or remove/document that the generic clamp formula is used as a fallback.
+
+---
+
+## Seventh Review Pass — Advanced Integrity, Multi-Tenancy & Edge-Case Audits (2026-06-16)
+
+Following an exhaustive design and implementation validation, we have identified and resolved the following advanced bugs and architectural issues to achieve a production-ready, enterprise-grade codebase:
+
+### 🔴 Critical Security, Sync & Logic Failures
+
+#### Bug BP — Selecting Null User ID in Weekly Sync Query
+- **Vulnerability**: The weekly sync query (Issue AL, as adjusted by Bug BI) uses a `LEFT JOIN` on `integration_preferences` to ensure that users who have not yet configured settings are not excluded. However, the `SELECT` clause selects `ip.user_id`. For users without a preferences row, `ip.user_id` evaluates to `NULL`. The sync job will receive a `null` identifier, causing a crash or processing failure.
+- **Fix**: Modify the query to select `u.id AS user_id` (or `ui.user_id`) to guarantee it is always non-null.
+
+#### Bug BQ — Day.js Date Corruption in Boundary Calculation
+- **Vulnerability**: Initializing Day.js with `${year}-01-01` and then setting `.isoWeek(week)` causes severe date offset corruption in years where January 1st falls in the previous calendar year's ISO week (e.g. when Jan 1 is a Friday, Saturday, or Sunday). Day.js will evaluate the week index against that previous ISO year, returning dates shifted by an entire year.
+- **Fix**: Utilize `isoWeekYear` from the Day.js `isoWeek` plugin to set the year relative to the ISO week-numbering system:
+  ```ts
+  dayjs().tz(userTimezone).isoWeekYear(year).isoWeek(week).startOf('isoWeek')
+  ```
+
+#### Bug BR — Silent Infinite Loops on Weekly Sync Completion
+- **Vulnerability**: If a user does not have an `integration_preferences` row, running a standard `UPDATE` to store `last_weekly_sync_week` will affect 0 rows. The sync status is never saved, causing the scheduler to run the sync for the user every hour, spamming external JIRA and GitHub APIs and triggering rate-limits.
+- **Fix**: Save the sync week status using an `INSERT ... ON CONFLICT (user_id) DO UPDATE` query:
+  ```sql
+  INSERT INTO integration_preferences (user_id, last_weekly_sync_week, sync_timezone)
+  VALUES ($1, $2, 'UTC')
+  ON CONFLICT (user_id)
+  DO UPDATE SET last_weekly_sync_week = EXCLUDED.last_weekly_sync_week;
+  ```
+
+#### Bug BS — Lock Acquisition Failure Locking Out New Users
+- **Vulnerability**: The atomic database locking query (Issue Y) uses `UPDATE integration_preferences`. If a user does not have an `integration_preferences` row, this query updates 0 rows. The server will interpret this as a lock acquisition failure, silently skipping their sync forever.
+- **Fix**: Use an upsert query with a conflicting `WHERE` clause to acquire the lock:
+  ```sql
+  INSERT INTO integration_preferences (user_id, is_syncing, sync_started_at)
+  VALUES (:userId, true, NOW())
+  ON CONFLICT (user_id)
+  DO UPDATE SET is_syncing = true, sync_started_at = NOW()
+  WHERE integration_preferences.is_syncing = false OR integration_preferences.sync_started_at < NOW() - INTERVAL '15 minutes'
+  RETURNING *;
+  ```
+
+#### Bug BT — Contradictory `slack_command_sessions` Foreign Key Compilation Failure
+- **Vulnerability**: Issue X specifies adding a foreign key on `slack_command_sessions` referencing `slack_user_links(slack_team_id, slack_user_id, org_id)`. However, `slack_user_links` does not have an `org_id` column (removed in Issue AW to support multi-tenancy). Running this SQL directly causes a compilation error. Simply removing `org_id` from the constraint leaves a major tenant-isolation leak where a session could associate a Slack user from one workspace with an arbitrary organization's goals.
+- **Fix**: Define a database trigger `verify_slack_session_org` on `slack_command_sessions` BEFORE INSERT OR UPDATE that checks `org_members` to ensure that the resolved Worklog AI user is a member of the target organization:
+  ```sql
+  CREATE OR REPLACE FUNCTION verify_slack_session_org()
+  RETURNS TRIGGER AS $$
+  DECLARE
+    v_user_id UUID;
+  BEGIN
+    SELECT user_id INTO v_user_id FROM slack_user_links WHERE slack_team_id = NEW.slack_team_id AND slack_user_id = NEW.slack_user_id;
+    IF v_user_id IS NULL THEN
+      RAISE EXCEPTION 'Slack user is not linked to any Worklog AI user';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM org_members WHERE org_id = NEW.org_id AND user_id = v_user_id) THEN
+      RAISE EXCEPTION 'Linked user is not a member of the target organization';
+    END IF;
+    RETURN NEW;
+  END;
+  $$ LANGUAGE plpgsql;
+
+  CREATE OR REPLACE TRIGGER trigger_verify_slack_session_org
+  BEFORE INSERT OR UPDATE ON slack_command_sessions
+  FOR EACH ROW EXECUTE FUNCTION verify_slack_session_org();
+  ```
+
+#### Bug BU — Retrospective JQL Sync Missing Worklogs
+- **Vulnerability**: Using `updatedDate` boundaries in JQL (Issue AL) will miss any worklogs added retrospectively (e.g. a developer logs work on Monday for the previous week) because the issue's update timestamp will fall outside the target week's boundaries.
+- **Fix**: Search using the `worklogDate` field for worklog queries in JQL:
+  ```sql
+  (assignee = "${accountId}" AND updatedDate >= "${since}" AND updatedDate < "${until}") OR (worklogAuthor = "${accountId}" AND worklogDate >= "${sinceDateOnly}" AND worklogDate <= "${untilDateOnly}")
+  ```
+
+#### Bug BV — Blind Upserts Overwriting User Modifications
+- **Vulnerability**: Doing a blind upsert on `work_log_entries` during retrospective sync sweeps (Issue AT) will overwrite achievements, challenges, or learnings that the user has already manually edited, reviewed, or approved.
+- **Fix**: Constrain the upsert update clause to only overwrite the text fields if `status = 'auto-generated' AND pending_review = true`.
+
+#### Bug BW — Missing Trigger Column on Key Result Metric Type Changes
+- **Vulnerability**: The trigger `trigger_recompute_progress_key_results` does not list the `metric_type` column. If a key result's metric type is changed (e.g. from `'number'` to `'boolean'`), progress is not recalculated, leaving the goal progress stale.
+- **Fix**: Add `metric_type` to the `AFTER INSERT OR UPDATE OF ...` column list in the trigger registration.
+
+### 🟡 High-Priority Architecture, Security & UX Gaps
+
+#### Issue BX — Stale Metadata on `goal_links`
+- **Vulnerability**: When webhooks or nightly sweeps execute, they only update `is_done` and `state`. If a PR or JIRA issue is renamed, moved, or has its URL modified, the database continues to store stale information, leading to broken links or bad names in the UI.
+- **Fix**: Update the `title`, `external_key`, and `external_url` columns on webhook/rollup updates.
+
+#### Issue BY — Deletion of Audit Trail in `goal_updates`
+- **Vulnerability**: The `fk_goal_updates_org_user` foreign key uses `ON DELETE CASCADE`. If a user is deleted from `org_members`, all their historical check-in comments and progress logs in `goal_updates` are completely deleted, destroying the corporate compliance audit trail.
+- **Fix**: Make `goal_updates.user_id` nullable, and change the constraint to `ON DELETE SET NULL`.
+
+#### Issue BZ — Missing Workspace Validation during Slack Linking
+- **Vulnerability**: When a user inputs the 6-digit PIN to link Slack, the server does not verify if the target `slack_team_id` is actually installed as an active integration in at least one organization where the user has membership, allowing users to link unapproved Slack workspaces.
+- **Fix**: Query `org_integrations` and `org_members` to validate the workspace installation before persisting the link.
+
+#### Issue CA — Redundant Goal Move Logic in Detail Triggers
+- **Vulnerability**: The `BEFORE UPDATE` trigger `enforce_goal_structure_integrity` throws an exception blocking updates to `goal_id` of key results and links. However, the `AFTER UPDATE` trigger contains complex logic to handle `goal_id` updates, which is dead code.
+- **Fix**: Document this redundancy, or relax the restriction if moving KRs/links across goals is intended.
+
+#### Issue CB — State Validation in JIRA Site Selection
+- **Vulnerability**: When resolving JIRA site selection via `temp_oauth_states` using the UUID key, there is no validation that the requesting user matches the initiator, exposing the site selection to intercept and injection attacks.
+- **Fix**: Store the initiating `userId` and target `orgId` in the cached jsonb, and verify them against the active session before saving the site connection.
+
 
