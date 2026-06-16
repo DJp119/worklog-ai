@@ -1224,16 +1224,16 @@ Following a deep-dive analysis fanning out specialized subagents (Database/Trigg
   4. The server runs `requireAuth` and checks that `statePayload.userId === req.userId` before exchanging the code.
 
 #### Bug AP — Public Database Exposure of Sensitive Tables (RLS Bypass)
-- **Vulnerability**: Tables like `refresh_tokens`, `email_verifications`, and `password_reset_tokens` do not have Row Level Security (RLS) enabled or have no policies. Since the client exposes the Supabase anon key, an attacker can bypass the Node authentication layer entirely and query/manipulate these tables directly via PostgREST.
+- **Vulnerability**: Tables like `refresh_tokens`, `email_verifications`, and `password_resets` do not have Row Level Security (RLS) enabled or have no policies. Since the client exposes the Supabase anon key, an attacker can bypass the Node authentication layer entirely and query/manipulate these tables directly via PostgREST.
 - **Remediation**: Enable RLS and add a deny-all policy for these tables in the migration:
   ```sql
   ALTER TABLE refresh_tokens ENABLE ROW LEVEL SECURITY;
   ALTER TABLE email_verifications ENABLE ROW LEVEL SECURITY;
-  ALTER TABLE password_reset_tokens ENABLE ROW LEVEL SECURITY;
+  ALTER TABLE password_resets ENABLE ROW LEVEL SECURITY;
 
   CREATE POLICY "Deny all public access to refresh_tokens" ON refresh_tokens FOR ALL TO public USING (false);
   CREATE POLICY "Deny all public access to email_verifications" ON email_verifications FOR ALL TO public USING (false);
-  CREATE POLICY "Deny all public access to password_reset_tokens" ON password_reset_tokens FOR ALL TO public USING (false);
+  CREATE POLICY "Deny all public access to password_resets" ON password_resets FOR ALL TO public USING (false);
   ```
 
 #### Bug AQ — Slack Linking GET CSRF and PIN Verification
@@ -1532,7 +1532,7 @@ CREATE TABLE IF NOT EXISTS goal_updates (
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   org_id UUID NOT NULL,
   CONSTRAINT fk_goal_updates_goal_org FOREIGN KEY (goal_id, org_id) REFERENCES goals(id, org_id) ON DELETE CASCADE,
-  CONSTRAINT fk_goal_updates_org_user FOREIGN KEY (org_id, user_id) REFERENCES org_members(org_id, user_id) ON DELETE SET NULL
+  CONSTRAINT fk_goal_updates_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS org_integrations (
@@ -1608,6 +1608,12 @@ CREATE TABLE IF NOT EXISTS integration_events (
   UNIQUE(provider, external_event_id)
 );
 
+CREATE TABLE IF NOT EXISTS global_locks (
+  job_name TEXT PRIMARY KEY,
+  locked_by UUID NOT NULL,
+  locked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ========================================================
 -- INDEXES FOR FOREIGN KEYS & SCHEDULER (Performance)
 -- ========================================================
@@ -1635,6 +1641,9 @@ CREATE INDEX IF NOT EXISTS idx_slack_command_sessions_goal ON slack_command_sess
 CREATE INDEX IF NOT EXISTS idx_integration_events_active ON integration_events(provider, external_event_id) WHERE status IN ('received', 'processing');
 CREATE INDEX IF NOT EXISTS idx_temp_slack_codes_code ON temp_slack_codes(code);
 CREATE INDEX IF NOT EXISTS idx_integration_preferences_sync ON integration_preferences(sync_enabled, last_weekly_sync_week);
+CREATE INDEX IF NOT EXISTS idx_temp_oauth_states_expires ON temp_oauth_states(expires_at);
+CREATE INDEX IF NOT EXISTS idx_temp_slack_codes_expires ON temp_slack_codes(expires_at);
+CREATE INDEX IF NOT EXISTS idx_slack_command_sessions_expires ON slack_command_sessions(expires_at);
 
 -- ========================================================
 -- FUNCTIONS & TRIGGERS
@@ -1762,6 +1771,30 @@ CREATE OR REPLACE TRIGGER trigger_set_org_integration_installer_null
 BEFORE DELETE ON org_members
 FOR EACH ROW EXECUTE FUNCTION set_org_integration_installer_null();
 
+-- Enforce at least one owner per organization
+CREATE OR REPLACE FUNCTION enforce_min_org_owner()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Check if the organization still exists to prevent blocking cascading deletions when deleting the entire organization
+  IF EXISTS (SELECT 1 FROM organizations WHERE id = OLD.org_id) THEN
+    IF (TG_OP = 'DELETE' AND OLD.role = 'owner') OR 
+       (TG_OP = 'UPDATE' AND OLD.role = 'owner' AND NEW.role IS DISTINCT FROM 'owner') THEN
+      IF NOT EXISTS (
+        SELECT 1 FROM org_members 
+        WHERE org_id = OLD.org_id AND user_id <> OLD.user_id AND role = 'owner'
+      ) THEN
+        RAISE EXCEPTION 'Cannot remove the last owner of the organization';
+      END IF;
+    END IF;
+  END IF;
+  RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_enforce_min_org_owner
+BEFORE UPDATE OF role OR DELETE ON org_members
+FOR EACH ROW EXECUTE FUNCTION enforce_min_org_owner();
+
 -- Slack Command Session Tenant Isolation Verification Trigger
 CREATE OR REPLACE FUNCTION verify_slack_session_org()
 RETURNS TRIGGER AS $$
@@ -1783,6 +1816,14 @@ BEGIN
     WHERE org_id = NEW.org_id AND user_id = v_user_id
   ) THEN
     RAISE EXCEPTION 'Linked user is not a member of the target organization';
+  END IF;
+
+  -- Verify Slack workspace is active and installed for this organization
+  IF NOT EXISTS (
+    SELECT 1 FROM org_integrations
+    WHERE org_id = NEW.org_id AND provider = 'slack' AND external_install_id = NEW.slack_team_id AND is_active = true
+  ) THEN
+    RAISE EXCEPTION 'Slack workspace % is not installed/active for organization %', NEW.slack_team_id, NEW.org_id;
   END IF;
 
   RETURN NEW;
@@ -2028,7 +2069,7 @@ BEGIN
       0.00
     ) INTO v_new_progress
     FROM goals
-    WHERE parent_goal_id = p_goal_id;
+    WHERE parent_goal_id = p_goal_id AND status NOT IN ('draft', 'cancelled');
   ELSE
     IF v_progress_mode = 'manual' THEN
       v_new_progress := v_current_progress;
@@ -2108,11 +2149,17 @@ BEGIN
       PERFORM recompute_goal_progress(NEW.parent_goal_id);
     END IF;
   ELSIF TG_OP = 'UPDATE' THEN
-    IF NEW.progress_mode IS DISTINCT FROM OLD.progress_mode OR NEW.rollup_weight IS DISTINCT FROM OLD.rollup_weight THEN
+    IF NEW.progress_mode IS DISTINCT FROM OLD.progress_mode THEN
       PERFORM recompute_goal_progress(NEW.id);
     END IF;
 
-    IF NEW.progress IS DISTINCT FROM OLD.progress OR NEW.parent_goal_id IS DISTINCT FROM OLD.parent_goal_id THEN
+    IF NEW.rollup_weight IS DISTINCT FROM OLD.rollup_weight THEN
+      IF NEW.parent_goal_id IS NOT NULL THEN
+        PERFORM recompute_goal_progress(NEW.parent_goal_id);
+      END IF;
+    END IF;
+
+    IF NEW.status IS DISTINCT FROM OLD.status OR NEW.progress IS DISTINCT FROM OLD.progress OR NEW.parent_goal_id IS DISTINCT FROM OLD.parent_goal_id THEN
       IF OLD.parent_goal_id IS NOT NULL AND OLD.parent_goal_id IS DISTINCT FROM NEW.parent_goal_id THEN
         PERFORM recompute_goal_progress(OLD.parent_goal_id);
       END IF;
@@ -2131,7 +2178,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE TRIGGER trigger_goals_after_changes
-AFTER INSERT OR UPDATE OF progress, parent_goal_id, progress_mode, rollup_weight OR DELETE
+AFTER INSERT OR UPDATE OF progress, parent_goal_id, progress_mode, rollup_weight, status OR DELETE
 ON goals
 FOR EACH ROW EXECUTE FUNCTION goals_after_changes_trigger();
 
@@ -2140,8 +2187,10 @@ CREATE OR REPLACE FUNCTION enforce_goal_structure_integrity()
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_TABLE_NAME = 'goal_key_results' THEN
-    IF TG_OP = 'UPDATE' AND NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
-      RAISE EXCEPTION 'Changing goal_id is not allowed for key results';
+    IF TG_OP = 'UPDATE' THEN
+      IF NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
+        RAISE EXCEPTION 'Changing goal_id is not allowed for key results';
+      END IF;
     END IF;
     PERFORM 1 FROM goals WHERE id = NEW.goal_id FOR UPDATE;
     IF EXISTS (SELECT 1 FROM goals WHERE parent_goal_id = NEW.goal_id) THEN
@@ -2149,8 +2198,10 @@ BEGIN
     END IF;
     
   ELSIF TG_TABLE_NAME = 'goal_links' THEN
-    IF TG_OP = 'UPDATE' AND NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
-      RAISE EXCEPTION 'Changing goal_id is not allowed for work links';
+    IF TG_OP = 'UPDATE' THEN
+      IF NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
+        RAISE EXCEPTION 'Changing goal_id is not allowed for work links';
+      END IF;
     END IF;
     PERFORM 1 FROM goals WHERE id = NEW.goal_id FOR UPDATE;
     IF EXISTS (SELECT 1 FROM goals WHERE parent_goal_id = NEW.goal_id) THEN
@@ -2207,6 +2258,7 @@ ALTER TABLE slack_command_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE temp_oauth_states ENABLE ROW LEVEL SECURITY;
 ALTER TABLE temp_slack_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE integration_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE global_locks ENABLE ROW LEVEL SECURITY;
 
 -- Deny all public access policies (service role bypasses automatically)
 CREATE POLICY "Deny all public" ON organizations FOR ALL TO public USING (false);
@@ -2226,15 +2278,16 @@ CREATE POLICY "Deny all public" ON slack_command_sessions FOR ALL TO public USIN
 CREATE POLICY "Deny all public" ON temp_oauth_states FOR ALL TO public USING (false);
 CREATE POLICY "Deny all public" ON temp_slack_codes FOR ALL TO public USING (false);
 CREATE POLICY "Deny all public" ON integration_events FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public" ON global_locks FOR ALL TO public USING (false);
 
 -- Enable RLS and deny access on existing unprotected custom auth tables
 ALTER TABLE refresh_tokens ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_verifications ENABLE ROW LEVEL SECURITY;
-ALTER TABLE password_reset_tokens ENABLE ROW LEVEL SECURITY;
+ALTER TABLE password_resets ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Deny all public access to refresh_tokens" ON refresh_tokens FOR ALL TO public USING (false);
 CREATE POLICY "Deny all public access to email_verifications" ON email_verifications FOR ALL TO public USING (false);
-CREATE POLICY "Deny all public access to password_reset_tokens" ON password_reset_tokens FOR ALL TO public USING (false);
+CREATE POLICY "Deny all public access to password_resets" ON password_resets FOR ALL TO public USING (false);
 ```
 
 ---
@@ -2443,5 +2496,631 @@ Following an exhaustive design and implementation validation, we have identified
 #### Issue CB — State Validation in JIRA Site Selection
 - **Vulnerability**: When resolving JIRA site selection via `temp_oauth_states` using the UUID key, there is no validation that the requesting user matches the initiator, exposing the site selection to intercept and injection attacks.
 - **Fix**: Store the initiating `userId` and target `orgId` in the cached jsonb, and verify them against the active session before saving the site connection.
+
+---
+
+## Eighth Review Pass — Concurrency, Integration Webhooks & Database Audits (2026-06-16)
+
+Following a comprehensive technical and security audit, we have identified and corrected additional critical database triggers, integration webhooks, and concurrency issues:
+
+### 🔴 Critical Security & Trigger Failures
+
+#### Bug CC — Rollup Weight Change Fails to Propagate Progress (Cascading Bug)
+- **Vulnerability**: In `goals_after_changes_trigger`, if a child goal's `rollup_weight` changes, it calls `recompute_goal_progress(NEW.id)`. However, a goal's own progress does not depend on its own `rollup_weight`. It is the parent's progress that depends on the child's `rollup_weight`. Because of this, changing a child's rollup weight never updates the parent goal's progress, leaving parent goals stale.
+- **Fix**: If `rollup_weight` changes, propagate the calculation to the parent goal(s):
+  ```sql
+  IF NEW.rollup_weight IS DISTINCT FROM OLD.rollup_weight THEN
+    IF NEW.parent_goal_id IS NOT NULL THEN
+      PERFORM recompute_goal_progress(NEW.parent_goal_id);
+    END IF;
+  END IF;
+  ```
+
+#### Bug CD — Missing Slack Workspace Tenant Validation in `verify_slack_session_org` (Security Vulnerability)
+- **Vulnerability**: The `verify_slack_session_org` trigger verifies that the Worklog AI user is a member of the organization, but it does NOT verify that the Slack workspace (`slack_team_id`) is actually installed and active for that specific organization in `org_integrations`. If a user is a member of both Org A and Org B, they could store a command session referencing Org B's goals from Org A's Slack workspace, bypassing workspace-level tenant isolation.
+- **Fix**: Verify that the Slack workspace matches the active Slack integration for the target organization:
+  ```sql
+  IF NOT EXISTS (
+    SELECT 1 FROM org_integrations
+    WHERE org_id = NEW.org_id AND provider = 'slack' AND external_install_id = NEW.slack_team_id AND is_active = true
+  ) THEN
+    RAISE EXCEPTION 'Slack workspace % is not installed/active for organization %', NEW.slack_team_id, NEW.org_id;
+  END IF;
+  ```
+
+#### Bug CE — Inoperable JIRA Webhook Signature Verification (Integration Bug)
+- **Vulnerability**: The plan specifies JIRA sends an HMAC-SHA256 signature in the `x-hub-signature` header for manually configured system webhooks. However, JIRA Cloud's native system webhooks (configured in Jira Settings -> System -> Webhooks) do not support HMAC signature headers; they only send unsigned HTTP POST payloads. Expecting this signature header will cause all incoming JIRA webhooks to fail verification and be rejected.
+- **Fix**: Secure JIRA webhooks using a secure token query parameter. The webhook URL displayed in the UI should be `https://<domain>/api/webhooks/jira?org_id=<org_id>&token=<secure_token>`. The server must verify that the `token` query parameter matches the `webhook_secret` stored in `org_integrations` for the organization.
+
+#### Bug CF — Incorrect GitHub App Webhook Secret Resolution (Integration Bug)
+- **Vulnerability**: The plan states that for GitHub App webhooks, the server loads a per-organization `webhook_secret` from `org_integrations` to verify the signature. However, GitHub App webhooks are signed using a single global secret configured at the App level, not per-organization.
+- **Fix**: Verify GitHub webhooks using the app-global `GITHUB_APP_WEBHOOK_SECRET` environment variable, then extract `installation.id` from the payload to resolve the target `org_id` from `org_integrations`.
+
+#### Bug CG — Lock Release Race Condition in Token Refresh (Concurrency Bug)
+- **Vulnerability**: When completing a token refresh, the server sets `is_refreshing = false` and clears `refresh_started_at` blindly. If a refresh call takes longer than 30 seconds, another process could have acquired the lock. The first process will blindly release it, letting a third process run concurrently with the second.
+- **Fix**: Qualify the UPDATE query with the timestamp of when the lock was acquired to ensure a process only releases its own lock:
+  ```sql
+  UPDATE user_integrations 
+  SET is_refreshing = false, refresh_started_at = NULL, access_token = :accessToken, ...
+  WHERE id = :id AND refresh_started_at = :acquiredAt;
+  ```
+
+#### Bug CH — Concurrent Nightly Rollup Jobs in Clustered Environments (Scale Bug)
+- **Vulnerability**: The nightly `goalRollupJob` runs a database-wide sweep. In clustered environments, it will fire on all nodes concurrently, causing duplicate API requests to third-party providers, database lock contention, and rate-limiting blocks.
+- **Fix**: Implement a global database-backed lock table `global_locks` to serialize global jobs:
+  ```sql
+  CREATE TABLE IF NOT EXISTS global_locks (
+    job_name TEXT PRIMARY KEY,
+    locked_by UUID NOT NULL,
+    locked_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+  ALTER TABLE global_locks ENABLE ROW LEVEL SECURITY;
+  CREATE POLICY "Deny all public" ON global_locks FOR ALL TO public USING (false);
+  ```
+
+#### Bug CI — Orphaned Organization (0 Owners) Logic Gap
+- **Vulnerability**: The unique index `idx_single_org_owner` enforces a maximum of one owner, but does not prevent the demotion or deletion of the last owner, which would leave the organization with 0 owners and block admin functions.
+- **Fix**: Add a `BEFORE UPDATE OR DELETE` trigger on `org_members` to guarantee that at least one owner remains:
+  ```sql
+  CREATE OR REPLACE FUNCTION enforce_min_org_owner()
+  RETURNS TRIGGER AS $$
+  BEGIN
+    IF (TG_OP = 'DELETE' AND OLD.role = 'owner') OR 
+       (TG_OP = 'UPDATE' AND OLD.role = 'owner' AND NEW.role IS DISTINCT FROM 'owner') THEN
+      IF NOT EXISTS (
+        SELECT 1 FROM org_members 
+        WHERE org_id = OLD.org_id AND user_id <> OLD.user_id AND role = 'owner'
+      ) THEN
+        RAISE EXCEPTION 'Cannot remove the last owner of the organization';
+      END IF;
+    END IF;
+    RETURN COALESCE(NEW, OLD);
+  END;
+  $$ LANGUAGE plpgsql;
+  ```
+
+### 🟡 High-Priority Architecture & Concurrency Gaps
+
+#### Issue CJ — Redundant Node-level recompute calls on webhook updates
+- **Vulnerability**: Webhook routes are specified to call `recomputeGoalProgress` after updating `goal_links`. However, the database trigger `trigger_recompute_progress_links` already handles this automatically. This duplicate work causes database write contention and redundant calculations.
+- **Fix**: Remove the manual call to `recomputeGoalProgress` in the Node webhook handlers; rely entirely on the automatic database triggers.
+
+#### Issue CK — Explicit Polling Policy & Timeouts for Token Refresh Locks
+- **Vulnerability**: The plan suggests that if the lock is held, the process should "wait and retry," but does not define a maximum retry duration or interval, which could cause request threads to hang indefinitely under load.
+- **Fix**: Define a strict polling policy: poll every 1,000ms up to a maximum of 15 seconds, and fail with a local lock acquisition timeout if still locked.
+
+#### Issue CL — Robust Key Hashing for AES-256-GCM keys
+- **Vulnerability**: If user-provided keys are not exactly 32 bytes after decoding, Node's `crypto` module will crash.
+- **Fix**: The `crypto.ts` module should digest each raw key string in `INTEGRATION_ENCRYPTION_KEYS` using SHA-256 to guarantee it is always a cryptographically strong 32-byte key.
+
+#### Issue CM — Filtering Draft and Cancelled Goals from Cascading Rollup
+- **Vulnerability**: In `recompute_goal_progress`, the rollup calculates progress over all child goals. Goals in `draft` or `cancelled` status should be excluded so they do not skew active parent goals' progress.
+- **Fix**: Exclude draft and cancelled goals from the SUM query:
+  ```sql
+  SELECT COALESCE(
+    SUM(progress * rollup_weight) / NULLIF(SUM(rollup_weight), 0),
+    0.00
+  ) INTO v_new_progress
+  FROM goals
+  WHERE parent_goal_id = p_goal_id AND status NOT IN ('draft', 'cancelled');
+  ```
+
+#### Issue CN — Unique constraint crash on `temp_slack_codes` (PIN Regeneration)
+- **Vulnerability**: The unique constraint on `(slack_team_id, slack_user_id)` in `temp_slack_codes` will cause inserts to crash if a user runs the slash command again before the previous code expires.
+- **Fix**: Use `INSERT ... ON CONFLICT (slack_team_id, slack_user_id) DO UPDATE SET code = EXCLUDED.code, expires_at = EXCLUDED.expires_at, created_at = NOW()` when generating codes.
+
+---
+
+## Ninth Review Pass — Enterprise-Grade Integrity, Security & Reliability Audits (2026-06-16)
+
+Following a comprehensive technical and security audit, we have identified and corrected additional critical database triggers, integration webhooks, and concurrency issues:
+
+### 🔴 Critical Security, Authorization & Logic Failures
+
+#### Bug CO — Org Admin/Owner Visibility Lockout for Team-Scoped Goals (Visibility Bug)
+- **Vulnerability**: In the team goal visibility query (Issue T), org admins and owners are locked out of viewing team-scoped goals for teams they do not belong to, violating the design requirement that org admins/owners act as an escape hatch for all data within the tenant.
+- **Fix**: Update the `scope = 'team'` condition in `server/src/routes/goals.ts` to include the org admin/owner check:
+  ```sql
+  OR (g.scope = 'team' AND (
+    g.team_id IN (
+      SELECT tc.descendant_id 
+      FROM team_members tm
+      JOIN team_closure tc ON tm.team_id = tc.ancestor_id
+      WHERE tm.user_id = :userId AND tm.org_id = :orgId
+        AND (tm.role IN ('manager', 'admin', 'owner') OR tc.depth = 0)
+    )
+    OR EXISTS (
+      SELECT 1 FROM org_members 
+      WHERE user_id = :userId AND org_id = :orgId AND role IN ('admin', 'owner')
+    )
+  ))
+  ```
+
+#### Bug CP — `getEffectiveTeamRole` Bypasses Higher Direct Team Roles (Authz Bug)
+- **Vulnerability**: If an org admin or owner holds a direct role on a team (e.g. they are the team `'owner'`), returning the `orgRole` early in `getEffectiveTeamRole` causes the function to return `'admin'` instead of `'owner'`, locking them out of team-specific actions that require a higher role.
+- **Fix**: Refactor `getEffectiveTeamRole` to treat the org role as a candidate and compare it using the rank map to select the absolute maximum:
+  ```ts
+  const orgCandidate = (orgRole === 'admin' || orgRole === 'owner') ? orgRole : null;
+  const allRoles = [
+    direct?.role,
+    ...ancestors.map(r => r.role as TeamRole),
+    orgCandidate as TeamRole | null,
+  ].filter((r): r is TeamRole => r !== null && r !== undefined);
+
+  if (allRoles.length === 0) return null;
+  const ranks = allRoles.map(r => TEAM_ROLE_RANK[r]);
+  const maxRank = Math.max(...ranks);
+  return (Object.entries(TEAM_ROLE_RANK) as [TeamRole, number][])
+    .find(([, v]) => v === maxRank)?.[0] ?? null;
+  ```
+
+#### Bug CQ — Day.js Timezone Shift in Week Boundary Calculations (Sync Bug)
+- **Vulnerability**: Using `dayjs().tz(userTimezone).isoWeekYear(year)...` close to midnight can result in timezone boundary shifts that incorrectly calculate the start and end of the week, leading to synchronizing the wrong calendar week.
+- **Fix**: Always calculate date boundaries in UTC explicitly using absolute ISO 8601 timestamps:
+  ```ts
+  function getSyncBoundaries(weekStr: string, userTimezone: string) {
+    const [year, week] = weekStr.split('-W').map(Number);
+    // Initialize dayjs timezone on the first day of that week year
+    const startOfWeekLocal = dayjs().tz(userTimezone).isoWeekYear(year).isoWeek(week).startOf('isoWeek');
+    const endOfWeekLocal = startOfWeekLocal.add(1, 'week');
+    return {
+      sinceUTC: startOfWeekLocal.utc().format(),
+      untilUTC: endOfWeekLocal.utc().format(),
+      sinceDateOnly: startOfWeekLocal.format('YYYY-MM-DD'),
+      untilDateOnly: endOfWeekLocal.subtract(1, 'second').format('YYYY-MM-DD')
+    };
+  }
+  ```
+
+#### Bug CR — Silent Sync Failures for Unconfigured Users (Database Bug)
+- **Vulnerability**: If a user connects integrations but has no custom preferences configured, the weekly sync query's `LEFT JOIN` yields a `NULL` `sync_timezone` and `last_weekly_sync_week`. This causes the timezone conversion functions and comparisons to evaluate to `NULL`, silently skipping weekly syncs for these users.
+- **Fix**: Use `COALESCE(ip.sync_timezone, 'UTC')` and ensure the `user_id` selected is from `users` (or `user_integrations`) to prevent returning `null` values:
+  ```sql
+  SELECT 
+    u.id AS user_id,
+    COALESCE(ip.sync_timezone, 'UTC') AS sync_timezone,
+    (NOW() AT TIME ZONE COALESCE(ip.sync_timezone, 'UTC')) AS local_now,
+    -- ...
+  ```
+
+### 🟡 High-Priority Architecture, Security & UX Gaps
+
+#### Issue CO — Redundant Database Updates due to Numeric Precision Mismatch
+- **Vulnerability**: In `recompute_goal_progress`, comparing the raw calculated float/numeric with the `NUMERIC(5,2)` database column type causes `v_new_progress IS DISTINCT FROM v_current_progress` to evaluate to true for tiny precision differences (e.g., `85.3333` vs `85.33`). This results in redundant database writes and trigger executions.
+- **Fix**: Round the calculated progress using `ROUND(v_new_progress, 2)` before performing the comparison and update:
+  ```sql
+  v_new_progress := LEAST(GREATEST(ROUND(v_new_progress, 2), 0.00), 100.00);
+  ```
+
+#### Issue CP — GitHub Search API Rate Limit Exhaustion (Performance Bug)
+- **Vulnerability**: Using the GitHub Search API (`/search/commits`) to sync user worklogs is subject to severe rate limits (30 requests/min). Under load, this will cause the sync job to fail.
+- **Fix**: Utilize the organization-specific user events API `GET /users/{username}/events/orgs/{org}` which uses standard API rate limits (5,000 requests/hr) and naturally filters activity to the tenant.
+
+#### Issue CQ — Timing Attack Vulnerability in JIRA Webhook Verification (Security)
+- **Vulnerability**: Verifying JIRA webhook token query parameters via standard string comparison is vulnerable to timing attacks.
+- **Fix**: Convert both the incoming token and stored webhook secret to SHA-256 hashes first, then compare using timing-safe buffer comparison:
+  ```ts
+  const computedHash = crypto.createHash('sha256').update(incomingToken).digest();
+  const secretHash = crypto.createHash('sha256').update(storedSecret).digest();
+  if (!crypto.timingSafeEqual(computedHash, secretHash)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  ```
+
+#### Issue CR — API Client Logging Token Leakage (Security)
+- **Vulnerability**: Standard HTTP error logging (such as Axios errors) prints the entire request object including `Authorization` headers, which leaks decrypted third-party OAuth access tokens into the application logs.
+- **Fix**: Implement a custom error-handler wrapper on all integration API clients to strip or redact sensitive headers before printing/saving logs.
+
+#### Issue CS — Expiration Filter and Database Bloat in Slack Command Sessions
+- **Vulnerability**: The Slack command session resolver does not filter by `expires_at >= NOW()`, allowing users to use stale index listings. Furthermore, expired sessions are never deleted, bloating the database.
+- **Fix**: Include the expiration check in the resolver query, and add `slack_command_sessions` to the daily pruning cron job:
+  ```sql
+  DELETE FROM slack_command_sessions WHERE expires_at < NOW();
+  ```
+
+#### Issue CT — Truncation and Sanitization of AI Integration Inputs
+- **Vulnerability**: Passing unfiltered lists of commits and JIRA issues directly to the Mistral AI API for worklog generation can exceed context windows and inflate token costs.
+- **Fix**: Apply a pre-processing step to truncate lists of commits (max 50) and issues (max 20) and sanitize commit messages (removing merge commits, automated CI logs) before compiling the AI prompt.
+
+---
+
+## Tenth Review Pass — Advanced Sync Reliability, Lock Recovery & Webhook Audits (2026-06-16)
+
+Following a comprehensive technical and security audit, we have identified and corrected additional database webhook processing errors, sync timezone gaps, and lock recovery edge cases:
+
+### 🔴 Critical Security, Authorization & Logic Failures
+
+#### Bug CS — Webhooks Stuck in `received` Status Excluded from Reprocessing
+- **Vulnerability**: The webhook event insertion query uses a `DO UPDATE WHERE` clause that only allows reprocessing for events with status `'error'` or stuck in `'processing'`. If an event gets stuck in `'received'` status (e.g., due to a sudden worker crash immediately after insertion before processing begins), it is permanently locked and never retried.
+- **Fix**: Update the `WHERE` clause in the `recordEvent` query to also allow reprocessing for events stuck in `'received'` status for over 5 minutes:
+  ```sql
+  INSERT INTO integration_events (provider, external_event_id, event_type, payload, status)
+  VALUES (:provider, :eventId, :type, :payload, 'received')
+  ON CONFLICT (provider, external_event_id) 
+  DO UPDATE SET status = EXCLUDED.status, payload = EXCLUDED.payload, updated_at = NOW()
+  WHERE integration_events.status = 'error' 
+     OR (integration_events.status IN ('received', 'processing') AND integration_events.updated_at < NOW() - INTERVAL '5 minutes')
+  RETURNING id;
+  ```
+
+#### Bug CT — Timezone Drift and JQL Search Boundary Gaps (Sync Bug)
+- **Vulnerability**: JIRA's `worklogDate` filter in JQL searches evaluates dates in the JIRA active user profile's timezone, which may not align with the user's `sync_timezone` configured in Worklog AI. If JQL date boundaries are restricted strictly to the user's local start/end dates, JIRA may omit issues where work was logged in hours representing day boundaries (e.g. Sunday night/Monday morning), causing silent data loss.
+- **Fix**: Query JQL using a expanded 1-day buffer on both sides (e.g. `worklogDate >= :sinceDateOnlyMinus1Day AND worklogDate <= :untilDateOnlyPlus1Day`) to fetch all candidate issues, and then perform strict filtering of worklogs inside the Node service layer using the precise converted local timestamps.
+
+### 🟡 High-Priority Architecture, Security & UX Gaps
+
+#### Issue CU — Orphaned Sync/Refresh Locks on Server Crashes (Operational Bug)
+- **Vulnerability**: If a Node server process crashes or is restarted during active syncs or token refreshes, the database rows will remain in `is_syncing = true` or `is_refreshing = true` status. This locks users out of worklog syncs for up to 15 minutes and token refreshes for up to 30 seconds.
+- **Fix**: Add a startup cleanup hook in the server entrypoint (`server/src/index.ts`) to clear all orphaned locks immediately upon startup:
+  ```ts
+  // server startup hook
+  await db.from('integration_preferences').update({ is_syncing: false }).eq('is_syncing', true);
+  await db.from('user_integrations').update({ is_refreshing: false }).eq('is_refreshing', true);
+  await db.from('org_integrations').update({ is_refreshing: false }).eq('is_refreshing', true);
+  ```
+
+#### Issue CV — Missing Index on `temp_oauth_states(expires_at)` (Performance)
+- **Vulnerability**: Daily cron jobs prune expired rows from `temp_oauth_states` using `DELETE ... WHERE expires_at < NOW()`. Without an index on this column, PostgreSQL is forced to perform a sequential table scan on every cleanup run.
+- **Fix**: Add a helper index in the Phase 0 migration script:
+  ```sql
+  CREATE INDEX IF NOT EXISTS idx_temp_oauth_states_expires ON temp_oauth_states(expires_at);
+  ```
+
+---
+
+## Eleventh Review Pass — Enterprise-Grade Integrity, Security & Reliability Audits (2026-06-16)
+
+Following a comprehensive technical and security audit, we have identified and corrected additional critical database triggers, integration webhooks, and concurrency issues:
+
+### 🔴 Critical Security, Sync & Logic Failures
+
+#### Bug CW — Composite FK `ON DELETE SET NULL` Crash in `goal_updates` (Database Bug)
+- **Vulnerability**: The `goal_updates` table has a composite foreign key referencing `org_members(org_id, user_id)` with `ON DELETE SET NULL`. If a user is deleted from `org_members`, PostgreSQL will attempt to set both `org_id` and `user_id` to `NULL` in the `goal_updates` table. However, since `org_id` is constrained to `NOT NULL`, this delete operation will fail with a `not-null constraint violation`, crashing the user deletion transaction.
+- **Fix**: Redefine the constraint to be a single-column foreign key referencing `users(id)`:
+  ```sql
+  CONSTRAINT fk_goal_updates_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+  ```
+  Tenant isolation remains fully secure because `goal_updates` references `goals(id, org_id)` via `fk_goal_updates_goal_org`, guaranteeing that goal updates cannot cross organization boundaries.
+
+#### Bug CX — Node Server Crash on Null Webhook Secret Verification (DoS Vector)
+- **Vulnerability**: In timing-safe JIRA webhook token verification, the server computes a SHA-256 hash of the stored webhook secret. If JIRA integration is not configured or is inactive (`webhook_secret` is `NULL`), `crypto.createHash('sha256').update(storedSecret)` will throw a `TypeError: The "data" argument must be of type string` and crash the Node process, opening a Denial-of-Service (DoS) vulnerability.
+- **Fix**: Check that `storedSecret` is present and is a string before executing the cryptographic hash:
+  ```ts
+  if (!storedSecret || typeof storedSecret !== 'string') {
+    return res.status(401).json({ error: 'Unauthorized: Webhook secret not configured' });
+  }
+  ```
+
+#### Bug CY — Clustered Server Startup Clears Active Sync/Refresh Locks (Concurrency Bug)
+- **Vulnerability**: Issue CU proposes a startup hook to clear all active sync and refresh locks (`is_syncing = false`, `is_refreshing = false`) on server start. In a clustered production environment (multiple PM2 processes, Kubernetes replicas, or serverless instances), restarting one server node will blindly clear the locks of other nodes that are actively running weekly syncs or token refreshes, causing simultaneous runs and API token revocation.
+- **Fix**: Remove the startup cleanup queries entirely. Rely on the 15-minute / 30-second lock-timeout expirations checked during lock acquisition.
+
+#### Bug CZ — Goal Status Change Fails to Propagate Progress Rollups (Cascading Bug)
+- **Vulnerability**: The `recompute_goal_progress` function excludes child goals with status `'draft'` or `'cancelled'`. However, the cascading trigger `trigger_goals_after_changes` is not registered to fire when the `status` column is updated. If a child goal's status is changed to `'cancelled'` or `'draft'`, the parent goal's progress is never updated, leading to stale rollups.
+- **Fix**: Add `status` to the list of trigger columns in the `AFTER UPDATE OF` clause of `trigger_goals_after_changes` and ensure `goals_after_changes_trigger()` checks for status changes:
+  ```sql
+  CREATE OR REPLACE TRIGGER trigger_goals_after_changes
+  AFTER INSERT OR UPDATE OF progress, parent_goal_id, progress_mode, rollup_weight, status OR DELETE
+  ON goals
+  FOR EACH ROW EXECUTE FUNCTION goals_after_changes_trigger();
+  ```
+
+### 🟡 High-Priority Architecture, Security & UX Gaps
+
+#### Issue DA — Unhandled Unique Constraint Violation on Slack Account Linking (UX Bug)
+- **Vulnerability**: The table `slack_user_links` has a unique constraint `UNIQUE(slack_team_id, slack_user_id)` to ensure a Slack account is linked to at most one Worklog AI user. If a user inputs a linking PIN for a Slack account that is already linked, the insert query fails with a database unique violation, returning a generic 500 error page.
+- **Fix**: Add a pre-check query in the API handler to return a graceful 400 Bad Request error if the Slack user is already linked.
+
+#### Issue DB — Environment Variable Inconsistency for Encryption Keys
+- **Vulnerability**: The plan references both `INTEGRATION_ENCRYPTION_KEY` (singular) and `INTEGRATION_ENCRYPTION_KEYS` (plural) for AES-256-GCM encryption.
+- **Fix**: Standardize on `INTEGRATION_ENCRYPTION_KEYS` as a comma-separated list of keys to natively support key rotation, and fallback to `INTEGRATION_ENCRYPTION_KEY` as a single key if the list is absent.
+
+#### Issue DC — Missing Indexes on Temporary Pruning Queries (Performance)
+- **Vulnerability**: The daily cron jobs prune expired rows in `temp_slack_codes` and `slack_command_sessions` using `DELETE ... WHERE expires_at < NOW()`. Without indexes on `expires_at`, these operations perform full table scans on every run.
+- **Fix**: Add indexes on `expires_at` for these tables:
+  ```sql
+  CREATE INDEX IF NOT EXISTS idx_temp_slack_codes_expires ON temp_slack_codes(expires_at);
+  CREATE INDEX IF NOT EXISTS idx_slack_command_sessions_expires ON slack_command_sessions(expires_at);
+  ```
+
+---
+
+## Twelfth Review Pass — Organization Deletion & Schema Verification (2026-06-16)
+
+Following a comprehensive technical review of the SQL triggers and schema references, we have identified and corrected additional critical bugs:
+
+### 🔴 Critical Security & Trigger Failures
+
+#### Bug DG — Organization Deletion Blocked by Owner Check Trigger
+- **Vulnerability**: In `enforce_min_org_owner`, deleting the last owner of an organization raises an exception to prevent orphaned organizations. However, under `ON DELETE CASCADE`, deleting the organization itself cascades to delete the owner. The trigger fires during this cascade, finds no other owner, and throws an exception, which aborts the entire organization deletion transaction.
+- **Fix**: Modify the trigger function to check if the organization row still exists in `organizations` before enforcing the minimum owner constraint. If the organization is being deleted, the constraint is bypassed.
+
+#### Bug DH — Relation "password_reset_tokens" Does Not Exist
+- **Vulnerability**: The migration script and Bug AP remediation reference a table named `password_reset_tokens`. However, the actual database table in the custom auth schema is named `password_resets`. Running the migration fails with a relation does not exist error.
+- **Fix**: Corrected all references from `password_reset_tokens` to `password_resets` in the migration script and documentation.
+
+---
+
+## Thirteenth Review Pass — Cross-Domain Enterprise Safety Audit (2026-06-16)
+
+Following a comprehensive fan-out audit across 6 specialized subagents (Database/Triggers, Security/Authz, Integration/Webhooks, Weekly Sync/Scheduler, Schema/FK, and Cross-Phase Contradictions), we identified additional critical bugs that were missed by all prior review passes:
+
+### 🔴 Critical Security, Logic & Schema Failures
+
+#### Bug DI — **JQL Query Precedence STILL Incorrect After Bug AN Fix**
+- **Vulnerability**: Bug AN identified the JQL query `assignee = X OR worklogAuthor = X AND updatedDate >= ...` as broken (AND binds tighter than OR, returning all issues ever assigned to the user). However, the proposed fix at **line 2466-2467** has the **same precedence bug**:
+  ```sql
+  -- STILL BROKEN at line 2466-2467:
+  (assignee = "${accountId}" OR worklogAuthor = "${accountId}" AND worklogDate >= ...)
+  -- Parses as: assignee = X OR (worklogAuthor = X AND worklogDate >= ...)
+  -- The date filter ONLY applies to worklogAuthor, not to assignee!
+  ```
+  This means sync captures all historical issues assigned to the user (unbounded), while only worklogs from the target date range when the user was a worklog author are date-filtered.
+- **Runtime Impact**: Unbounded query on `assignee` causes database lockups, sync timeouts, and Atlassian API rate-limit blocks. Data is incomplete and double-counted.
+- **Fix**: Wrap BOTH sides of OR in parentheses, AND apply date constraints to both clauses:
+  ```sql
+  ((assignee = "${accountId}" AND updatedDate >= "${since}" AND updatedDate < "${until}")
+   OR
+   (worklogAuthor = "${accountId}" AND worklogDate >= "${since.dateOnly}" AND worklogDate <= "${until.dateOnly}"))
+  ```
+  Note: Use `worklogDate` for the `worklogAuthor` clause and `updatedDate` for the `assignee` clause with proper date buffers.
+
+---
+
+#### Bug DJ — **JQL `worklogAuthor` Field Validity Unverified**
+- **Vulnerability**: The plan uses `worklogAuthor = "${accountId}"` in JQL without verifying this is a valid JQL search field in Atlassian Cloud. If this field is unavailable or restricted, retrospective worklog sync silently returns zero results.
+- **Runtime Impact**: Retrospective worklogs (logged after issue close) are missed entirely — the primary motivation for the fix is defeated.
+- **Fix**: Verify `worklogAuthor` is valid JQL syntax in Atlassian Cloud. If unavailable, use a two-phase search: first fetch issues via `issue IN worklogWorkload("${accountId}", "${since}", "${until}")` (if available), or query all issues assigned to or commented by the user within the date range and parse their worklogs via the REST API.
+
+---
+
+#### Bug DK — **Phase 2 OAuth Confirm Pattern (Bug AO) Never Incorporated Into Spec**
+- **Vulnerability**: Bug AO identified a critical OAuth account hijacking vulnerability: since browser redirects (GET) cannot attach `Authorization: Bearer <token>`, the server cannot authenticate the user in the OAuth callback. The fix specified a client-side POST confirm pattern. However, **Phase 2 OAuth route specs (JIRA, GitHub, Slack org-install) were never updated**. All three routes still do direct token exchange on GET, leaving the vulnerability open.
+- **Fix — apply to ALL THREE OAuth flows (JIRA, GitHub, Slack org-install)**:
+  ```ts
+  // GET /api/integrations/jira/callback — STEP 1: verify state, redirect to SPA
+  router.get('/jira/callback', async (req, res) => {
+    const { code, state } = req.query;
+    verifyOAuthState(state as string); // validates HMAC + expiry + org binding
+    res.redirect(`${FRONTEND_URL}/integrations/callback?provider=jira&code=${code}&state=${state}`);
+  });
+
+  // POST /api/integrations/jira/confirm — STEP 2: requireAuth applies here
+  router.post('/jira/confirm', requireAuth, async (req: AuthRequest, res) => {
+    const { code, state } = req.body;
+    const payload = verifyOAuthState(state);
+    if (payload.userId !== req.userId) {
+      return res.status(403).json({ error: 'OAuth state user mismatch' });
+    }
+    // NOW exchange code for tokens — req.userId is confirmed
+    const tokens = await exchangeJiraCode(code);
+    // ... store tokens, return success
+  });
+  ```
+  Apply identical two-step pattern to GitHub and Slack org-install callbacks.
+
+---
+
+#### Bug DL — **JIRA OAuth Scope Missing `openid profile`, `id_token` Always Undefined**
+- **Vulnerability**: Bug AM reported that `id_token.split()` will crash because `openid profile` scopes are missing. The Phase 2 spec was **never updated**. Line ~139 still lists just `read:jira-work read:jira-user offline_access`.
+- **Runtime Impact**: `TypeError: Cannot read property 'split' of undefined` on every JIRA OAuth callback.
+- **Fix** — update Phase 2 JIRA OAuth scopes:
+  ```ts
+  scopes: 'read:jira-work read:jira-user offline_access openid profile'
+  ```
+
+---
+
+#### Bug DM — **`goal_links.org_id` Has No Explicit FK to `organizations`**
+- **Vulnerability**: `goal_links` defines `org_id UUID NOT NULL` but has **no `REFERENCES organizations(id)` FK** — only a composite FK through `goals(id, org_id)`. The referential integrity is indirect, and `org_id` can point to a non-existent org without DB-level enforcement.
+- **Fix** — update CREATE TABLE at line ~1517:
+  ```sql
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  ```
+  Verify `prevent_org_id_mutation` trigger covers `goal_links` (trigger at line 1996 confirms it does).
+
+---
+
+#### Bug DN — **`goal_updates.org_id` Has No Explicit FK to `organizations`**
+- **Vulnerability**: Same issue as DM. `goal_updates.org_id` has only a composite FK through `goals(id, org_id)` — no direct path to `organizations`.
+- **Fix** — update CREATE TABLE at line ~1533:
+  ```sql
+  CONSTRAINT fk_goal_updates_org FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE,
+  ```
+
+---
+
+#### Bug DO — **`enforce_goal_structure_integrity` Allows Reparenting a Parent Goal**
+- **Vulnerability**: The trigger function prevents (a) a goal with KRs/links from getting a child, and (b) a child goal from getting KRs/links. But it does **NOT** prevent (c): making a goal that already has children into a child of another goal. A goal G1 with children G2/G3 (no KRs) can be reparented under G4. All integrity checks pass. This destroys the tree structure and breaks the progress rollup DAG assumption.
+- **Fix** — add to `enforce_goal_structure_integrity()` goals branch (lines 2211-2221):
+  ```sql
+  ELSIF TG_TABLE_NAME = 'goals' THEN
+    -- Cannot make a goal with children into a child of another goal
+    IF NEW.parent_goal_id IS NOT NULL AND EXISTS (
+      SELECT 1 FROM goals WHERE parent_goal_id = NEW.id
+    ) THEN
+      RAISE EXCEPTION 'Cannot set a goal that has child goals as a child of another goal';
+    END IF;
+    -- Existing: target parent must have no KRs/links
+    PERFORM 1 FROM goals WHERE id = NEW.parent_goal_id FOR UPDATE;
+    IF EXISTS (SELECT 1 FROM goal_key_results WHERE goal_id = NEW.parent_goal_id) THEN
+      RAISE EXCEPTION 'Cannot set parent goal: Target goal already has key results';
+    END IF;
+    IF EXISTS (SELECT 1 FROM goal_links WHERE goal_id = NEW.parent_goal_id) THEN
+      RAISE EXCEPTION 'Cannot set parent goal: Target goal already has work links';
+    END IF;
+  ```
+
+---
+
+### 🟡 High-Priority Architecture, Security & Concurrency Gaps
+
+#### Issue DA — **`getEffectiveTeamRole` Phase 1 Spec Never Updated with Corrected Algorithm**
+- **Flaw**: Bug C provides a complete correct algorithm (lines 2640-2655). Bug P provides a split `canManageTeamGoals` / `canManageTeamConfig`. But Phase 1 authz.ts spec (line ~98-104) still shows the original ambiguous description. A developer implementing from the spec would repeat Bugs N, C, P, and CO.
+- **Fix**: Replace the Phase 1 description with the fully-specified algorithm from Bug C + split the canManageTeam function (Bug P) explicitly in the authz.ts section.
+
+---
+
+#### Issue DB — **`temp_oauth_states` POST `/select` Missing `userId === req.userId` Verification**
+- **Flaw**: The JIRA site selection flow (Issue Z fix) uses a UUID-keyed `temp_oauth_states` table. When the client POSTs the site choice back to `/api/integrations/jira/select`, the server saves without verifying the initiating user's session matches the state. An attacker with a valid state UUID could associate the wrong JIRA site with the victim's org.
+- **Fix** — add in the POST `/select` handler after retrieving the cached state:
+  ```ts
+  const cached = await db.from('temp_oauth_states').select('*').eq('key', uuid).single();
+  if (!cached || cached.expires_at < new Date()) {
+    return res.status(400).json({ error: 'State expired or not found' });
+  }
+  const { userId, orgId } = cached.data as { userId: string; orgId: string };
+  if (userId !== req.userId) {
+    return res.status(403).json({ error: 'OAuth state user mismatch' });
+  }
+  ```
+
+---
+
+#### Issue DC — **`org_integrations.webhook_secret` Stored Plaintext — Inconsistent with Encryption Pattern**
+- **Flaw**: Architecture decision (line 30) mandates "ciphertext in token columns." All OAuth tokens use `encryptSecret()` with `_enc` suffixes. The `webhook_secret` field (line ~1547) is stored **plaintext** — a sensitive credential.
+- **Fix**: Rename to `webhook_secret_enc TEXT` and encrypt/decrypt using the same `encryptSecret`/`decryptSecret` flow as other token columns.
+
+---
+
+#### Issue DD — **Lock Timeout Retry Has No Maximum Duration**
+- **Flaw**: Issue CK identified "wait and retry" without a ceiling. Under high concurrency, a request thread hangs indefinitely.
+- **Fix**:
+  ```ts
+  async function acquireLockWithTimeout(
+    lockFn: () => Promise<boolean>,
+    timeoutMs = 15000,
+    intervalMs = 1000
+  ): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (await lockFn()) return true;
+      await new Promise(resolve => setTimeout(resolve, intervalMs));
+    }
+    throw new Error(`Lock acquisition timed out after ${timeoutMs}ms`);
+  }
+  ```
+
+---
+
+#### Issue DE — **JQL `worklogDate` Interpreted in JIRA Profile Timezone, Not `sync_timezone`**
+- **Flaw**: Even with `worklogDate` fixing the retrospective sync gap, JQL evaluates dates in the JIRA credential user's timezone profile — not the employee's `sync_timezone`. ±12h boundary drift causes worklogs to be assigned to the wrong ISO week.
+- **Fix**: Fetch with 1-day buffer on both sides; post-filter worklog entries in the Node service layer using the precise converted local timestamps from the worklog's `started` timestamp field (which is an absolute ISO 8601 UTC timestamp in JIRA's REST API):
+  ```ts
+  const sinceBuffer = dayjs(sinceLocal).subtract(1, 'day').utc().toDate();
+  const untilBuffer = dayjs(untilLocal).add(1, 'day').utc().toDate();
+  // JQL: worklogAuthor = "${accountId}" AND worklogDate >= "${sinceBuffer}" ...
+  // In service layer: filter worklogs
+  const withinWindow = worklogs.filter(w =>
+    dayjs(w.started).tz(userTimezone).isSame(weekStartLocal, 'week')
+  );
+  ```
+
+---
+
+### 🟡 Medium-Priority Trigger & Schema Fixes
+
+#### Issue DF — **`recompute_goal_progress` Recalculates for `draft`/`cancelled` Goals**
+- **Flaw**: While `recompute_goal_progress` excludes `draft`/`cancelled` children from weighted averaging, it still recalculates the goal's own progress in `key_results` and `linked_items` modes. A `cancelled` goal in `key_results` mode shows computed KR progress even though it's inactive.
+- **Fix** — add early freeze for inactive goals:
+  ```sql
+  IF v_status IN ('draft', 'cancelled') THEN
+    RETURN; -- preserve v_current_progress unchanged; skip formula calculation
+  END IF;
+  ```
+
+---
+
+#### Issue DG — **RLS Deny-All Policies Missing for `global_locks` and `temp_oauth_states`**
+- **Flaw**: RLS is enabled on both tables (line ~2258-2261) but the corresponding deny-all `CREATE POLICY` statements are missing.
+- **Fix**:
+  ```sql
+  CREATE POLICY "Deny all public" ON global_locks FOR ALL TO public USING (false);
+  CREATE POLICY "Deny all public" ON temp_oauth_states FOR ALL TO public USING (false);
+  ```
+
+---
+
+#### Issue DH — **Missing Partial Index on `team_members` for `is_manager_of` Performance**
+- **Flaw**: `is_manager_of` joins `team_members` with `role IN ('manager','admin','owner')` per invocation. Without a partial index on `(team_id)` for these roles, each call scans the full table.
+- **Fix**:
+  ```sql
+  CREATE INDEX IF NOT EXISTS idx_team_members_manager_role
+    ON team_members(team_id)
+    WHERE role IN ('manager', 'admin', 'owner');
+  ```
+
+---
+
+### 🟢 Minor / Editorial Fixes
+
+#### Note DI — **JQL Query Correct Form (Definitive)**
+```sql
+-- CORRECT: both sides of OR are parenthesized AND date-constrained
+(
+  assignee = "${accountId}"
+  AND updatedDate >= "${sinceBuffer}"
+  AND updatedDate < "${untilBuffer}"
+)
+OR
+(
+  worklogAuthor = "${accountId}"
+  AND worklogDate >= "${sinceBuffer}"
+  AND worklogDate <= "${untilBuffer}"
+)
+-- where *Buffer = exact week boundary date ± 1 day (ISO 8601 date only, no time)
+```
+
+#### Note DJ — **Duplicate Day.js Code Block Not Removed (Issue 5 / Note 17 Unresolved)**
+The document still contains both vulnerable Day.js (line ~1155: `dayjs().tz(userTimezone).year(year).isoWeek(week)`) and the corrected version (line ~2664: `.isoWeekYear(year).isoWeek(week)`). **Remove the first copy** — only keep the corrected `isoWeekYear`-based version.
+
+#### Note DK — **`teamRoleAtLeast` Null Guard Still Absent from Phase 1 Spec**
+Improvement 11 specifies the null guard but was never inserted into Phase 1. Add to `authz.ts`:
+```ts
+export function teamRoleAtLeast(role: TeamRole | null, min: TeamRole): boolean {
+  if (role === null) return false;
+  return TEAM_ROLE_RANK[role] >= TEAM_ROLE_RANK[min];
+}
+```
+
+#### Note DL — **Missing Indexes to Verify in Migration**
+Verify these exist (or add if absent):
+```sql
+CREATE INDEX IF NOT EXISTS idx_org_integrations_org_id ON org_integrations(org_id);
+CREATE INDEX IF NOT EXISTS idx_goal_updates_org_id ON goal_updates(org_id);
+```
+
+---
+
+*Thirteenth review completed 2026-06-16. Found: 7 critical (DI-DO), 5 high-priority (DA-DE), 3 medium-priority (DF-DH), 4 minor (DI-DL). Critical new finding: JQL query precedence bug persists through the Bug AN fix — the corrected text at line ~2466-2467 has the identical operator precedence flaw. Combined with confirmed unverified `worklogAuthor` JQL field validity and JIRA timezone profile drift, the entire worklog sync JQL construction requires re-verification against actual Atlassian Cloud JQL API behavior before implementation.*
+
+---
+
+## Definitive Pre-Implementation Checklist
+
+The following 12 corrections are required in the plan text itself before any implementation begins:
+
+| # | Severity | Item | Location |
+|---|----------|------|----------|
+| 1 | 🔴 Critical | JQL precedence — double-parenthesize both OR sides | Line ~2466 |
+| 2 | 🔴 Critical | Verify `worklogAuthor` is valid JQL or replace with alternative | Line ~2467 |
+| 3 | 🔴 Critical | JIRA scope add `openid profile` | Line ~139 |
+| 4 | 🔴 Critical | Convert all OAuth flows to two-step GET→POST confirm | Phase 2 all routes |
+| 5 | 🟡 High | `getEffectiveTeamRole` full algorithm from Bug C in Phase 1 | Line ~98-104 |
+| 6 | 🟡 High | Split `canManageTeam` into Config/Goals (Bug P) | Line ~102 |
+| 7 | 🟡 High | `temp_oauth_states` POST `/select` userId verification | Phase 2 JIRA |
+| 8 | 🟡 High | `webhook_secret_enc` — encrypt not plaintext | Line ~1547 |
+| 9 | 🟡 High | Add lock timeout ceiling (15s) to retry logic | Phase 2 / Phase 4 |
+| 10 | 🟢 Medium | `goal_links.org_id` explicit FK to `organizations` | Line ~1517 |
+| 11 | 🟢 Medium | `goal_updates.org_id` explicit FK to `organizations` | Line ~1533 |
+| 12 | 🟢 Medium | Prevent reparenting a parent goal (Bug DO) | Line ~2211-2221 |
+
+*No plan is ever 100% bug-free. These 12 items plus the full migration SQL (lines 1293-2291) represent the current best-known state. Re-audit before each implementation phase.*
+
+---
+
+*Twelfth review completed 2026-06-16. Added Bugs DG-DH and applied corresponding fixes to the SQL migration and text.*
+
+
 
 
