@@ -887,4 +887,281 @@ Line 49 creates `departments` but doesn't enforce that two departments in the sa
 
 ---
 
-*Second review completed 2026-06-16. Identified: 1 contradiction in Plan Review (Bug A), 1 bug in my own Bug 1 fix (Bug B), 1 missing algorithm spec (Bug C), plus Issues D-M covering authorization gaps, crash handling, multi-site JIRA handling, GitHub App fallback, schema constraints, event filtering, Slack scope syntax, rate limit handling, metric_type semantics, and department/team name uniqueness.*
+## Third Review Pass — Security, Concurrency, and Integration Audit (2026-06-16)
+
+### 🔴 Bug N — **Inherited Non-Managerial Team Roles in `getEffectiveTeamRole` (Privilege Escalation)**
+Phase 1 (line 100) describes the function `getEffectiveTeamRole` as calculating the maximum role among the direct role, org role, and ancestor team roles. However, it fails to filter out the `member` role when checking ancestor teams. Under this logic, a regular `member` of a parent team would inherit `member` status on all child subtrees.
+- **Why it's a mistake:** The role semantics state: *"team descendant visibility is granted at role >= manager"*. A regular team member of a parent team should not gain visibility or access to descendant teams they do not belong to.
+- **Fix:** When querying ancestor team roles in `getEffectiveTeamRole`, explicitly exclude the `'member'` role:
+  ```typescript
+  const ancestors = await db.from('team_closure tc')
+    .select('tm.role')
+    .join('team_members tm', 'tc.ancestor_id', 'tm.team_id')
+    .where('tc.descendant_id', teamId)
+    .where('tm.user_id', userId)
+    .whereIn('tm.role', ['manager', 'admin', 'owner']); // Only inherit manager+ roles
+  ```
+
+### 🔴 Bug O — **Slack Account Hijacking / Misassociation during Slack Linking (Security Vulnerability)**
+When a user executes a Slack command (like `/worklog`) and is not linked, the app generates a signed JWT containing their Slack user ID and team ID. When the user clicks the link and authenticates in the web app, the server links that Slack user ID to `req.userId`.
+- **Why it's a mistake:** If a user shares this linking link by mistake (or if a malicious actor steals it), Slack User A's account is linked to Worklog User B. User B can then view/modify User A's data via Slack command DMs.
+- **Fix:**
+  1. During the Slack slash command handler, fetch the Slack user's email address via the Slack API (`users.info` with the bot token).
+  2. Embed this email address in the signed linking JWT payload.
+  3. When verifying the token on `/api/integrations/slack/link`, verify that the email address of the logged-in Postgres user (`req.userId`) matches the email encoded in the JWT.
+
+### 🔴 Bug P — **Confused Auth Roles for Team Goal Management vs Team Config Mutation (Authorization Lockout)**
+The plan requires team config mutations (rename, membership, reparent) to require role >= `admin`. It also states that editing team-scoped goals requires `canManageTeam`.
+- **Why it's a mistake:** If `canManageTeam` is mapped to the `admin` threshold (to protect team structure), then team **managers** cannot create or edit team goals, which breaks the core tier feature *"Manager Goal-Setting"*. If `canManageTeam` is mapped to the `manager` threshold, then managers gain unauthorized access to rename and reparent teams.
+- **Fix:** Split the authorization checks in `server/src/services/authz.ts`:
+  - `canManageTeamConfig`: Requires team role >= `admin` (or org admin/owner).
+  - `canManageTeamGoals`: Requires team role >= `manager` (or org admin/owner).
+
+### 🔴 Bug Q — **Slack Interactive Actions Bypass the Authorization Layer (Security Vulnerability)**
+The plan details parsing Slack Block Kit payloads and mapping Slack users to web users but fails to require running the Node authorization service layer (`services/authz.ts`) on the linked user before updating the database.
+- **Why it is a mistake:** If a user clicks a button in Slack (e.g., "Approve Worklog" or "Check-in Goal"), the backend receives the event payload containing the target resource ID (like a goal or worklog ID) in the button's `value` attribute. If the server executes the update based solely on this ID without verifying that the linked user has the correct permissions (e.g., is a manager of the assignee, or is the owner of the goal), it creates an authorization bypass. Any user in the Slack workspace could potentially approve their own worklogs or modify goals they don't own by triggering the action endpoint.
+- **Fix:** Every Slack interactive action handler must run the resolved `userId` through the authorization service checks:
+  ```ts
+  const authorized = await canEditGoal(db, userId, targetGoal);
+  if (!authorized) {
+    return res.status(200).json({
+      response_type: 'ephemeral',
+      text: '❌ You do not have permission to modify this goal.'
+    });
+  }
+  ```
+
+### 🔴 Bug R — **Atlassian Token Refresh HTTP Timeout vs. Database Lock TTL Mismatch (Concurrency Bug)**
+The database lock (`is_refreshing = true` with `refresh_started_at < NOW() - INTERVAL '30 seconds'`) can expire before a slow HTTP token refresh request times out.
+- **Why it is a mistake:** Node HTTP clients typically have default request timeouts of 2 minutes (120 seconds) or no timeout at all. If the Atlassian API call is extremely slow (e.g., 40 seconds) due to network congestion, the 30-second database lock expires. A second concurrent request will see that the lock is expired and trigger a second refresh request using the *same* old refresh token. When the first request finally succeeds, it writes the new token. When the second request completes, Atlassian will detect that the old refresh token was reused (which is a critical security violation under Atlassian's Rotating Refresh Token policy). Atlassian will immediately revoke the entire authorization grant (`invalid_grant`), permanently disconnecting the integration.
+- **Fix:**
+  1. The HTTP request timeout on OAuth refresh requests MUST be strictly configured to be short (e.g., maximum 15 seconds).
+  2. The database lock duration (30 seconds) must be at least double the HTTP request timeout.
+  3. Ensure that when the lock is released or retried, the system checks if the token has already been refreshed by another process in the meantime (by checking if `expires_at` is now in the future).
+
+### 🔴 Bug S — **Express Middleware Ordering Bug for Raw-Body Webhooks (Runtime Bug)**
+The plan places route-specific raw-body parsers before the global `express.json()`. However, if the global body parser is registered at the top of the main server entrypoint (`server/src/index.ts`) before routes are mounted, the request stream is already consumed.
+- **Why it is a mistake:** If a request stream is read and parsed by a global parser first, registering `express.json({ verify: ... })` or `express.urlencoded({ verify: ... })` on specific routes downstream will not work. `req.rawBody` will remain `undefined`, causing all webhook signature verifications (GitHub, Slack, JIRA) to fail at runtime with validation errors.
+- **Fix:** Ensure that the raw-body parser middleware for webhook routes is registered **before** any global `app.use(express.json())` or `app.use(express.urlencoded())` statements are declared in the main `server/src/index.ts` file:
+  ```ts
+  // Must be at the very top of the middleware stack
+  app.use('/api/webhooks/github', express.json({
+    verify: (req: any, _, buf) => { req.rawBody = buf; }
+  }));
+  app.use('/api/webhooks/slack', express.urlencoded({
+    extended: true,
+    verify: (req: any, _, buf) => { req.rawBody = buf; }
+  }));
+  // Then register the global parsers for other routes
+  app.use(express.json());
+  ```
+
+### 🟡 Issue T — **Goal Visibility Logic Filters Out Valid Team/Org Goals (Visibility Bug)**
+The goal listing query (and proposed Improvement 14) filters goals using only user IDs (the creator's ID or assignee's ID matching the user's `viewableUserIds` set).
+- **Why it's a mistake:** If an organization admin (who does not belong to Team X) creates an unassigned goal for Team X, it will be invisible to Team X's members because the admin's user ID is not in their `viewableUserIds` set and there are no assignees. Similarly, organization-scoped goals would be hidden from most users.
+- **Fix:** Structure the visibility query in `server/src/routes/goals.ts` using the goal's `scope`:
+  ```sql
+  SELECT g.* FROM goals g
+  LEFT JOIN goal_assignees ga ON g.id = ga.goal_id
+  WHERE g.org_id = :orgId
+    AND (
+      g.scope = 'organization'
+      OR g.scope = 'department'
+      OR (g.scope = 'team' AND g.team_id IN (
+        SELECT tc.descendant_id 
+        FROM team_members tm
+        JOIN team_closure tc ON tm.team_id = tc.ancestor_id
+        WHERE tm.user_id = :userId AND tm.org_id = :orgId
+          AND (tm.role IN ('manager', 'admin', 'owner') OR tc.depth = 0)
+      ))
+      OR (g.scope = 'individual' AND (
+        g.created_by = :userId
+        OR ga.user_id = :userId
+        OR ga.user_id IN (SELECT * FROM viewable_user_ids(:userId, :orgId))
+        OR EXISTS (
+          SELECT 1 FROM org_members 
+          WHERE user_id = :userId AND org_id = :orgId AND role IN ('admin', 'owner')
+        )
+      ))
+    );
+  ```
+
+### 🟡 Issue U — **Race Condition in Mixing Child Goals and Key Results/Links (Integrity Bug)**
+The plan requires blocking the mixing of child goals and key results/links on the same goal. While Phase 1 locks the organization row during parent modification (`setParent`), it does not require locking the organization or goal row when adding/deleting key results or links.
+- **Why it's a mistake:** A race condition exists: User A adds a child goal to Goal X (locks org, finds no KRs, succeeds). User B concurrently adds a KR to Goal X (does not lock org, finds no children, succeeds). Goal X ends up with both a child goal and a key result, breaking database integrity.
+- **Fix:** Enforce this validation in database triggers on `goals`, `goal_key_results`, and `goal_links` that lock the target goal row (`SELECT 1 FROM goals WHERE id = NEW.goal_id FOR UPDATE`).
+
+### 🟡 Issue V — **Undefined Authorization for Department-Scoped Goals (Runtime Error)**
+The plan states editing department-scoped goals requires `canManageTeam`.
+- **Why it's a mistake:** The schema defines `departments` as `(id, org_id, name)` with no department members or roles table. Calling `canManageTeam` with a department ID will crash or fail because it expects a team ID and queries `team_members`.
+- **Fix:** Explicitly define that department-scoped goals can only be managed by organization admins/owners.
+
+### 🟡 Issue W — **Missing Org Scoping for `org_integrations.installed_by` (Tenant Isolation Leak)**
+The `org_integrations` table has a single-column FK `installed_by REFERENCES users(id)`.
+- **Why it's a mistake:** If a user installs an integration for Organization A, and is later removed from Organization A, the `installed_by` column still points to them, leaking references cross-tenant.
+- **Fix:** Use a composite foreign key:
+  ```sql
+  FOREIGN KEY (org_id, installed_by) REFERENCES org_members(org_id, user_id) ON DELETE SET NULL
+  ```
+
+### 🟡 Issue X — **Missing Foreign Key Constraint on `slack_command_sessions` (Tenant Isolation Leak)**
+The `slack_command_sessions` table stores `slack_team_id`, `slack_user_id`, and `org_id` but lacks a foreign key constraint referencing `slack_user_links`.
+- **Why it's a mistake:** A session row could reference an arbitrary combination of Slack user, Slack team, and organization, potentially leaking goal references across workspaces.
+- **Fix:** Ensure `slack_user_links` has a unique constraint on `(slack_team_id, slack_user_id, org_id)` and reference it:
+  ```sql
+  FOREIGN KEY (slack_team_id, slack_user_id, org_id) REFERENCES slack_user_links(slack_team_id, slack_user_id, org_id) ON DELETE CASCADE
+  ```
+
+### 🟡 Issue Y — **Session-Level Advisory Locks Cause Connection Pool Starvation & Lock Leakage (Architecture Bug)**
+The plan suggests session-level advisory locks (`pg_try_advisory_lock`) to serialize weekly sync runs.
+- **Why it's a mistake:**
+  1. **Pool Starvation:** Because the lock is bound to the connection, the database connection must remain checked out from the Node pool during the entire duration of the slow external API calls (JIRA/GitHub). Under load, this exhausts the database connection pool, freezing the REST API.
+  2. **Lock Leakage:** If a Node process crashes or fails to call `pg_advisory_unlock` (due to an uncaught exception), the lock remains active on the pooled connection. Unrelated queries executing on that connection will inherit the lock.
+- **Fix:** Explicitly forbid session-level advisory locks for sync tasks. Instead, use an atomic database-state check (`is_syncing` and `sync_started_at` columns) in the database (`integration_preferences`):
+  ```sql
+  UPDATE integration_preferences
+  SET is_syncing = true, sync_started_at = NOW()
+  WHERE user_id = :userId
+    AND (is_syncing = false OR sync_started_at < NOW() - INTERVAL '15 minutes')
+  RETURNING *;
+  ```
+  If a row is returned, the lock is acquired, and the database connection can be released back to the pool immediately while the slow API calls execute.
+
+### 🟡 Issue Z — **Stateless JWT State Token Bloat and Truncation (UX & Architecture Bug)**
+For JIRA site selection, if multiple sites are returned, the plan specifies serializing the sites list and the encrypted OAuth tokens into a signed state JWT and redirecting the browser: `/integrations/jira/select-site?token=JWT_TOKEN`.
+- **Why it is a mistake:** A stateless JWT containing multiple Jira site structures (each with a name, URL, avatar, and cloud ID) plus the encrypted Atlassian OAuth access and refresh tokens (which are already long) will easily exceed 3,000–4,000 characters. Web browsers, proxy servers, and CDN gateways (like Nginx, Cloudflare) enforce strict URL length limits (often 2,048 characters). The redirect URL will be truncated, causing decryption and validation failures for admins with access to multiple Atlassian sites.
+- **Fix:** Replace the stateless JWT with a server-side cache table `temp_oauth_states(key UUID primary key, data JSONB, expires_at TIMESTAMPTZ)`. Store the site list and encrypted tokens in this table, and pass only a 36-character UUID string `key` in the redirect URL query parameter. The client will fetch the sites via `GET /api/integrations/jira/sites?key=UUID`, which resolves the cache record on the server.
+
+### 🟡 Issue AA — **JIRA JQL Timezone Profile Ambiguity (API/Sync Bug)**
+The plan specifies querying Jira using plain date strings: `updatedDate >= 'YYYY-MM-DD' AND updatedDate < 'YYYY-MM-DD'`.
+- **Why it is a mistake:** In Jira Cloud, JQL date queries that omit timezone offsets are interpreted in the **timezone of the caller's Jira profile settings**. Because the weekly sync job executes API calls using either the admin's org-level token or a user's token, the date boundaries will shift depending on the timezone set in the Atlassian account of the person who installed the integration or authorized the connection. This causes silent synchronization gaps where work logged on Sunday evening or Monday morning is missed or double-counted depending on the offset.
+- **Fix:** Convert the local week start and end dates (e.g., Monday 00:00:00 and Sunday 23:59:59 in the user's `sync_timezone`) into absolute ISO 8601 strings with offsets (e.g., `2026-06-08T00:00:00-04:00` or converted to UTC) and use these absolute timestamps in the JQL query:
+  `updatedDate >= "2026-06-08T00:00:00-04:00" AND updatedDate < "2026-06-15T00:00:00-04:00"`.
+
+### 🟡 Issue AB — **JIRA Sync Limited to Issue Assignee, Missing Worklog Authorship (Sync Bug)**
+The plan assumes we only need to sync issues assigned to the user.
+- **Why it is a mistake:** In real software development teams, developers frequently log work (Jira Worklogs) on issues assigned to other team members (e.g., when helping debug, reviewing code, or pairing). If the weekly sync job only queries issues assigned to the user (`assignee = accountId`), it will miss all the time tracked on external issues, leading to incomplete weekly worklogs.
+- **Fix:** Expand the JQL query to search for issues where the user is either the assignee OR they have logged work:
+  `assignee = "${accountId}" OR worklogAuthor = "${accountId}" AND updatedDate >= ...`.
+  Then, during the import process, parse the issue's worklogs to extract entries where the author matches the user's `accountId` within the target timeframe.
+
+### 🟡 Issue AC — **Slack Slash Command 3-Second Timeout and Synchronous Processing (Integration Bug)**
+Slash commands like `/worklog` (sync) or `/goals <index> <progress>%` (which triggers a cascading trigger in the DB) are processed synchronously.
+- **Why it is a mistake:** Slack slash commands require an HTTP `200 OK` response within **3.0 seconds**. If a command triggers a weekly sync (calling JIRA and GitHub APIs) or cascading progress recalculations up a deep goals tree, it can easily exceed 3 seconds. When this happens, Slack will close the connection and display an `operation_timeout` error to the user, even if the backend process eventually finishes.
+- **Fix:** The slash command endpoint must immediately respond with an HTTP `200 OK` containing an ephemeral acknowledgment (e.g., `{"text": "Syncing your weekly worklogs..."}`), and spawn the sync/update logic asynchronously in the background. Once the background job completes, post the final result using the `response_url` parameter provided in Slack's original request payload.
+
+### 🟡 Issue AD — **GitHub Goal Links Fetch API Crash for Issues (API Bug)**
+The plan assumes all GitHub links are Pull Requests and specifies querying the Pull Requests REST API: `GET /repos/{owner}/{repo}/pulls/{number}`.
+- **Why it is a mistake:** Users frequently link GitHub Issues to their goals. Attempting to query an Issue URL using the Pull Requests API will return `404 Not Found` or a payload schema mismatch, causing the progress rollup job to fail or crash.
+- **Fix:** Parse the linked URL to check if it contains `/issues/` or `/pull/`. For issues, query the Issue API `GET /repos/{owner}/{repo}/issues/{number}` and check `state === 'closed'`. For PRs, query the PR API and check `merged === true`.
+
+### 🟡 Issue AE — **Sibling Node Deadlocks in Cascading Progress Trigger (Database Bug)**
+The plan does not sort database writes when propagating progress up the goal tree.
+- **Why it is a mistake:** When a batch update (e.g. during a nightly rollup or weekly sync) modifies the progress of multiple leaf goals concurrently, the PostgreSQL database trigger will propagate these updates upward. If Transaction A updates Leaf Goal 1 and Leaf Goal 2, and Transaction B updates them in a different order, the cascading updates to their common parent and grandparent goals will acquire locks in different orders. This creates a classic database deadlock condition, causing queries to fail with a `deadlock detected` error.
+- **Fix:** In the Node service layer, any batch updates to goals, key results, or links must sort the target IDs in a stable, deterministic order (e.g., sorting by UUID alphabetically) before executing the writes. Furthermore, ensure that the topological update propagation inside the database locks rows in a deterministic order.
+
+### 🟢 Issue AF — **Missing Domain-to-CloudId Mapping for JIRA Integration (Runtime Error)**
+The JIRA API requires a UUID-based `cloudId` to fetch issues. When linking an issue, a user pastes the URL (e.g. `https://my-company.atlassian.net/browse/KEY-123`). The plan stores `cloudIds` but does not maintain a mapping from domains to Cloud IDs.
+- **Why it is a mistake:** The server has no way to resolve which `cloudId` corresponds to the domain of the pasted URL.
+- **Fix:** Store a structured list of connected sites in the configuration:
+  ```json
+  {
+    "sites": [
+      { "domain": "my-company.atlassian.net", "cloudId": "12345678-abcd-ef01-2345-6789abcdef01" }
+    ]
+  }
+  ```
+
+### 🟢 Issue AG — **Performance Degradation when Validating Timezones using `pg_timezone_names` (Performance Bug)**
+Correction 19 proposes querying the slow `pg_timezone_names` view per-user in the scheduler.
+- **Why it's a mistake:** `pg_timezone_names` dynamically scans the OS zoneinfo database and is notoriously slow in PostgreSQL. Running a subquery against it for every row in `integration_preferences` will cause severe performance degradation.
+- **Fix:** Validate timezones in Node before write. Use a lightweight PL/pgSQL helper function with `EXCEPTION` handling for runtime safety:
+  ```sql
+  CREATE OR REPLACE FUNCTION safe_local_time(p_timezone TEXT)
+  RETURNS TIMESTAMP LANGUAGE plpgsql STABLE AS $$
+  BEGIN
+    RETURN NOW() AT TIME ZONE p_timezone;
+  EXCEPTION WHEN OTHERS THEN
+    RETURN NOW() AT TIME ZONE 'UTC';
+  END;
+  $$;
+  ```
+
+### 🟢 Issue AH — **Redundant Recalculations in Webhook Batch Processing (Performance Bug)**
+Improvement 10 proposes a topological sort of goal updates.
+- **Why it's a mistake:** Because `recomputeGoalProgress` automatically cascades progress updates upward, updating both a child and parent goal in the same batch triggers redundant updates, causing write contention and lock conflicts.
+- **Fix:** Only invoke `recomputeGoalProgress` on the leaf-most goals in the batch; let the database trigger cascade handle the upward propagation automatically.
+
+### 🟢 Issue AI — **Missing Database Persistence Retries for Newly Refreshed Tokens (Reliability Bug)**
+To prevent transaction pool exhaustion, the external API call to refresh tokens is executed outside of any SQL transaction. Once the Node server receives the new tokens, it attempts to write them to the database. If the database is under high load or temporarily drops its connection at that exact millisecond, this write query fails. The newly received tokens are lost. Since the old refresh token has already been used and invalidated on the provider's server, the application is left with an invalid refresh token in the database. On the next API call, the provider will return `invalid_grant`, permanently breaking the integration.
+- **Fix:** Implement an in-memory retry loop with exponential backoff (e.g., 3 retries over 5 seconds) specifically for the database write query that persists the newly acquired tokens.
+
+### 🟢 Issue AJ — **Missing Type Safety in Webhook Signature Headers (DoS Vector)**
+If an attacker or a faulty webhook call sends a request with a missing or malformed signature header (e.g. `x-hub-signature-256` is `undefined`), the validation function `verifyGithubSignature` will pass `undefined` to `crypto.createHash` or try to call `.split()` on a non-string. In Node.js, this throws a `TypeError: The "data" argument must be of type string or an instance of Buffer`, which will crash the Node server process if not caught, leading to a simple Denial of Service (DoS) vulnerability.
+- **Fix:** Ensure that the webhook handlers check that the signature header is present, is a single string, and has the correct format (e.g., starts with `sha256=`) before executing any cryptographic operations. If not, reject the request immediately with `400 Bad Request`.
+
+### 🟢 Issue AK — **Goal Rollup Job Querying Inactive/Disabled Integrations (Performance Bug)**
+If an integration is disabled (e.g., `is_active = false`) or revoked, the nightly `goalRollupJob` will still attempt to fetch updates for its linked items. Since the credentials are stale or inactive, these API calls will fail, flooding logs with authentication errors and wasting API rate limits.
+- **Fix:** The database query that selects active `goal_links` to sync during the nightly rollup must join with `org_integrations` and `user_integrations` and filter out any links where the parent integration has `is_active = false`.
+
+### 🟢 Issue AL — **Weekly Sync Timezone-Aware SQL Query & Node boundaries (Actionable Appendix)**
+A robust query is needed to retrieve all users who are eligible for a weekly sync, using absolute time conversion in Node to avoid timezone queries in a loop.
+- **Database Query:**
+  ```sql
+  SELECT 
+    ip.user_id,
+    (NOW() AT TIME ZONE ip.sync_timezone) AS local_now,
+    (date_trunc('week', NOW() AT TIME ZONE ip.sync_timezone) + INTERVAL '9 hours') AS threshold,
+    to_char(
+      CASE 
+        WHEN (NOW() AT TIME ZONE ip.sync_timezone) >= (date_trunc('week', NOW() AT TIME ZONE ip.sync_timezone) + INTERVAL '9 hours')
+        THEN (NOW() AT TIME ZONE ip.sync_timezone) - INTERVAL '7 days'
+        ELSE (NOW() AT TIME ZONE ip.sync_timezone) - INTERVAL '14 days'
+      END,
+      'IYYY-"W"IW'
+    ) AS latest_eligible_week
+  FROM integration_preferences ip
+  JOIN users u ON ip.user_id = u.id
+  WHERE 
+    EXISTS (
+      SELECT 1 FROM user_integrations ui 
+      WHERE ui.user_id = ip.user_id AND ui.is_active = true
+    )
+    AND (
+      ip.last_weekly_sync_week IS NULL 
+      OR ip.last_weekly_sync_week < to_char(
+        CASE 
+          WHEN (NOW() AT TIME ZONE ip.sync_timezone) >= (date_trunc('week', NOW() AT TIME ZONE ip.sync_timezone) + INTERVAL '9 hours')
+          THEN (NOW() AT TIME ZONE ip.sync_timezone) - INTERVAL '7 days'
+          ELSE (NOW() AT TIME ZONE ip.sync_timezone) - INTERVAL '14 days'
+        END,
+        'IYYY-"W"IW'
+      )
+    );
+  ```
+- **Node.js Time Bound Calculator:**
+  ```ts
+  import dayjs from 'dayjs';
+  import timezone from 'dayjs/plugin/timezone';
+  import utc from 'dayjs/plugin/utc';
+  import isoWeek from 'dayjs/plugin/isoWeek';
+
+  dayjs.extend(utc);
+  dayjs.extend(timezone);
+  dayjs.extend(isoWeek);
+
+  function getSyncBoundaries(weekStr: string, userTimezone: string) {
+    const [year, week] = weekStr.split('-W').map(Number);
+    const startOfWeekLocal = dayjs().tz(userTimezone).year(year).isoWeek(week).startOf('isoWeek');
+    const endOfWeekLocal = startOfWeekLocal.add(1, 'week');
+    return {
+      sinceUTC: startOfWeekLocal.utc().format(),
+      untilUTC: endOfWeekLocal.utc().format()
+    };
+  }
+  ```
+
+---
+
+*Third review completed 2026-06-16. Identified: 6 critical security/runtime failures (Bugs N-S), 9 sync/API/architecture gaps (Issues T-AE), 7 reliability/performance/SQL improvements (Issues AF-AL).*
+
