@@ -822,11 +822,11 @@ BEGIN
     -- Add ancestors via the NEW parent
     IF NEW.parent_team_id IS NOT NULL THEN
       INSERT INTO team_closure (ancestor_id, descendant_id, depth)
-      SELECT anc.ancestor_id, desc.descendant_id, anc.depth + desc.depth + 1
+      SELECT anc.ancestor_id, des.descendant_id, anc.depth + des.depth + 1
       FROM team_closure anc
-      CROSS JOIN team_closure desc
+      CROSS JOIN team_closure des
       WHERE anc.descendant_id = NEW.parent_team_id
-        AND desc.ancestor_id = NEW.id;
+        AND des.ancestor_id = NEW.id;
     END IF;
   END IF;
   RETURN NEW;
