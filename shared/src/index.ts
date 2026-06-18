@@ -195,3 +195,278 @@ export interface VerifyEmailRequest {
     userId: string
     token: string
 }
+
+// =============================================================================
+// Corporate Teams: Orgs, Departments, Teams, Members
+// =============================================================================
+
+export type OrgRole = 'member' | 'admin' | 'owner'
+export type TeamRole = 'member' | 'manager' | 'admin' | 'owner'
+
+export interface Organization {
+    id: string
+    name: string
+    slug: string
+    created_at: string
+    updated_at: string
+}
+
+export interface OrgMember {
+    id: string
+    org_id: string
+    user_id: string
+    role: OrgRole
+    created_at: string
+    updated_at: string
+    user?: { id: string; email: string; name?: string | null }
+}
+
+export interface Department {
+    id: string
+    org_id: string
+    name: string
+    created_at: string
+    updated_at: string
+}
+
+export interface Team {
+    id: string
+    org_id: string
+    department_id?: string | null
+    parent_team_id?: string | null
+    name: string
+    created_at: string
+    updated_at: string
+}
+
+export interface TeamMember {
+    id: string
+    team_id: string
+    user_id: string
+    role: TeamRole
+    org_id: string
+    created_at: string
+    updated_at: string
+    user?: { id: string; email: string; name?: string | null }
+}
+
+export interface CreateOrgRequest {
+    name: string
+    slug: string
+}
+
+export interface CreateTeamRequest {
+    name: string
+    parentTeamId?: string | null
+    departmentId?: string | null
+}
+
+export interface CreateDepartmentRequest {
+    name: string
+}
+
+// =============================================================================
+// Goals
+// =============================================================================
+
+export type GoalScope = 'organization' | 'department' | 'team' | 'individual'
+export type GoalStatus = 'draft' | 'active' | 'at_risk' | 'completed' | 'cancelled'
+export type GoalPeriod = 'weekly' | 'monthly' | 'quarterly' | 'annual' | 'custom'
+export type ProgressMode = 'manual' | 'key_results' | 'linked_items'
+export type MetricType = 'number' | 'percentage' | 'currency' | 'boolean' | 'ratio'
+
+export interface Goal {
+    id: string
+    org_id: string
+    scope: GoalScope
+    team_id?: string | null
+    department_id?: string | null
+    parent_goal_id?: string | null
+    title: string
+    description?: string | null
+    status: GoalStatus
+    period: GoalPeriod
+    start_date: string
+    due_date: string
+    progress: number
+    progress_mode: ProgressMode
+    rollup_weight: number
+    created_by?: string | null
+    created_at: string
+    updated_at: string
+}
+
+export interface GoalKeyResult {
+    id: string
+    goal_id: string
+    title: string
+    metric_type: MetricType
+    start_value: number
+    target_value: number
+    current_value: number
+    unit?: string | null
+    weight: number
+    sort_order?: number | null
+    created_at: string
+    updated_at: string
+}
+
+export type GoalLinkProvider = 'jira' | 'github'
+
+export interface GoalLink {
+    id: string
+    goal_id: string
+    provider: GoalLinkProvider
+    link_type: string
+    external_id: string
+    external_key: string
+    external_url: string
+    title: string
+    state?: string | null
+    is_done: boolean
+    weight: number
+    created_by?: string | null
+    org_id: string
+    metadata?: Record<string, any> | null
+    created_at: string
+    updated_at: string
+}
+
+export interface GoalAssignee {
+    goal_id: string
+    user_id: string
+    assigned_by?: string | null
+    assigned_at: string
+    org_id: string
+    user?: { id: string; email: string; name?: string | null }
+}
+
+export interface GoalUpdate {
+    id: string
+    goal_id: string
+    user_id?: string | null
+    progress: number
+    status: string
+    note?: string | null
+    created_at: string
+    org_id: string
+}
+
+export interface GoalWithDetails extends Goal {
+    key_results: GoalKeyResult[]
+    links: GoalLink[]
+    assignees: GoalAssignee[]
+    updates: GoalUpdate[]
+}
+
+export interface CreateGoalRequest {
+    orgId: string
+    scope: GoalScope
+    title: string
+    period: GoalPeriod
+    startDate: string
+    dueDate: string
+    teamId?: string | null
+    departmentId?: string | null
+    parentGoalId?: string | null
+    description?: string | null
+    progressMode?: ProgressMode
+}
+
+export interface UpdateGoalRequest {
+    title?: string
+    description?: string | null
+    status?: GoalStatus
+    period?: GoalPeriod
+    startDate?: string
+    dueDate?: string
+    progress?: number
+    progressMode?: ProgressMode
+    rollupWeight?: number
+    teamId?: string | null
+    departmentId?: string | null
+    parentGoalId?: string | null
+}
+
+export interface CreateKeyResultRequest {
+    title: string
+    metricType: MetricType
+    targetValue: number
+    startValue?: number
+    unit?: string | null
+    weight?: number
+    sortOrder?: number | null
+}
+
+export interface CreateCheckInRequest {
+    progress?: number
+    status?: GoalStatus
+    note?: string
+}
+
+export interface AssignGoalRequest {
+    userId: string
+}
+
+export interface LinkWorkItemRequest {
+    url: string
+    label?: string
+    weight?: number
+}
+
+// =============================================================================
+// Integrations
+// =============================================================================
+
+export type IntegrationProvider = 'jira' | 'github' | 'slack' | 'github_app'
+
+export interface UserIntegration {
+    id: string
+    user_id: string
+    provider: IntegrationProvider
+    created_at: string
+    token_expires_at?: string | null
+    is_active?: boolean
+    scopes?: string[]
+    config?: Record<string, any>
+}
+
+export type OrgIntegrationProvider = 'slack' | 'github_app' | 'jira'
+
+export interface OrgIntegration {
+    id: string
+    org_id: string
+    provider: OrgIntegrationProvider
+    external_install_id: string
+    is_active: boolean
+    installed_by?: string | null
+    created_at: string
+    updated_at: string
+    config?: Record<string, any> | null
+}
+
+export interface JiraSite {
+    id: string
+    name: string
+    url: string
+    avatarUrl?: string
+    scopes: string[]
+}
+
+export interface JiraConnectStartResponse {
+    authUrl: string
+}
+
+export interface JiraOAuthConfirmRequest {
+    code: string
+    state: string
+    cloudId?: string
+}
+
+export interface SlackLinkPinRequest {
+    code: string
+}
+
+export interface SlackLinkPinStartResponse {
+    expiresAt: string
+}

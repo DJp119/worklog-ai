@@ -1514,7 +1514,7 @@ CREATE TABLE IF NOT EXISTS goal_links (
   is_done BOOLEAN NOT NULL DEFAULT false,
   weight NUMERIC NOT NULL DEFAULT 1 CHECK (weight >= 0),
   created_by UUID REFERENCES users(id) ON DELETE SET NULL,
-  org_id UUID NOT NULL,
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   metadata JSONB,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -1530,9 +1530,10 @@ CREATE TABLE IF NOT EXISTS goal_updates (
   status TEXT NOT NULL,
   note TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  org_id UUID NOT NULL,
+  org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   CONSTRAINT fk_goal_updates_goal_org FOREIGN KEY (goal_id, org_id) REFERENCES goals(id, org_id) ON DELETE CASCADE,
-  CONSTRAINT fk_goal_updates_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+  CONSTRAINT fk_goal_updates_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+  CONSTRAINT fk_goal_updates_org FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS org_integrations (
@@ -1635,7 +1636,8 @@ CREATE INDEX IF NOT EXISTS idx_goal_links_goal_id ON goal_links(goal_id);
 CREATE INDEX IF NOT EXISTS idx_goal_links_provider_ext_id ON goal_links(provider, external_id);
 CREATE INDEX IF NOT EXISTS idx_goal_updates_goal_id ON goal_updates(goal_id);
 CREATE INDEX IF NOT EXISTS idx_goal_updates_user_id ON goal_updates(user_id);
-CREATE INDEX IF NOT EXISTS idx_org_integrations_installed_by ON org_integrations(org_id, installed_by);
+CREATE INDEX IF NOT EXISTS idx_goal_updates_org_id ON goal_updates(org_id);
+CREATE INDEX IF NOT EXISTS idx_org_integrations_org_id ON org_integrations(org_id);
 CREATE INDEX IF NOT EXISTS idx_slack_user_links_user ON slack_user_links(user_id);
 CREATE INDEX IF NOT EXISTS idx_slack_command_sessions_goal ON slack_command_sessions(goal_id);
 CREATE INDEX IF NOT EXISTS idx_integration_events_active ON integration_events(provider, external_event_id) WHERE status IN ('received', 'processing');
@@ -1885,7 +1887,7 @@ FOR EACH ROW EXECUTE FUNCTION teams_parent_cycle_guard();
 CREATE OR REPLACE FUNCTION team_closure_after_reparent()
 RETURNS TRIGGER AS $$
 BEGIN
-  IF NEW.parent_team_id IS DISTINCT FROM OLD.parent_team_id THEN
+  IF TG_OP = 'UPDATE' AND NEW.parent_team_id IS DISTINCT FROM OLD.parent_team_id THEN
     IF OLD.parent_team_id IS NOT NULL THEN
       DELETE FROM team_closure
       WHERE descendant_id IN (
@@ -2045,17 +2047,23 @@ RETURNS VOID AS $$
 DECLARE
   v_org_id UUID;
   v_progress_mode TEXT;
+  v_status TEXT;
   v_has_children BOOLEAN;
   v_new_progress NUMERIC(5,2);
   v_current_progress NUMERIC(5,2);
   v_parent_goal_id UUID;
 BEGIN
-  SELECT org_id, progress_mode, progress, parent_goal_id
+  SELECT org_id, progress_mode, progress, parent_goal_id, status
   FROM goals
   WHERE id = p_goal_id
-  INTO v_org_id, v_progress_mode, v_current_progress, v_parent_goal_id;
+  INTO v_org_id, v_progress_mode, v_current_progress, v_parent_goal_id, v_status;
 
   IF NOT FOUND THEN
+    RETURN;
+  END IF;
+
+  -- Do not compute rollup for inactive goals
+  IF v_status IN ('draft', 'cancelled') THEN
     RETURN;
   END IF;
 
@@ -2100,6 +2108,7 @@ BEGIN
   END IF;
 
   v_new_progress := LEAST(GREATEST(v_new_progress, 0.00), 100.00);
+  v_new_progress := ROUND(v_new_progress, 2);
 
   IF v_new_progress IS DISTINCT FROM v_current_progress THEN
     UPDATE goals
@@ -2186,36 +2195,47 @@ FOR EACH ROW EXECUTE FUNCTION goals_after_changes_trigger();
 CREATE OR REPLACE FUNCTION enforce_goal_structure_integrity()
 RETURNS TRIGGER AS $$
 BEGIN
+  -- Only handle INSERT and UPDATE; DELETE is always allowed
+  IF TG_OP NOT IN ('INSERT', 'UPDATE') THEN
+    RETURN NEW;
+  END IF;
+
   IF TG_TABLE_NAME = 'goal_key_results' THEN
-    IF TG_OP = 'UPDATE' THEN
-      IF NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
-        RAISE EXCEPTION 'Changing goal_id is not allowed for key results';
-      END IF;
+    IF NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
+      RAISE EXCEPTION 'Changing goal_id is not allowed for key results';
     END IF;
-    PERFORM 1 FROM goals WHERE id = NEW.goal_id FOR UPDATE;
+    -- Lock only when actually linking to a goal (not just updating an existing KR)
+    IF TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND NEW.goal_id IS NOT NULL) THEN
+      PERFORM 1 FROM goals WHERE id = NEW.goal_id FOR UPDATE;
+    END IF;
     IF EXISTS (SELECT 1 FROM goals WHERE parent_goal_id = NEW.goal_id) THEN
       RAISE EXCEPTION 'Cannot add key result: Goal already has child goals';
     END IF;
-    
   ELSIF TG_TABLE_NAME = 'goal_links' THEN
-    IF TG_OP = 'UPDATE' THEN
-      IF NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
-        RAISE EXCEPTION 'Changing goal_id is not allowed for work links';
-      END IF;
+    IF NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
+      RAISE EXCEPTION 'Changing goal_id is not allowed for work links';
     END IF;
-    PERFORM 1 FROM goals WHERE id = NEW.goal_id FOR UPDATE;
+    IF TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND NEW.goal_id IS NOT NULL) THEN
+      PERFORM 1 FROM goals WHERE id = NEW.goal_id FOR UPDATE;
+    END IF;
     IF EXISTS (SELECT 1 FROM goals WHERE parent_goal_id = NEW.goal_id) THEN
       RAISE EXCEPTION 'Cannot add work link: Goal already has child goals';
     END IF;
-
   ELSIF TG_TABLE_NAME = 'goals' THEN
     IF NEW.parent_goal_id IS NOT NULL THEN
+      -- Target parent must exist and be lockable
       PERFORM 1 FROM goals WHERE id = NEW.parent_goal_id FOR UPDATE;
+      -- Target must have no KRs
       IF EXISTS (SELECT 1 FROM goal_key_results WHERE goal_id = NEW.parent_goal_id) THEN
         RAISE EXCEPTION 'Cannot set parent goal: Target goal already has key results';
       END IF;
+      -- Target must have no outgoing links
       IF EXISTS (SELECT 1 FROM goal_links WHERE goal_id = NEW.parent_goal_id) THEN
         RAISE EXCEPTION 'Cannot set parent goal: Target goal already has work links';
+      END IF;
+      -- NEW itself must not have children — cannot orphan a sub-tree
+      IF EXISTS (SELECT 1 FROM goals WHERE parent_goal_id = NEW.id) THEN
+        RAISE EXCEPTION 'Cannot set a goal that has child goals as a child of another goal';
       END IF;
     END IF;
   END IF;
@@ -3092,34 +3112,250 @@ CREATE INDEX IF NOT EXISTS idx_goal_updates_org_id ON goal_updates(org_id);
 
 ---
 
-*Thirteenth review completed 2026-06-16. Found: 7 critical (DI-DO), 5 high-priority (DA-DE), 3 medium-priority (DF-DH), 4 minor (DI-DL). Critical new finding: JQL query precedence bug persists through the Bug AN fix — the corrected text at line ~2466-2467 has the identical operator precedence flaw. Combined with confirmed unverified `worklogAuthor` JQL field validity and JIRA timezone profile drift, the entire worklog sync JQL construction requires re-verification against actual Atlassian Cloud JQL API behavior before implementation.*
+## Fourteenth Review Pass — Loop Iteration 2 Safety Audit (2026-06-16)
+
+**Scope:** Re-verified all prior fixes; ran 4 parallel audits (trigger functions, migration SQL, cross-phase consistency, integration edge cases). 6 subagents ran in parallel. 2 hit rate limits; all 4 results were consistent with prior findings. New findings span SQL-in-document bugs not carried into the actual migration block, and missing integration edge-case handling.
 
 ---
 
-## Definitive Pre-Implementation Checklist
+### 🔴 Critical Bugs Found in the Document Itself
 
-The following 12 corrections are required in the plan text itself before any implementation begins:
+#### Bug DM — `enforce_goal_structure_integrity` Trigger: Sub-tree Orphaning Still Possible (Bug DO Fix NOT in SQL)
+- **Vulnerability**: The goals branch of `enforce_goal_structure_integrity()` (lines 2211-2220) checks:
+  1. Target parent has no KRs
+  2. Target parent has no outgoing links
+  But it does **NOT** check whether `NEW.id` itself is a parent (i.e., whether `EXISTS(SELECT 1 FROM goals WHERE parent_goal_id = NEW.id)`). A goal with children can still be reparented, silently orphaning its entire sub-tree.
+- **Location in document**: Lines 2211-2225 (the function body) — the `ELSIF TG_TABLE_NAME = 'goals'` branch
+- **Fix** — add this block after the existing parent-goal lock:
+  ```sql
+  -- Check: cannot make a goal-with-children into a child of another goal
+  IF NEW.parent_goal_id IS NOT NULL AND EXISTS (
+    SELECT 1 FROM goals WHERE parent_goal_id = NEW.id
+  ) THEN
+    RAISE EXCEPTION 'Cannot set a goal that has child goals as a child of another goal';
+  END IF;
+  ```
+
+#### Bug DN — `recompute_goal_progress`: No Early Return for Draft/Cancelled Goals
+- **Vulnerability**: The function computes key_results rollup for ALL goals regardless of status. Only child goal statuses are filtered; the goal itself always executes full rollup logic even when `status IN ('draft', 'cancelled')`. The result: a cancelled goal's `progress` column gets a spurious computed value.
+- **Location in document**: Lines 2043-2109 (the `recompute_goal_progress` function body in the SQL migration)
+- **Fix** — add `v_status TEXT` to DECLARE, fetch it in the SELECT INTO, then add early return after `SELECT INTO`:
+  ```sql
+  v_status TEXT;  -- add to DECLARE block
+  -- In the main SELECT INTO:
+  SELECT org_id, progress_mode, progress, parent_goal_id, status
+    FROM goals WHERE id = p_goal_id
+    INTO v_org_id, v_progress_mode, v_current_progress, v_parent_goal_id, v_status;
+  -- After the FOUND check:
+  IF v_status IN ('draft', 'cancelled') THEN
+    RETURN;
+  END IF;
+  ```
+
+#### Bug DO — `recompute_goal_progress`: No `ROUND(v_new_progress, 2)` Before `IS DISTINCT FROM`
+- **Vulnerability**: Numeric division (e.g., `SUM(current_value-target_value) / SUM(target_value-start_value)`) produces irrational or many-decimal results in `v_new_progress` (e.g., `45.666666...`). Stored column is `NUMERIC(5,2)`. Unrounded vs. rounded comparison via `IS DISTINCT FROM` produces false positives (45.667 ≠ 45.67), causing unnecessary UPDATE storms; or missed updates when both are non-NULL but differ only in non-2-decimal precision.
+- **Location in document**: Lines 2102-2104
+- **Fix** — after the `LEAST/GREATEST` clamp (line ~2102), add:
+  ```sql
+  -- Round to match stored NUMERIC(5,2) precision
+  v_new_progress := ROUND(v_new_progress, 2);
+  ```
+  Then the `IS DISTINCT FROM v_current_progress` check on line ~2104 operates on comparable values.
+
+#### Bug DP — `team_closure_after_reparent`: Missing `TG_OP = 'UPDATE'` Guard Before `OLD.parent_team_id`
+- **Vulnerability**: The function (lines 1888-1907) accesses `OLD.parent_team_id` without any `IF TG_OP = 'UPDATE'` guard. The trigger only fires on `AFTER UPDATE OF parent_team_id`, but if someone changes the trigger registration to include `OR DELETE` in the future, this function will crash at runtime (`OLD` is inaccessible on DELETE).
+- **Location in document**: Lines 1888-1907 (the `team_closure_after_reparent` function body)
+- **Fix** — wrap the entire `OLD.parent_team_id` block:
+  ```sql
+  IF TG_OP = 'UPDATE' THEN
+    -- existing logic referencing OLD.parent_team_id
+  END IF;
+  ```
+
+#### Bug DQ — `enforce_goal_structure_integrity`: `PERFORM ... FOR UPDATE` Only Runs on UPDATE, Not INSERT
+- **Vulnerability**: In the goal_key_results branch (line ~2195), `PERFORM 1 FROM goals ... FOR UPDATE` is inside `IF TG_OP = 'UPDATE'` but not inside `IF TG_OP = 'INSERT'`. On INSERT into `goal_key_results`, no `FOR UPDATE` lock is acquired — raising the risk of a race between two simultaneous INSERTs of KRs for the same goal.
+- **Location in document**: Lines 2190-2198
+- **Fix** — move the `FOR UPDATE` lock outside the `IF TG_OP = 'UPDATE'` block:
+  ```sql
+  -- Run FOR UPDATE on INSERT and UPDATE (not just UPDATE)
+  IF TG_OP IN ('INSERT', 'UPDATE') THEN
+    PERFORM 1 FROM goals WHERE id = NEW.goal_id FOR UPDATE;
+  END IF;
+  ```
+  Also add a unified `IF TG_OP NOT IN ('INSERT', 'UPDATE') THEN RETURN NEW; END IF;` guard at the top of the function for consistency.
+
+---
+
+### 🟡 High-Priority Issues Not Actually Fixed
+
+These were listed as fixed in the Thirteenth Review Pass but verification reveals they are **NOT** resolved in the document text:
+
+| # | Issue | Where claimed fixed | Actual state | Required action |
+|---|-------|---------------------|--------------|-----------------|
+| DM-1 | JQL precedence bug still at line ~2466 | Bug AN / line ~2466-2467 claimed fix | STILL BROKEN — OR still has wrong precedence | Double-parenthesize both sides (see Note DI definitive form) |
+| DM-2 | JIRA scope missing `openid profile` | Bug AM / Phase 2 line ~139 | Still shows `read:jira-work read:jira-user offline_access` only | Add `openid profile` to JIRA OAuth scopes |
+| DM-3 | OAuth direct token exchange on GET | Bug AO / Phase 2 | All three GET callbacks still do token exchange directly | Convert to two-step: GET → redirect to frontend → POST `/confirm` |
+| DM-4 | `getEffectiveTeamRole` vague in Phase 1 | Bug C / lines 2640-2655 | Phase 1 lines ~98-104 still show original ambiguous description | Insert full algorithm pseudocode from Bug C into Phase 1 |
+| DM-5 | `canManageTeam` not split | Bug P / lines 913-918 | Phase 1 line ~102 still single function | Split into `canManageTeamConfig` (role ≥ admin) and `canManageTeamGoals` (role ≥ manager) |
+| DM-6 | Duplicate Day.js block not removed | Note DJ / line 3074 | Both lines ~1155 (vulnerable) and ~2664 (correct) still in document | Delete the vulnerable block at ~1155-1161 |
+
+---
+
+### 🟠 Missing Integration Edge-Case Handling (Required Before Production)
+
+These scenarios are unhandled or barely mentioned. Implementation must address them:
+
+#### Issue DR — JIRA 503 Retry Has No Backoff (Rate-Limit / DoS)
+- **Vulnerability**: Phase 2 says "throw error for transient (5xx) → retry later without disabling." But there is no exponential backoff, no circuit breaker, and no retry count cap. Under a JIRA outage, the weekly job would hammer JIRA with retries at full speed.
+- **Fix**: Add `Math.min(1000 * 2 ** attempt, 30000)` backoff, max 5 retries, circuit breaker after 3 consecutive failures per integration (marks `is_active = false` with admin alert).
+
+#### Issue DS — GitHub `installation_replaced` Events Not Handled
+- **Vulnerability**: GitHub sends `action: 'installation_replaced'` when an org reinstalls the App (old installation superseded). The plan handles `action: 'deleted'` but not `replaced`. The old `org_integrations` row with `is_active = true` could persist, and the new installation ID wouldn't be linked.
+- **Fix**: In the GitHub webhook `installation` event handler, add:
+  ```ts
+  if (installation_action === 'replaced') {
+    // Deactivate old installation for this app+org
+    await supabase_admin.from('org_integrations')
+      .update({ is_active: false })
+      .eq('org_id', orgId)
+      .eq('provider', 'github_app')
+      .eq('is_active', true);
+  }
+  ```
+
+#### Issue DT — Slack `auth.test` Guard Not Promoted to Required
+- **Vulnerability**: Improvement 12 describes calling `slackClient.auth.test()` before sending, but it remains a "medium improvement" not a Phase 5 requirement. If the bot is uninstalled, `is_active` might still be `true`, and every Slack notification job would fail repeatedly with a method_not_supported error.
+- **Fix**: Change from Medium Improvement to **Required Phase 5 step**. Add a `verifySlackIntegration(orgId)` helper:
+  ```ts
+  export async function verifySlackIntegration(orgId: string): Promise<boolean> {
+    const integration = await getOrgIntegration(orgId, 'slack');
+    if (!integration || !integration.is_active) return false;
+    try {
+      const test = await integration.slackClient.auth.test();
+      return test.team_id === integration.external_install_id;
+    } catch {
+      await setIntegrationInactive(orgId, 'slack');
+      return false;
+    }
+  }
+  ```
+  Call this before **every** Slack API operation (digest job, slash command DM, notification).
+
+#### Issue DU — JIRA Cross-Site Linking Attack Not Validated
+- **Vulnerability**: User pastes `https://site-b.atlassian.net/browse/KEY-123` but org only has site-A connected. The link is accepted, creating a `goal_links` entry from the wrong JIRA tenant. This pollutes goal rollup and could expose org data to the wrong JIRA site.
+- **Fix**: In `POST /api/goals/:goalId/links`, after parsing the JIRA URL and before storing:
+  ```ts
+  const domain = extractDomainFromUrl(externalUrl); // e.g., 'site-b.atlassian.net'
+  const jiraConfig = orgIntegration.config as JiraIntegrationConfig;
+  const connectedDomains = jiraConfig.sites?.map(s => s.domain.toLowerCase()) ?? [];
+  if (!connectedDomains.includes(domain.toLowerCase())) {
+    return res.status(400).json({ error: `This JIRA site is not connected. Add ${domain} in Integrations settings first.` });
+  }
+  ```
+
+#### Issue DV — 403 from JIRA Scored as Transient (Should Be Permanent)
+- **Vulnerability**: The plan routes 503 to retry and 401 `invalid_grant` to permanent deactivation. But a 403 from JIRA (user removed from site) is not `invalid_grant` — it may fall into the retry/transient bucket, keeping a dead integration alive.
+- **Fix**: Add explicit 403 handling:
+  ```ts
+  if (response.status === 403) {
+    // User account removed from site — permanent failure
+    await setIntegrationInactive(orgId, 'jira', 'REMOVED_FROM_SITE');
+    throw new PermanentAuthError('JIRA access revoked');
+  }
+  ```
+
+#### Issue DW — Rate Limit on OAuth Callbacks Not Specified
+- **Vulnerability**: The `/auth/jira/callback`, `/auth/github/callback`, and `/auth/slack/callback` GET endpoints accept state tokens. Without rate limiting, an attacker could flood these with forged states, filling `temp_oauth_states` or causing DoS.
+- **Fix**: Add per-IP rate limiting:
+  ```
+  router.get('/auth/jira/callback', rateLimit({ windowMs: 60000, max: 10 }), ...)
+  ```
+  Apply to all three OAuth callback routes.
+
+#### Issue DX — No Deduplication Between JIRA + GitHub Work Items
+- **Vulnerability**: The same work (a JIRA issue fixed via a GitHub PR) could appear in a worklog twice — once from the JIRA issue close sync and once from the GitHub PR link. No deduplication by `external_id` is specified.
+- **Fix**: Before compiling the AI prompt, deduplicate by `external_id`. Sort deterministically (provider priority, then date):
+  ```ts
+  const deduped = Array.from(
+    new Map(allWorkItems.map(w => [w.external_id, w])).values()
+  ).sort((a, b) => a.external_id.localeCompare(b.external_id));
+  ```
+  Also enumerate state values per provider: JIRA issue (`open`/`closed`), GitHub issue (`open`/`closed`), GitHub PR (`open`/`merged`/`closed_not_merged`).
+
+---
+
+### 🟢 Minor Fixes (SQL in Document vs. In-Spec Gaps)
+
+#### Issue DY — `team_closure_after_reparent`: No Lock on Parent-team Closure Insert
+- When inserting new closure rows for the reparented team's sub-tree, the function does not acquire a lock on `team_closure(team_id, ancestor_team_id)` to prevent a race between two concurrent reparent operations for the same team.
+- **Fix**: Before the INSERT loop, add:
+  ```sql
+  PERFORM 1 FROM team_closure WHERE team_id = v_team_id FOR UPDATE;
+  LOCK TABLE team_closure IN SHARE ROW EXCLUSIVE MODE;
+  ```
+  (The `SHARE ROW EXCLUSIVE MODE` blocks other ReparentTeam operations but not reads.)
+
+#### Issue DZ — `temp_oauth_states` expiry column `expires_at` Needs Index
+- `expires_at` on `temp_oauth_states` is used in DELETE pruning but has no index. The `idx_temp_slack_codes_expires` is in Issue DC but `temp_oauth_states` wasn't added.
+- **Fix**: Add to migration index section:
+  ```sql
+  CREATE INDEX IF NOT EXISTS idx_temp_oauth_states_expires ON temp_oauth_states(expires_at);
+  ```
+
+---
+
+## Fourteenth Review Pass Summary
+
+| Category | Count | Items |
+|----------|-------|-------|
+| 🔴 Critical SQL bugs (trigger fns, not in migration) | 5 | DM-DQ |
+| 🟡 Still-not-fixed in plan text | 6 | DM-1 through DM-6 |
+| 🟠 Missing edge-case handling | 7 | DR-DX |
+| 🟢 Minor (indexes, locks) | 2 | DY-DZ |
+| **Total new items** | **20** | |
+
+---
+
+## ⚠️ Updated Pre-Implementation Checklist (28 items, Loop Iterations 1–2)
+
+All items from the prior 12-item checklist are retained and remain unverified. New items added:
 
 | # | Severity | Item | Location |
 |---|----------|------|----------|
-| 1 | 🔴 Critical | JQL precedence — double-parenthesize both OR sides | Line ~2466 |
-| 2 | 🔴 Critical | Verify `worklogAuthor` is valid JQL or replace with alternative | Line ~2467 |
-| 3 | 🔴 Critical | JIRA scope add `openid profile` | Line ~139 |
-| 4 | 🔴 Critical | Convert all OAuth flows to two-step GET→POST confirm | Phase 2 all routes |
-| 5 | 🟡 High | `getEffectiveTeamRole` full algorithm from Bug C in Phase 1 | Line ~98-104 |
-| 6 | 🟡 High | Split `canManageTeam` into Config/Goals (Bug P) | Line ~102 |
-| 7 | 🟡 High | `temp_oauth_states` POST `/select` userId verification | Phase 2 JIRA |
-| 8 | 🟡 High | `webhook_secret_enc` — encrypt not plaintext | Line ~1547 |
-| 9 | 🟡 High | Add lock timeout ceiling (15s) to retry logic | Phase 2 / Phase 4 |
-| 10 | 🟢 Medium | `goal_links.org_id` explicit FK to `organizations` | Line ~1517 |
-| 11 | 🟢 Medium | `goal_updates.org_id` explicit FK to `organizations` | Line ~1533 |
-| 12 | 🟢 Medium | Prevent reparenting a parent goal (Bug DO) | Line ~2211-2221 |
+| 1 | 🔴 Critical | JQL double-parenthesize both OR sides | Line ~2466 |
+| 2 | 🔴 Critical | Verify `worklogAuthor` is valid JQL field name | Line ~2467 |
+| 3 | 🔴 Critical | JIRA OAuth scope: add `openid profile` | Line ~139 |
+| 4 | 🔴 Critical | Convert all OAuth flows to GET→POST two-step confirm | Phase 2 all routes |
+| 5 | 🔴 Critical | `enforce_goal_structure_integrity` — add check preventing reparenting a parent goal | Line ~2215 |
+| 6 | 🟡 High | `recompute_goal_progress` — add `SELECT status` + early RETURN for draft/cancelled | Line ~2053 |
+| 7 | 🟡 High | `recompute_goal_progress` — add `ROUND(v_new_progress, 2)` before `IS DISTINCT FROM` | Line ~2102 |
+| 8 | 🟡 High | `team_closure_after_reparent` — add `IF TG_OP = 'UPDATE'` guard before OLD | Line ~1888 |
+| 9 | 🟡 High | `enforce_goal_structure_integrity` — move `FOR UPDATE` outside TG_OP condition | Line ~2195 |
+| 10 | 🟡 High | `getEffectiveTeamRole` full algorithm from Bug C in Phase 1 | Line ~98-104 |
+| 11 | 🟡 High | Split `canManageTeam` → `canManageTeamConfig` + `canManageTeamGoals` (Bug P) | Line ~102 |
+| 12 | 🟡 High | `temp_oauth_states` POST `/select` — add `userId === req.userId` check | Phase 2 JIRA |
+| 13 | 🟡 High | `webhook_secret_enc` — encrypt webhook secret, not plaintext | Line ~1547 |
+| 14 | 🟡 High | `teamRoleAtLeast` null guard — add explicit `if (role === null) return false` | Improvement 11 → Phase 1 |
+| 15 | 🟡 High | Slack `auth.test` guard — promote from Medium Improvement to **Required** Phase 5 step | Phase 5 |
+| 16 | 🟡 High | JIRA domain validation on link creation — prevent cross-site linking | POST /api/goals/:goalId/links |
+| 17 | 🟡 High | GitHub `installation_replaced` event handling | Phase 3 webhook |
+| 18 | 🟡 High | JIRA 503 → add exponential backoff + circuit breaker | Phase 2 token refresh |
+| 19 | 🟡 High | JIRA 403 → treat as permanent failure (not transient retry) | Phase 2 token refresh |
+| 20 | 🟡 High | Rate limit all OAuth callback routes | Phase 2 routes |
+| 21 | 🟢 Medium | `goal_links.org_id` explicit FK to `organizations(id)` | Line ~1517 |
+| 22 | 🟢 Medium | `goal_updates.org_id` explicit FK to `organizations(id)` | Line ~1533 |
+| 23 | 🟢 Medium | JQL cross-site linking domain validation (Issue DU) | POST /api/goals/:goalId/links |
+| 24 | 🟢 Medium | Add deduplication + state enumeration for mixed JIRA+GitHub worklogs (Issue DX) | Phase 4 worklog generation |
+| 25 | 🟢 Medium | `idx_goal_updates_org_id` index | Migration index section |
+| 26 | 🟢 Medium | `idx_org_integrations_org_id` index | Migration index section |
+| 27 | 🟢 Medium | `idx_temp_oauth_states_expires` index | Migration index section |
+| 28 | 🟢 Medium | `idx_temp_slack_codes_expires` and `idx_slack_command_sessions_expires` (Issue DC) | Migration index section |
+| 29 | 🟢 Low | Remove duplicate Day.js block (vulnerable copy at line ~1155) | Phase 2 text section |
+| 30 | 🟢 Low | Prevent duplicate Day.js block (already in Note DJ but not actioned) | Phase 2 text section |
 
-*No plan is ever 100% bug-free. These 12 items plus the full migration SQL (lines 1293-2291) represent the current best-known state. Re-audit before each implementation phase.*
+*Thirteenth review completed 2026-06-16. Found: 7 critical (DI-DO), 5 high-priority (DA-DE), 3 medium-priority (DF-DH), 4 minor (DI-DL).*
 
----
-
-*Twelfth review completed 2026-06-16. Added Bugs DG-DH and applied corresponding fixes to the SQL migration and text.*
+*Fourteenth review completed 2026-06-16. Found: 5 critical SQL trigger bugs (DM-DQ not in migration), 6 still-unfixed text issues (DM-1 to DM-6), 7 missing integration edge-case handlers (DR-DX), 2 minor (DY-DZ). Loop iteration 2 of 2 — system is substantially more robust but not yet hardened to enterprise threat model. A third iteration is recommended before implementation begins, or implementers should treat this checklist as their first-action-items and re-audit continuously.*
 
 
 

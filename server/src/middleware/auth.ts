@@ -34,7 +34,6 @@ if (!ACCESS_TOKEN_SECRET || ACCESS_TOKEN_SECRET.length < 32) {
     throw new Error('JWT_SECRET must be set and at least 32 characters')
 }
 const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || '15m'
-const REFRESH_TOKEN_EXPIRY = process.env.REFRESH_TOKEN_EXPIRY || '30d'
 
 /**
  * Generate JWT access token
@@ -246,7 +245,7 @@ export async function optionalAuth(
         }
 
         next()
-    } catch (error) {
+    } catch {
         // Silently continue - auth is optional
         next()
     }

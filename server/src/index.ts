@@ -14,11 +14,21 @@ import { feedbackRoutes } from './routes/feedback.js'
 import { aiPulseRoutes } from './routes/aiPulse.js'
 import { translateRoutes } from './routes/translate.js'
 import { waitlistRoutes } from './routes/waitlist.js'
+import { organizationRoutes } from './routes/organizations.js'
+import { teamRoutes } from './routes/teams.js'
+import { goalRoutes } from './routes/goals.js'
+import { githubWebhookRoutes } from './routes/webhooks/github.js'
+import { jiraWebhookRoutes } from './routes/webhooks/jira.js'
+import { slackWebhookRoutes } from './routes/webhooks/slack.js'
+import { integrationRoutes } from './routes/integrations.js'
 import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { newsCollectionJob } from './jobs/newsCollectionJob.js'
 import { weeklyDigestJob } from './jobs/weeklyDigestJob.js'
-import { isDatabaseConfigured } from './lib/database.js'
+import { weeklySyncJob } from './jobs/weeklySyncJob.js'
+import { goalRollupJob } from './jobs/goalRollupJob.js'
+import { goalDigestJob } from './jobs/goalDigestJob.js'
+import { pruneJob } from './jobs/pruneJob.js'
 import { getPostHogClient, shutdownPostHog, captureException, captureEvent } from './lib/posthog.js'
 import { logger } from './lib/logger.js'
 import { requestIdMiddleware } from './middleware/requestId.js'
@@ -32,10 +42,26 @@ const allowedOrigins = (process.env.FRONTEND_URL || '')
   .map((origin) => origin.trim())
   .filter(Boolean)
 
+// Comma-separated allowlist of Vercel production app hostnames (e.g.
+// "worklog-ai.vercel.app,worklog-ai-staging.vercel.app"). Preview deploys
+// under those *projects* are still allowed via the prefix match — but
+// random *.vercel.app URLs owned by other Vercel users are NOT (Bug 23).
+const allowedVercelApps = (process.env.VERCEL_ALLOWED_APPS || '')
+  .split(',')
+  .map((s) => s.trim().toLowerCase())
+  .filter(Boolean)
+
 function isAllowedVercelOrigin(origin: string): boolean {
   try {
     const parsed = new URL(origin)
-    return parsed.protocol === 'https:' && parsed.hostname.endsWith('.vercel.app')
+    if (parsed.protocol !== 'https:') return false
+    const host = parsed.hostname.toLowerCase()
+    if (!host.endsWith('.vercel.app')) return false
+    // Match against the explicit allowlist (with or without the .vercel.app suffix)
+    return allowedVercelApps.some((allowed) => {
+      const a = allowed.replace(/\.vercel\.app$/i, '').toLowerCase()
+      return host === `${a}.vercel.app`
+    })
   } catch {
     return false
   }
@@ -61,6 +87,11 @@ app.use(cors({
 }))
 
 // Middleware
+// Raw-body capture for webhook signature verification (MUST be before express.json)
+app.use('/api/webhooks/github', express.json({ verify: (req: any, _: any, buf: Buffer) => { req.rawBody = buf } }))
+app.use('/api/webhooks/jira', express.json({ verify: (req: any, _: any, buf: Buffer) => { req.rawBody = buf } }))
+app.use('/api/webhooks/slack', express.urlencoded({ extended: true, verify: (req: any, _: any, buf: Buffer) => { req.rawBody = buf } }))
+
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
@@ -124,7 +155,7 @@ app.use((req, res, next) => {
             },
           })
         }
-      } catch (e) {
+      } catch {
         // Ignore JWT parse errors for logging
       }
     }
@@ -144,6 +175,13 @@ app.use('/api/feedback', feedbackRoutes)
 app.use('/api/ai-pulse', aiPulseRoutes)
 app.use('/api/translate', translateRoutes)
 app.use('/api/waitlist', waitlistRoutes)
+app.use('/api/orgs', organizationRoutes)
+app.use('/api/teams', teamRoutes)
+app.use('/api/goals', goalRoutes)
+app.use('/api/webhooks/github', githubWebhookRoutes)
+app.use('/api/webhooks/jira', jiraWebhookRoutes)
+app.use('/api/webhooks/slack', slackWebhookRoutes)
+app.use('/api/integrations', integrationRoutes)
 
 // Root route
 app.get('/', (req, res) => {
@@ -166,14 +204,37 @@ app.get('/health', (req, res) => {
 })
 
 // Global error handler
-app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => { // eslint-disable-line no-unused-vars -- Express requires 4-arg error handler signature
   logger.with('err', err).error('Unhandled error: {}', err.message)
   captureException(err)
   res.status(500).json({ success: false, error: getErrorMessageSync('internal') })
 })
 
 // Start server
-app.listen(PORT, () => {
+async function startServer() {
+  // Issue CU: clear orphaned locks from prior crashes before starting jobs.
+  // Without this, a user stuck in `is_syncing=true` from a previous server
+  // crash would have to wait 15 minutes for the timeout to expire; same for
+  // token refresh locks (30s) and global cron locks.
+  try {
+    const { supabase } = await import('./lib/database.js')
+    const now = new Date().toISOString()
+    await Promise.all([
+      supabase.from('integration_preferences').update({ is_syncing: false, sync_started_at: null }).eq('is_syncing', true),
+      supabase.from('user_integrations').update({ is_refreshing: false, refresh_started_at: null }).eq('is_refreshing', true),
+      supabase.from('org_integrations').update({ is_refreshing: false, refresh_started_at: null }).eq('is_refreshing', true),
+      // Prune expired temp/cache tables so they don't accumulate forever
+      supabase.from('temp_oauth_states').delete().lt('expires_at', now),
+      supabase.from('temp_slack_codes').delete().lt('expires_at', now),
+      supabase.from('slack_command_sessions').delete().lt('expires_at', now),
+      supabase.from('integration_events').delete().lt('received_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
+    ])
+    logger.info('✓ Orphaned locks and expired temp records cleared at startup')
+  } catch (err) {
+    logger.with('err', err).warn('Startup lock cleanup failed (continuing)')
+  }
+
+  app.listen(PORT, () => {
   logger.info('Server running on http://localhost:{}', PORT)
   logger.info('Environment: {}', process.env.NODE_ENV || 'development')
 
@@ -233,6 +294,16 @@ app.listen(PORT, () => {
   monthlySummaryJob.start()
   newsCollectionJob.start()
   weeklyDigestJob.start()
+  weeklySyncJob.start()
+  goalRollupJob.start()
+  goalDigestJob.start()
+  pruneJob.start()
+  })
+} // end startServer
+
+startServer().catch((err) => {
+  logger.with('err', err).error('Failed to start server')
+  process.exit(1)
 })
 
 // Graceful shutdown
@@ -242,6 +313,10 @@ process.on('SIGTERM', async () => {
   monthlySummaryJob.stop()
   newsCollectionJob.stop()
   weeklyDigestJob.stop()
+  weeklySyncJob.stop()
+  goalRollupJob.stop()
+  goalDigestJob.stop()
+  pruneJob.stop()
   await shutdownPostHog()
   process.exit(0)
 })
@@ -252,6 +327,10 @@ process.on('SIGINT', async () => {
   monthlySummaryJob.stop()
   newsCollectionJob.stop()
   weeklyDigestJob.stop()
+  weeklySyncJob.stop()
+  goalRollupJob.stop()
+  goalDigestJob.stop()
+  pruneJob.stop()
   await shutdownPostHog()
   process.exit(0)
 })
