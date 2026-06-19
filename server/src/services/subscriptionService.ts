@@ -7,7 +7,7 @@
  * are scoped by orgId.
  *
  * Pricing tiers and limits:
- *   free:        1 member, no goals, no integrations, no AI reports
+ *   free:        1 member (temp: all features enabled)
  *   pro:         25 members, goals + integrations, no AI reports
  *   enterprise:  unlimited members, goals + integrations + AI reports
  */
@@ -25,7 +25,7 @@ const TIER_CACHE_TTL_MS = 60_000
 const ACTIVE_STATUSES = new Set(['active', 'trialing'])
 
 const FEATURE_GATES: Record<Tier, { goals: boolean, integrations: boolean, aiReports: boolean }> = {
-  free: { goals: false, integrations: false, aiReports: false },
+  free: { goals: true, integrations: true, aiReports: false },
   pro: { goals: true, integrations: true, aiReports: false },
   enterprise: { goals: true, integrations: true, aiReports: true },
 }
