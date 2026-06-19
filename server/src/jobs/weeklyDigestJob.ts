@@ -5,16 +5,6 @@ import { sendEmail, translateStatic } from '../lib/email.js'
 import { mdc } from '../lib/mdc.js'
 import { randomUUID } from 'crypto'
 
-const WEEKLY_DIGEST_TABLE = 'weekly_digest_subscriptions'
-
-type DigestUser = {
-  id: string
-  email: string
-  name: string | null
-  subscription_type: 'all' | 'category' | 'bookmarked'
-  preferred_category: string | null
-}
-
 class WeeklyDigestJob {
   private task: cron.ScheduledTask | null = null
 

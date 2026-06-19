@@ -17,7 +17,6 @@ import {
   validateRefreshToken,
   requireAuth,
   hashToken,
-  type JWTPayload,
 } from '../middleware/auth.js'
 import { captureEvent, captureException, identifyUser } from '../lib/posthog.js'
 import { logger } from '../lib/logger.js'
@@ -288,7 +287,7 @@ authRoutes.post('/resend-verification', async (req: AuthRequest, res: Response) 
       .from('email_verifications')
       .insert({
         user_id: user.id,
-        token: emailToken,
+        token_hash: hashToken(emailToken),
         expires_at: emailExpiresAt.toISOString(),
       })
 

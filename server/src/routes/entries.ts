@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
-import type { WorkLogEntry, CreateWorkLogRequest, ApiResponse } from 'shared'
+import type { CreateWorkLogRequest } from 'shared'
 import { invalidateMonthlySummary } from '../lib/summaryService.js'
 import { captureEvent, captureException } from '../lib/posthog.js'
 import { logger } from '../lib/logger.js'

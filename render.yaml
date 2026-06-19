@@ -4,8 +4,8 @@ services:
     env: node
     region: oregon
     plan: free
-    rootDir: server
-    buildCommand: npm install --workspace=server && npm run build --workspace=server
+    rootDir: .
+    buildCommand: npm install && npm run build --workspace=server
     startCommand: npm run start --workspace=server
     envVars:
       - key: NODE_ENV
@@ -27,5 +27,21 @@ services:
       - key: FRONTEND_URL
         sync: false
       - key: MISTRAL_API_KEY
+        sync: false
+      - key: INTEGRATION_ENCRYPTION_KEY
+        sync: false
+      - key: JIRA_CLIENT_ID
+        sync: false
+      - key: JIRA_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_APP_ID
+        sync: false
+      - key: GITHUB_APP_PRIVATE_KEY
+        sync: false
+      - key: GITHUB_APP_WEBHOOK_SECRET
+        sync: false
+      - key: SLACK_SIGNING_SECRET
+        sync: false
+      - key: VERCEL_ALLOWED_APPS
         sync: false
     healthCheckPath: /health

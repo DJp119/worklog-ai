@@ -20,6 +20,11 @@ const Onboarding = lazy(() => import('./pages/Onboarding'))
 const Terms = lazy(() => import('./pages/Terms'))
 const Privacy = lazy(() => import('./pages/Privacy'))
 const AIPulseHub = lazy(() => import('./pages/ai-pulse/Hub').then(m => ({ default: m.AIPulseHub })))
+const Billing = lazy(() => import('./pages/Billing'))
+const Goals = lazy(() => import('./pages/Goals'))
+const TeamGoals = lazy(() => import('./pages/TeamGoals'))
+const OrgSettings = lazy(() => import('./pages/OrgSettings'))
+const Integrations = lazy(() => import('./pages/Integrations'))
 
 function ProtectedRoute({
   children,
@@ -135,6 +140,38 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/goals"
+          element={
+            <ProtectedRoute>
+              <Goals />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/team-goals"
+          element={
+            <ProtectedRoute>
+              <TeamGoals />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/org-settings"
+          element={
+            <ProtectedRoute>
+              <OrgSettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/integrations"
+          element={
+            <ProtectedRoute>
+              <Integrations />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/onboarding"
           element={
             <OnboardingRoute>
@@ -146,6 +183,14 @@ function AppRoutes() {
         <Route path="/terms" element={<Layout><Terms /></Layout>} />
         <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
         <Route path="/ai-pulse" element={<Layout><AIPulseHub /></Layout>} />
+        <Route
+          path="/billing"
+          element={
+            <ProtectedRoute>
+              <Billing />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </Suspense>
   )

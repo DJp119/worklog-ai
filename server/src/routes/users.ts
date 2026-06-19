@@ -1,4 +1,4 @@
-import { Router, Request, Response } from 'express'
+import { Router, Response } from 'express'
 import { supabase } from '../lib/database.js'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import { hashPassword, comparePassword, validatePasswordStrength } from '../lib/auth-utils.js'
@@ -170,7 +170,10 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
 
         updateData.updated_at = new Date().toISOString()
 
-        logger.with('updateData', updateData).info('Updating profile for user')
+        // Log only the field names being updated, never the values. This
+        // prevents accidental PII/password leaks if a new field is ever
+        // added without re-reviewing this log line.
+        logger.with('updatedFields', Object.keys(updateData)).info('Updating profile for user')
 
         const { data: user, error } = await supabase
             .from('users')
@@ -309,6 +312,18 @@ userRoutes.put('/password', async (req: AuthRequest, res: Response) => {
 userRoutes.delete('/account', async (req: AuthRequest, res: Response) => {
     try {
         const userId = req.userId!
+
+        // Revoke all active refresh tokens first so any in-flight session
+        // gets a 401 on its next request, and so the cascade delete on
+        // the users row doesn't leave orphan rows in refresh_tokens.
+        // (refresh_tokens.user_id references users(id) with ON DELETE CASCADE
+        // so the rows are removed when the user is deleted, but the explicit
+        // revoke provides a clean audit trail via revoked_at.)
+        await supabase
+            .from('refresh_tokens')
+            .update({ revoked: true, revoked_at: new Date().toISOString() })
+            .eq('user_id', userId)
+            .eq('revoked', false)
 
         // Delete user (cascade will delete related data)
         const { error } = await supabase
