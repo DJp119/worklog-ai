@@ -15,6 +15,7 @@
 import { supabase } from './database.js'
 import { logger } from './logger.js'
 import { getSlackClient, postMessage, openDm, authTest } from './slackAdapter.js'
+import { getTeamSlackChannels } from '../services/subscriptionService.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -183,6 +184,36 @@ async function dmUser(
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
+
+/**
+ * Post a goal notification to a team's configured Slack channels (as set by
+ * managers via integration_channel_preferences). Errors are swallowed.
+ */
+export async function notifyTeamChannels(
+  goalId: string,
+  teamId: string,
+  text: string,
+  blocks?: any[]
+): Promise<void> {
+  try {
+    const goal = await loadGoal(goalId)
+    if (!goal) return
+
+    const channelIds = await getTeamSlackChannels(supabase, goal.org_id, teamId)
+    if (channelIds.length === 0) return
+
+    const client = await getSlackClient(goal.org_id)
+    for (const channelId of channelIds) {
+      try {
+        await postMessage(client, channelId, text, blocks)
+      } catch (err) {
+        logger.with('err', err).with('channelId', channelId).warn('notifyTeamChannels: post failed')
+      }
+    }
+  } catch (err) {
+    logger.with('err', err).with('goalId', goalId).warn('notifyTeamChannels failed')
+  }
+}
 
 /**
  * Notify a goal's assignee via Slack DM. Resolves all `goal_assignees` for

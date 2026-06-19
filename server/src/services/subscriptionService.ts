@@ -62,6 +62,51 @@ export function clearTierCache(orgId: string): void {
 }
 
 /**
+ * Fetch the user's channel preference sync filters (repo filter for GitHub,
+ * project keys for Jira). Returns null if no preference row exists.
+ */
+export async function getUserSyncFilters(
+  db: SupabaseClient,
+  userId: string,
+  provider: 'github' | 'jira'
+): Promise<Record<string, any> | null> {
+  const { data, error } = await db
+    .from('integration_channel_preferences')
+    .select('channel_config')
+    .eq('user_id', userId)
+    .eq('provider', provider)
+    .eq('channel_type', 'sync')
+    .maybeSingle()
+
+  if (error || !data) return null
+  return data.channel_config as Record<string, any>
+}
+
+/**
+ * Fetch the Slack notification channel preferences for a team.
+ * Returns the list of channel IDs to notify, or an empty array.
+ */
+export async function getTeamSlackChannels(
+  db: SupabaseClient,
+  orgId: string,
+  teamId: string
+): Promise<string[]> {
+  const { data, error } = await db
+    .from('integration_channel_preferences')
+    .select('channel_config')
+    .eq('org_id', orgId)
+    .eq('team_id', teamId)
+    .eq('provider', 'slack')
+    .eq('channel_type', 'notification')
+    .eq('is_active', true)
+    .maybeSingle()
+
+  if (error || !data) return []
+  const cfg = data.channel_config as { channel_ids?: string[] } | null
+  return cfg?.channel_ids ?? []
+}
+
+/**
  * Resolve the effective tier for an org. A subscription row whose status is not
  * active/trialing is downgraded to 'free' (treats inactive billing as free).
  */

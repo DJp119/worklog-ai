@@ -23,6 +23,7 @@ import isoWeek from 'dayjs/plugin/isoWeek.js'
 import { randomUUID } from 'crypto'
 import { supabase } from '../lib/database.js'
 import { logger } from '../lib/logger.js'
+import { getUserSyncFilters } from '../services/subscriptionService.js'
 import { mdc } from '../lib/mdc.js'
 import { getJiraClient, searchJiraJQL } from '../lib/jiraAdapter.js'
 import { getGithubClient, parseGithubUrl } from '../lib/githubAdapter.js'
@@ -324,16 +325,28 @@ async function syncUser(userId: string, syncTimezone: string): Promise<void> {
 
         for (const intRow of (integrations || []) as UserIntegrationRow[]) {
             if (intRow.provider === 'jira') {
+                const jiraFilter = await getUserSyncFilters(supabase, userId, 'jira')
+                const projectKeys = jiraFilter?.project_keys as string[] | undefined
                 const items = await fetchJiraItems(userId, sinceUTC, untilUTC)
-                allItems.push(...items)
+                const filtered = projectKeys && projectKeys.length > 0
+                  ? items.filter((i) => projectKeys.some((k) => i.external_key.startsWith(k)))
+                  : items
+                allItems.push(...filtered)
             } else if (intRow.provider === 'github') {
                 const { data: prefs } = await supabase
                     .from('integration_preferences')
                     .select('github_repos')
                     .eq('user_id', userId)
                     .single()
-                const userRepos = ((prefs as PreferenceRow | null)?.github_repos) || []
+                let userRepos = ((prefs as PreferenceRow | null)?.github_repos) || []
                 if (userRepos.length === 0) continue
+
+                const syncFilter = await getUserSyncFilters(supabase, userId, 'github')
+                const repoFilter = syncFilter?.repo_filter as string[] | undefined
+                if (repoFilter && repoFilter.length > 0) {
+                  userRepos = userRepos.filter((r: string) => repoFilter.includes(r))
+                  if (userRepos.length === 0) continue
+                }
 
                 // Org-restriction: intersect user-requested repos with the set
                 // of repos any active GitHub App installation on the user's
