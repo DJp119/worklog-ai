@@ -21,6 +21,7 @@ import { githubWebhookRoutes } from './routes/webhooks/github.js'
 import { jiraWebhookRoutes } from './routes/webhooks/jira.js'
 import { slackWebhookRoutes } from './routes/webhooks/slack.js'
 import { integrationRoutes } from './routes/integrations.js'
+import { subscriptionRoutes } from './routes/subscriptions.js'
 import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { newsCollectionJob } from './jobs/newsCollectionJob.js'
@@ -91,6 +92,9 @@ app.use(cors({
 app.use('/api/webhooks/github', express.json({ verify: (req: any, _: any, buf: Buffer) => { req.rawBody = buf } }))
 app.use('/api/webhooks/jira', express.json({ verify: (req: any, _: any, buf: Buffer) => { req.rawBody = buf } }))
 app.use('/api/webhooks/slack', express.urlencoded({ extended: true, verify: (req: any, _: any, buf: Buffer) => { req.rawBody = buf } }))
+// Paddle sends a JSON body whose raw bytes must be HMAC-verified; capture as
+// text (raw) then parse in the handler.
+app.use('/api/webhooks/paddle', express.text({ type: 'application/json', verify: (req: any, _res: any, buf: Buffer) => { req.rawBody = buf } }))
 
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
@@ -182,6 +186,9 @@ app.use('/api/webhooks/github', githubWebhookRoutes)
 app.use('/api/webhooks/jira', jiraWebhookRoutes)
 app.use('/api/webhooks/slack', slackWebhookRoutes)
 app.use('/api/integrations', integrationRoutes)
+app.use('/api/subscriptions', subscriptionRoutes)
+// Paddle webhooks are handled by the subscription routes (/webhook sub-route).
+app.use('/api/webhooks/paddle', subscriptionRoutes)
 
 // Root route
 app.get('/', (req, res) => {

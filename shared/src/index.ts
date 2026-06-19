@@ -470,3 +470,83 @@ export interface SlackLinkPinRequest {
 export interface SlackLinkPinStartResponse {
     expiresAt: string
 }
+
+// =============================================================================
+// Subscriptions & Billing (Paddle)
+// =============================================================================
+
+export type SubscriptionTier = 'free' | 'pro' | 'enterprise'
+export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'paused' | 'canceled' | 'unpaid'
+
+export interface Subscription {
+    id: string
+    org_id: string
+    tier: SubscriptionTier
+    status: SubscriptionStatus
+    paddle_customer_id?: string | null
+    paddle_subscription_id?: string | null
+    paddle_price_id?: string | null
+    current_period_start?: string | null
+    current_period_end?: string | null
+    cancel_at_period_end: boolean
+    max_members?: number | null
+    ai_reports_enabled: boolean
+    created_at: string
+    updated_at: string
+}
+
+// =============================================================================
+// Integration Channel Preferences
+// =============================================================================
+
+export type ChannelProvider = 'slack' | 'github' | 'jira'
+export type ChannelType = 'notification' | 'sync'
+
+export interface ChannelPreference {
+    id: string
+    org_id: string
+    user_id?: string | null
+    team_id?: string | null
+    provider: ChannelProvider
+    channel_type: ChannelType
+    channel_config: Record<string, any>
+    is_active: boolean
+    set_by?: string | null
+    created_at: string
+    updated_at: string
+}
+
+// =============================================================================
+// AI Performance Reports
+// =============================================================================
+
+export type ReportType = 'self' | 'individual' | 'team' | 'organization'
+export type ReportStatus = 'generating' | 'completed' | 'failed' | 'expired'
+
+export interface PerformanceReport {
+    id: string
+    org_id: string
+    report_type: ReportType
+    target_user_id?: string | null
+    target_team_id?: string | null
+    period_start: string
+    period_end: string
+    generated_by: string
+    report_content: Record<string, any>
+    report_markdown?: string | null
+    ai_model?: string | null
+    token_usage?: number | null
+    generation_time_ms?: number | null
+    status: ReportStatus
+    error_message?: string | null
+    created_at: string
+    updated_at: string
+}
+
+export interface GenerateReportRequest {
+    reportType: ReportType
+    targetUserId?: string
+    targetTeamId?: string
+    periodStart: string
+    periodEnd: string
+}

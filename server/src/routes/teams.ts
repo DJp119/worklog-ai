@@ -9,6 +9,7 @@
 import { Router } from 'express'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import { requireTeamRole } from '../services/authz.js'
+import { checkMemberLimit } from '../services/subscriptionService.js'
 import * as teamSvc from '../services/teamService.js'
 import { logger } from '../lib/logger.js'
 
@@ -109,6 +110,18 @@ teamRoutes.post('/:teamId/members', requireAuth, requireTeamRole('admin'), async
       .maybeSingle()
     if (!orgMember) {
       return res.status(403).json({ success: false, error: 'User is not a member of this org' })
+    }
+
+    // Tier gate: enforce org member cap (Free = 1 member). Note this counts
+    // org_members, but adding a team member requires existing org membership,
+    // so this guards org-level growth driven through this endpoint.
+    const limit = await checkMemberLimit(req.supabase!, team.org_id)
+    if (!limit.allowed) {
+      return res.status(403).json({
+        success: false,
+        error: `Member limit reached (${limit.current}/${limit.max ?? 'unlimited'}). Upgrade your plan to add more members.`,
+        upgradeUrl: '/billing',
+      })
     }
 
     const data = await teamSvc.addMember(req.supabase!, String(req.params.teamId), userId, role, team.org_id)

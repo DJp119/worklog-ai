@@ -35,6 +35,7 @@ import {
 } from '../lib/crypto.js'
 import { logger } from '../lib/logger.js'
 import { supabase } from '../lib/database.js'
+import { isFeatureEnabled } from '../services/subscriptionService.js'
 import {
   listAccessibleResources,
   exchangeJiraCode,
@@ -358,6 +359,11 @@ integrationRoutes.post('/jira/org-connect', requireAuth, requireOrgRole('admin')
     const { orgId } = req.body as { orgId?: string }
     if (!orgId) return res.status(400).json({ success: false, error: 'orgId required' })
 
+    const integrationsEnabled = await isFeatureEnabled(req.supabase!, orgId, 'integrations')
+    if (!integrationsEnabled) {
+      return res.status(403).json({ success: false, error: 'Integrations require a Pro plan or higher.', upgradeUrl: '/billing' })
+    }
+
     const stateToken = makeOAuthState({ userId: req.userId!, provider: 'jira_org', orgId, audience: 'jira_org' })
     const redirectUri = `${process.env.FRONTEND_URL}/api/integrations/jira/org-callback`
     const authUrl = buildJiraAuthUrl(stateToken, redirectUri)
@@ -465,6 +471,11 @@ integrationRoutes.post('/slack/org-connect', requireAuth, async (req: AuthReques
       return res.status(403).json({ success: false, error: 'Forbidden' })
     }
 
+    const integrationsEnabled = await isFeatureEnabled(req.supabase!, orgId, 'integrations')
+    if (!integrationsEnabled) {
+      return res.status(403).json({ success: false, error: 'Integrations require a Pro plan or higher.', upgradeUrl: '/billing' })
+    }
+
     const stateToken = makeOAuthState({ userId: req.userId!, provider: 'slack_org', orgId, audience: 'slack_org' })
     const redirectUri = `${process.env.FRONTEND_URL}/api/integrations/slack/org-callback`
     const authUrl = buildSlackAuthUrl(stateToken, redirectUri)
@@ -564,6 +575,12 @@ integrationRoutes.post('/github/app-connect', requireAuth, async (req: AuthReque
     if (!role || !orgRoleAtLeast(role, 'admin')) {
       return res.status(403).json({ success: false, error: 'Forbidden' })
     }
+
+    const integrationsEnabled = await isFeatureEnabled(req.supabase!, orgId, 'integrations')
+    if (!integrationsEnabled) {
+      return res.status(403).json({ success: false, error: 'Integrations require a Pro plan or higher.', upgradeUrl: '/billing' })
+    }
+
     const stateToken = makeOAuthState({ userId: req.userId!, provider: 'github_app', orgId, audience: 'github_app' })
     const authUrl = buildGitHubAppInstallUrl(stateToken)
     return res.json({ success: true, data: { authUrl } })

@@ -9,6 +9,7 @@
 import { Router } from 'express'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import { canEditGoal, canManageTeamGoals, getUserOrgRole, getViewableUserIds, orgRoleAtLeast } from '../services/authz.js'
+import { isFeatureEnabled } from '../services/subscriptionService.js'
 import * as goalSvc from '../services/goalService.js'
 import { logger } from '../lib/logger.js'
 
@@ -30,6 +31,12 @@ goalRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
     // Verify org membership
     const orgRole = await getUserOrgRole(req.supabase!, req.userId!, orgId)
     if (!orgRole) return res.status(403).json({ success: false, error: 'Forbidden — not an org member' })
+
+    // Tier gate: goals require Pro+
+    const goalsEnabled = await isFeatureEnabled(req.supabase!, orgId, 'goals')
+    if (!goalsEnabled) {
+      return res.status(403).json({ success: false, error: 'Goals require a Pro plan or higher.', upgradeUrl: '/billing' })
+    }
 
     // Team-scoped goals require manager+ on team
     if (scope === 'team' && teamId) {
