@@ -22,6 +22,7 @@ import { jiraWebhookRoutes } from './routes/webhooks/jira.js'
 import { slackWebhookRoutes } from './routes/webhooks/slack.js'
 import { integrationRoutes } from './routes/integrations.js'
 import { subscriptionRoutes } from './routes/subscriptions.js'
+import { reportRoutes } from './routes/reports.js'
 import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { newsCollectionJob } from './jobs/newsCollectionJob.js'
@@ -189,6 +190,7 @@ app.use('/api/integrations', integrationRoutes)
 app.use('/api/subscriptions', subscriptionRoutes)
 // Paddle webhooks are handled by the subscription routes (/webhook sub-route).
 app.use('/api/webhooks/paddle', subscriptionRoutes)
+app.use('/api/reports', reportRoutes)
 
 // Root route
 app.get('/', (req, res) => {
