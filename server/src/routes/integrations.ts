@@ -658,7 +658,7 @@ integrationRoutes.post('/slack/link/start', requireAuth, slackLinkStartLimiter, 
       return res.status(400).json({ success: false, error: 'slackTeamId, slackUserId, email required' })
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(email)) {
       return res.status(400).json({ success: false, error: 'email format invalid' })
     }
 

@@ -286,10 +286,14 @@ goalRoutes.post('/:goalId/links', requireAuth, async (req: AuthRequest, res) => 
 
     // Issue DU: cross-site linking guard — if the goal is in an org that has a
     // JIRA site connection, the URL's domain must match.
-    if (typeof url === 'string' && url.includes('.atlassian.net')) {
-      const domainMatch = url.match(/https?:\/\/([\w.-]+\.atlassian\.net)/i)
-      if (domainMatch) {
-        const domain = domainMatch[1].toLowerCase()
+    if (typeof url === 'string') {
+      let hostname: string
+      try {
+        hostname = new URL(url).hostname.toLowerCase()
+      } catch {
+        hostname = ''
+      }
+      if (hostname.endsWith('.atlassian.net')) {
         const { data: orgInt } = await req.supabase!
           .from('org_integrations')
           .select('config')
@@ -299,10 +303,10 @@ goalRoutes.post('/:goalId/links', requireAuth, async (req: AuthRequest, res) => 
           .maybeSingle()
         const cfg = (orgInt?.config ?? null) as { sites?: Array<{ domain?: string }> } | null
         const connectedDomains = (cfg?.sites ?? []).map((s) => (s.domain ?? '').toLowerCase())
-        if (connectedDomains.length > 0 && !connectedDomains.includes(domain)) {
+        if (connectedDomains.length > 0 && !connectedDomains.includes(hostname)) {
           return res.status(400).json({
             success: false,
-            error: `This JIRA site is not connected. Add ${domain} in Integrations settings first.`,
+            error: `This JIRA site is not connected. Add ${hostname} in Integrations settings first.`,
           })
         }
       }
