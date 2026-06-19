@@ -1,12 +1,12 @@
 /**
  * server/src/services/subscriptionService.ts
  *
- * Subscription tier resolution, feature gating, member-limit checks, and Paddle
- * webhook reconciliation. All enforcement in Node via the service-role Supabase
- * client (RLS is defense-in-depth; service role bypasses it). Reads are scoped
- * by orgId.
+ * Subscription tier resolution, feature gating, member-limit checks, and
+ * integration channel preferences. All enforcement in Node via the service-role
+ * Supabase client (RLS is defense-in-depth; service role bypasses it). Reads
+ * are scoped by orgId.
  *
- * Pricing tiers and limits (per the approved plan):
+ * Pricing tiers and limits:
  *   free:        1 member, no goals, no integrations, no AI reports
  *   pro:         25 members, goals + integrations, no AI reports
  *   enterprise:  unlimited members, goals + integrations + AI reports
@@ -31,27 +31,6 @@ const FEATURE_GATES: Record<Tier, { goals: boolean, integrations: boolean, aiRep
 }
 
 export type Feature = 'goals' | 'integrations' | 'aiReports'
-
-/** Map a Paddle Price ID to a tier via env-configured price IDs. */
-export function resolveTierFromPriceId(priceId: string | null | undefined): Tier {
-  if (!priceId) return 'free'
-  if (priceId === process.env.PADDLE_PRO_PRICE_ID) return 'pro'
-  if (priceId === process.env.PADDLE_ENTERPRISE_PRICE_ID) return 'enterprise'
-  return 'free'
-}
-
-/** Map a Paddle subscription status to our DB enum (subscription_status). */
-export function mapPaddleStatus(paddleStatus: string | null | undefined): string {
-  const statusMap: Record<string, string> = {
-    active: 'active',
-    trialing: 'trialing',
-    past_due: 'past_due',
-    paused: 'paused',
-    canceled: 'canceled',
-    unpaid: 'unpaid',
-  }
-  return statusMap[paddleStatus ?? ''] || 'canceled'
-}
 
 /** Per-tier member cap; null means unlimited (enterprise). */
 const MAX_MEMBERS: Record<Tier, number | null> = { free: 1, pro: 25, enterprise: null }
@@ -167,63 +146,4 @@ export async function checkMemberLimit(
   }
 }
 
-interface PaddleEvent {
-  event_id?: string
-  event_type?: string
-  data?: any
-}
 
-/**
- * Reconcile a signed Paddle webhook event into the subscriptions table.
- * Processes subscription.created / .updated / .canceled; ignores other types.
- * The route layer is responsible for idempotency (paddle_events log) before
- * calling this.
- */
-export async function handlePaddleWebhook(db: SupabaseClient, event: PaddleEvent): Promise<void> {
-  const eventType = event.event_type
-  const payload = event.data ?? {}
-
-  if (!['subscription.created', 'subscription.updated', 'subscription.canceled'].includes(eventType ?? '')) {
-    return
-  }
-
-  const paddleSubId = payload.id
-  const customData = payload.custom_data || {}
-  const orgId = customData.orgId
-
-  if (!orgId) {
-    logger.with('eventId', event.event_id).warn('Paddle webhook missing orgId custom_data; cannot process')
-    return
-  }
-
-  // Resolve tier from Price ID / Product ID in payload
-  const priceId = payload.items?.[0]?.price?.id ?? null
-  const tier = resolveTierFromPriceId(priceId)
-  const status = mapPaddleStatus(payload.status)
-
-  const currentPeriodStart = payload.current_billing_period?.starts_at ?? null
-  const currentPeriodEnd = payload.current_billing_period?.ends_at ?? null
-
-  const { error } = await db
-    .from('subscriptions')
-    .upsert({
-      org_id: orgId,
-      tier,
-      status,
-      paddle_subscription_id: paddleSubId,
-      paddle_customer_id: payload.customer_id ?? null,
-      paddle_price_id: priceId,
-      current_period_start: currentPeriodStart,
-      current_period_end: currentPeriodEnd,
-      max_members: MAX_MEMBERS[tier],
-      ai_reports_enabled: tier === 'enterprise',
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'org_id' })
-
-  if (error) {
-    throw new Error(`Failed to update subscription for org ${orgId}: ${error.message}`)
-  }
-
-  // Clear tier cache so the new tier is visible immediately.
-  clearTierCache(orgId)
-}

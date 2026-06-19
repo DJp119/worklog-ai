@@ -1,12 +1,7 @@
 import { describe, it, expect, beforeAll, vi } from 'vitest'
-import type { SupabaseClient } from '@supabase/supabase-js'
-import type { Tier } from '../services/subscriptionService.js'
 
-type GetUserSyncFiltersFn = (db: SupabaseClient, userId: string, provider: 'github' | 'jira') => Promise<Record<string, any> | null>
-type GetTeamSlackChannelsFn = (db: SupabaseClient, orgId: string, teamId: string) => Promise<string[]>
-
-let getUserSyncFilters: GetUserSyncFiltersFn
-let getTeamSlackChannels: GetTeamSlackChannelsFn
+let getUserSyncFilters: any
+let getTeamSlackChannels: any
 
 function chainableMock(result: any) {
   const chain: any = {
@@ -16,14 +11,13 @@ function chainableMock(result: any) {
   }
   return {
     from: vi.fn(() => chain),
-  } as unknown as SupabaseClient
+  } as any
 }
 
 beforeAll(async () => {
-  process.env.PADDLE_WEBHOOK_SECRET = 'test'
   const mod = await import('../services/subscriptionService.js')
-  getUserSyncFilters = mod.getUserSyncFilters as unknown as GetUserSyncFiltersFn
-  getTeamSlackChannels = mod.getTeamSlackChannels as unknown as GetTeamSlackChannelsFn
+  getUserSyncFilters = mod.getUserSyncFilters as any
+  getTeamSlackChannels = mod.getTeamSlackChannels as any
 })
 
 describe('getUserSyncFilters', () => {

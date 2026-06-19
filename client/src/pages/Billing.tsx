@@ -1,15 +1,6 @@
 import { useEffect, useState } from 'react'
 import { listMyOrgs, type MyOrgRow } from '../lib/teamsApi'
-import { apiRequest } from '../lib/api'
 import { SubscriptionProvider, useSubscription } from '../context/SubscriptionContext'
-import { PaddleCheckoutButton } from '../components/premium/PaddleCheckout'
-import { useAuth } from '../context/AuthContext'
-import type { OrgMember } from 'shared'
-
-const PRICE_IDS: Record<string, string> = {
-  pro: import.meta.env.VITE_PADDLE_PRO_PRICE_ID || '',
-  enterprise: import.meta.env.VITE_PADDLE_ENTERPRISE_PRICE_ID || '',
-}
 
 const TIER_LABELS: Record<string, string> = { free: 'Free', pro: 'Pro', enterprise: 'Enterprise' }
 const TIER_DESCRIPTIONS: Record<string, string> = {
@@ -19,33 +10,14 @@ const TIER_DESCRIPTIONS: Record<string, string> = {
 }
 
 function BillingInner() {
-  const { user } = useAuth()
-  const { subscription, tier, isPremium, isEnterprise, loading, refresh } = useSubscription()
+  const { subscription, tier, isPremium, isEnterprise, loading } = useSubscription()
   const [org, setOrg] = useState<MyOrgRow | null>(null)
-  const [orgRole, setOrgRole] = useState<string | null>(null)
 
   useEffect(() => {
     listMyOrgs().then((list) => {
-      if (list.length > 0) {
-        setOrg(list[0])
-        loadOrgRole(list[0].org_id)
-      }
+      if (list.length > 0) setOrg(list[0])
     })
   }, [])
-
-  async function loadOrgRole(orgId: string) {
-    try {
-      const members = await apiRequest<OrgMember[]>(`/api/orgs/${orgId}/members`)
-      const me = members.find((m) => m.user_id === user?.id)
-      if (me) setOrgRole(me.role)
-    } catch {
-      // ignore
-    }
-  }
-
-  const handleUpgradeSuccess = () => {
-    refresh()
-  }
 
   if (loading) {
     return (
@@ -101,17 +73,8 @@ function BillingInner() {
                   Current Plan
                 </span>
               )}
-              {isUpgrade && org && orgRole && ['admin', 'owner'].includes(orgRole) && PRICE_IDS[planTier] && (
-                <PaddleCheckoutButton
-                  orgId={org.org_id}
-                  priceId={PRICE_IDS[planTier]}
-                  userEmail={user?.email || ''}
-                  onSuccess={handleUpgradeSuccess}
-                  label={`Upgrade to ${TIER_LABELS[planTier]}`}
-                />
-              )}
-              {isUpgrade && orgRole && !['admin', 'owner'].includes(orgRole) && (
-                <p className="text-xs text-gray-500">Contact an org admin to upgrade</p>
+              {isUpgrade && (
+                <p className="text-xs text-gray-500">Upgrade options coming soon</p>
               )}
             </div>
           )

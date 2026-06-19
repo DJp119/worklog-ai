@@ -1,6 +1,5 @@
 -- ============================================================================
--- Premium Subscriptions, AI Reports, Activity Summaries, Channel Preferences,
--- and Paddle webhook event log.
+-- Premium Subscriptions, AI Reports, Activity Summaries, Channel Preferences.
 --
 -- Depends on: 2026-06-16_teams_goals_integrations.sql (prevent_org_id_mutation,
 --   organizations table, users table, org_members table, teams table).
@@ -24,9 +23,6 @@ CREATE TABLE IF NOT EXISTS subscriptions (
   org_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   tier subscription_tier NOT NULL DEFAULT 'free',
   status subscription_status NOT NULL DEFAULT 'active',
-  paddle_customer_id TEXT,
-  paddle_subscription_id TEXT UNIQUE,
-  paddle_price_id TEXT,
   current_period_start TIMESTAMPTZ,
   current_period_end TIMESTAMPTZ,
   cancel_at_period_end BOOLEAN DEFAULT false,
@@ -91,42 +87,34 @@ CREATE TABLE IF NOT EXISTS integration_channel_preferences (
   is_active BOOLEAN DEFAULT true,
   set_by UUID REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  UNIQUE(org_id, COALESCE(user_id, '00000000-0000-0000-0000-000000000000'),
-         COALESCE(team_id, '00000000-0000-0000-0000-000000000000'),
-         provider, channel_type)
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );
-
--- Paddle webhook event log
-CREATE TABLE IF NOT EXISTS paddle_events (
-  id TEXT PRIMARY KEY,
-  event_type TEXT NOT NULL,
-  processed_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  payload JSONB
-);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_channel_prefs_unique
+  ON integration_channel_preferences(
+    org_id,
+    COALESCE(user_id, '00000000-0000-0000-0000-000000000000'),
+    COALESCE(team_id, '00000000-0000-0000-0000-000000000000'),
+    provider,
+    channel_type
+  );
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_subscriptions_org ON subscriptions(org_id);
-CREATE INDEX IF NOT EXISTS idx_subscriptions_paddle_sub ON subscriptions(paddle_subscription_id);
 CREATE INDEX IF NOT EXISTS idx_performance_reports_org ON performance_reports(org_id);
 CREATE INDEX IF NOT EXISTS idx_performance_reports_target_user ON performance_reports(target_user_id);
 CREATE INDEX IF NOT EXISTS idx_activity_summaries_user_period ON activity_summaries(user_id, period_start, period_end);
 CREATE INDEX IF NOT EXISTS idx_channel_prefs_user ON integration_channel_preferences(user_id);
 CREATE INDEX IF NOT EXISTS idx_channel_prefs_team ON integration_channel_preferences(team_id);
-CREATE INDEX IF NOT EXISTS idx_paddle_events_type ON paddle_events(event_type);
 
 -- RLS
 ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE performance_reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE activity_summaries ENABLE ROW LEVEL SECURITY;
 ALTER TABLE integration_channel_preferences ENABLE ROW LEVEL SECURITY;
-ALTER TABLE paddle_events ENABLE ROW LEVEL SECURITY;
-
 CREATE POLICY "Deny all public" ON subscriptions FOR ALL TO public USING (false);
 CREATE POLICY "Deny all public" ON performance_reports FOR ALL TO public USING (false);
 CREATE POLICY "Deny all public" ON activity_summaries FOR ALL TO public USING (false);
 CREATE POLICY "Deny all public" ON integration_channel_preferences FOR ALL TO public USING (false);
-CREATE POLICY "Deny all public" ON paddle_events FOR ALL TO public USING (false);
 
 -- Triggers for preventing org_id mutations
 CREATE OR REPLACE TRIGGER trigger_prevent_subscriptions_org_mutation

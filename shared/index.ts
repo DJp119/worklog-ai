@@ -537,9 +537,6 @@ export interface Subscription {
     org_id: string
     tier: SubscriptionTier
     status: SubscriptionStatus
-    paddle_customer_id?: string | null
-    paddle_subscription_id?: string | null
-    paddle_price_id?: string | null
     current_period_start?: string | null
     current_period_end?: string | null
     cancel_at_period_end: boolean
