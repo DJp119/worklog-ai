@@ -418,7 +418,13 @@ export async function addLink(
         const cfg = orgInt.config as { sites?: Array<{ url?: string; domain?: string }> }
         const site = cfg.sites?.[0]
         const domain = site?.domain || (site?.url ? new URL(site.url).hostname : null)
-        if (domain && parsed.externalUrl.includes('example.atlassian.net')) {
+        let externalHostname: string
+        try {
+          externalHostname = new URL(parsed.externalUrl).hostname.toLowerCase()
+        } catch {
+          externalHostname = ''
+        }
+        if (domain && externalHostname === 'example.atlassian.net') {
           parsed.externalUrl = `https://${domain}/browse/${parsed.externalKey}`
         }
       }
