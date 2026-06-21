@@ -50,10 +50,12 @@ export default function Integrations() {
     const state = params.get('state')
     const provider = params.get('provider')
     if (code && state && provider) {
-      handleOAuthCallback(code, state, provider).then(() => {
-        params.delete('code'); params.delete('state'); params.delete('provider')
-        setParams(params, { replace: true })
-      })
+      if (provider === 'jira' || provider === 'github') {
+        handleOAuthCallback(code, state, provider).then(() => {
+          params.delete('code'); params.delete('state'); params.delete('provider')
+          setParams(params, { replace: true })
+        })
+      }
     }
   }, [])
 
@@ -200,7 +202,7 @@ export default function Integrations() {
     try {
       const r = await confirmOrgJiraOAuth(activeOrgId, code, state)
       setInfo(t('integrations.jiraWebhookHint', { url: r.webhookUrl }))
-      params.delete('code'); params.delete('state')
+      params.delete('code'); params.delete('state'); params.delete('provider')
       setParams(params, { replace: true })
       await loadData()
     } catch (err) {
