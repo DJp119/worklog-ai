@@ -407,6 +407,26 @@ export async function addLink(
 
   if (parsed.provider === 'jira') {
     try {
+      const { data: orgInt } = await db
+        .from('org_integrations')
+        .select('config')
+        .eq('org_id', params.orgId)
+        .eq('provider', 'jira')
+        .eq('is_active', true)
+        .maybeSingle()
+      if (orgInt && orgInt.config) {
+        const cfg = orgInt.config as { sites?: Array<{ url?: string; domain?: string }> }
+        const site = cfg.sites?.[0]
+        const domain = site?.domain || (site?.url ? new URL(site.url).hostname : null)
+        if (domain && parsed.externalUrl.includes('example.atlassian.net')) {
+          parsed.externalUrl = `https://${domain}/browse/${parsed.externalKey}`
+        }
+      }
+    } catch (err) {
+      logger.with('err', err).warn('addLink: failed to resolve org JIRA domain')
+    }
+
+    try {
       const { getJiraClient } = await import('../lib/jiraAdapter.js')
       const client = await getJiraClient(params.userId).catch(() => null)
       if (client) {
