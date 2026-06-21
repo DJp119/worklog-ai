@@ -47,6 +47,10 @@ export const integrationRoutes = Router()
 // Shared helpers
 // ---------------------------------------------------------------------------
 
+const getFrontendUrl = (): string => {
+  return (process.env.FRONTEND_URL || 'http://localhost:5173').split(',')[0].trim()
+}
+
 const JIRA_SCOPES = 'read:jira-work read:jira-user offline_access openid profile'
 const GITHUB_USER_SCOPES = 'read:user repo'
 const SLACK_SCOPES = 'chat:write commands users:read users:read.email'
@@ -123,10 +127,29 @@ async function deleteTempOAuth(key: string): Promise<void> {
 // JIRA user-level OAuth flow
 // ---------------------------------------------------------------------------
 
+/** POST /api/integrations/jira/connect — initiate user JIRA OAuth */
+integrationRoutes.post('/jira/connect', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (!process.env.JIRA_CLIENT_ID || !process.env.JIRA_CLIENT_SECRET) {
+      return res.status(400).json({ success: false, error: 'JIRA integration is not configured on the server. Please set JIRA_CLIENT_ID and JIRA_CLIENT_SECRET in the environment variables.' })
+    }
+    const stateToken = makeOAuthState({ userId: req.userId!, provider: 'jira', audience: 'jira' })
+    const redirectUri = `${getFrontendUrl()}/api/integrations/jira/callback`
+    const authUrl = buildJiraAuthUrl(stateToken, redirectUri)
+    return res.json({ success: true, data: { authUrl } })
+  } catch (err: any) {
+    logger.with('err', err).error('POST jira/connect failed')
+    res.status(500).json({ success: false, error: err.message ?? 'Internal server error' })
+  }
+})
+
 /** GET /api/integrations/jira/connect — initiate user JIRA OAuth */
 integrationRoutes.get('/jira/connect', requireAuth, async (req: AuthRequest, res) => {
+  if (!process.env.JIRA_CLIENT_ID || !process.env.JIRA_CLIENT_SECRET) {
+    return res.status(400).send('JIRA integration is not configured on the server. Please set JIRA_CLIENT_ID and JIRA_CLIENT_SECRET in the environment variables.')
+  }
   const stateToken = makeOAuthState({ userId: req.userId!, provider: 'jira', audience: 'jira' })
-  const redirectUri = `${process.env.FRONTEND_URL}/api/integrations/jira/callback`
+  const redirectUri = `${getFrontendUrl()}/api/integrations/jira/callback`
   res.redirect(buildJiraAuthUrl(stateToken, redirectUri))
 })
 
@@ -135,7 +158,7 @@ integrationRoutes.get('/jira/callback', async (req, res) => {
   const { code, state } = req.query
   if (!code || !state) return res.status(400).json({ error: 'Missing code or state' })
   const params = new URLSearchParams({ provider: 'jira', code: String(code), state: String(state) })
-  res.redirect(`${process.env.FRONTEND_URL}/integrations?${params.toString()}`)
+  res.redirect(`${getFrontendUrl()}/integrations?${params.toString()}`)
 })
 
 /** POST /api/integrations/jira/confirm — exchanges the code; may return requiresSiteSelection */
@@ -149,7 +172,7 @@ integrationRoutes.post('/jira/confirm', requireAuth, async (req: AuthRequest, re
       return res.status(403).json({ success: false, error: 'Invalid or expired state' })
     }
 
-    const tokens = await exchangeJiraCode(code, `${process.env.FRONTEND_URL}/api/integrations/jira/callback`)
+    const tokens = await exchangeJiraCode(code, `${getFrontendUrl()}/api/integrations/jira/callback`)
     const { access_token, refresh_token, expires_in, id_token } = tokens as {
       access_token: string
       refresh_token: string
@@ -281,10 +304,29 @@ integrationRoutes.post('/jira/select-site', requireAuth, async (req: AuthRequest
 // GitHub user-level OAuth
 // ---------------------------------------------------------------------------
 
+/** POST /api/integrations/github/connect — initiate user GitHub OAuth */
+integrationRoutes.post('/github/connect', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+      return res.status(400).json({ success: false, error: 'GitHub integration is not configured on the server. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in the environment variables.' })
+    }
+    const stateToken = makeOAuthState({ userId: req.userId!, provider: 'github', audience: 'github' })
+    const redirectUri = `${getFrontendUrl()}/api/integrations/github/callback`
+    const authUrl = buildGitHubAuthUrl(stateToken, redirectUri)
+    return res.json({ success: true, data: { authUrl } })
+  } catch (err: any) {
+    logger.with('err', err).error('POST github/connect failed')
+    res.status(500).json({ success: false, error: err.message ?? 'Internal server error' })
+  }
+})
+
 /** GET /api/integrations/github/connect — initiate user GitHub OAuth */
 integrationRoutes.get('/github/connect', requireAuth, async (req: AuthRequest, res) => {
+  if (!process.env.GITHUB_CLIENT_ID || !process.env.GITHUB_CLIENT_SECRET) {
+    return res.status(400).send('GitHub integration is not configured on the server. Please set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET in the environment variables.')
+  }
   const stateToken = makeOAuthState({ userId: req.userId!, provider: 'github', audience: 'github' })
-  const redirectUri = `${process.env.FRONTEND_URL}/api/integrations/github/callback`
+  const redirectUri = `${getFrontendUrl()}/api/integrations/github/callback`
   res.redirect(buildGitHubAuthUrl(stateToken, redirectUri))
 })
 
@@ -293,7 +335,7 @@ integrationRoutes.get('/github/callback', async (req, res) => {
   const { code, state } = req.query
   if (!code || !state) return res.status(400).json({ error: 'Missing code or state' })
   const params = new URLSearchParams({ provider: 'github', code: String(code), state: String(state) })
-  res.redirect(`${process.env.FRONTEND_URL}/integrations?${params.toString()}`)
+  res.redirect(`${getFrontendUrl()}/integrations?${params.toString()}`)
 })
 
 /** POST /api/integrations/github/confirm — exchange GitHub code */
@@ -354,18 +396,29 @@ integrationRoutes.post('/github/confirm', requireAuth, async (req: AuthRequest, 
 // ---------------------------------------------------------------------------
 
 /** POST /api/integrations/jira/org-connect — initiate org JIRA OAuth */
-integrationRoutes.post('/jira/org-connect', requireAuth, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+integrationRoutes.post('/jira/org-connect', requireAuth, async (req: AuthRequest, res) => {
   try {
     const { orgId } = req.body as { orgId?: string }
     if (!orgId) return res.status(400).json({ success: false, error: 'orgId required' })
+
+    // Org role check (inline)
+    const { getUserOrgRole, orgRoleAtLeast } = await import('../services/authz.js')
+    const role = await getUserOrgRole(req.supabase!, req.userId!, orgId)
+    if (!role || !orgRoleAtLeast(role, 'admin')) {
+      return res.status(403).json({ success: false, error: 'Forbidden' })
+    }
 
     const integrationsEnabled = await isFeatureEnabled(req.supabase!, orgId, 'integrations')
     if (!integrationsEnabled) {
       return res.status(403).json({ success: false, error: 'Integrations require a Pro plan or higher.', upgradeUrl: '/billing' })
     }
 
+    if (!process.env.JIRA_CLIENT_ID || !process.env.JIRA_CLIENT_SECRET) {
+      return res.status(400).json({ success: false, error: 'JIRA integration is not configured on the server. Please set JIRA_CLIENT_ID and JIRA_CLIENT_SECRET in the environment variables.' })
+    }
+
     const stateToken = makeOAuthState({ userId: req.userId!, provider: 'jira_org', orgId, audience: 'jira_org' })
-    const redirectUri = `${process.env.FRONTEND_URL}/api/integrations/jira/org-callback`
+    const redirectUri = `${getFrontendUrl()}/api/integrations/jira/org-callback`
     const authUrl = buildJiraAuthUrl(stateToken, redirectUri)
     return res.json({ success: true, data: { authUrl } })
   } catch (err: any) {
@@ -379,7 +432,7 @@ integrationRoutes.get('/jira/org-callback', async (req, res) => {
   const { code, state } = req.query
   if (!code || !state) return res.status(400).json({ error: 'Missing code or state' })
   const params = new URLSearchParams({ code: String(code), state: String(state), provider: 'jira_org' })
-  res.redirect(`${process.env.FRONTEND_URL}/integrations?${params.toString()}`)
+  res.redirect(`${getFrontendUrl()}/integrations?${params.toString()}`)
 })
 
 /** POST /api/integrations/jira/org-confirm — exchange org JIRA code */
@@ -400,7 +453,7 @@ integrationRoutes.post('/jira/org-confirm', requireAuth, async (req: AuthRequest
       return res.status(403).json({ success: false, error: 'Invalid or expired state' })
     }
 
-    const tokens = await exchangeJiraCode(code, `${process.env.FRONTEND_URL}/api/integrations/jira/org-callback`)
+    const tokens = await exchangeJiraCode(code, `${getFrontendUrl()}/api/integrations/jira/org-callback`)
     const { access_token, refresh_token, expires_in } = tokens as {
       access_token: string
       refresh_token: string
@@ -476,8 +529,12 @@ integrationRoutes.post('/slack/org-connect', requireAuth, async (req: AuthReques
       return res.status(403).json({ success: false, error: 'Integrations require a Pro plan or higher.', upgradeUrl: '/billing' })
     }
 
+    if (!process.env.SLACK_CLIENT_ID || !process.env.SLACK_CLIENT_SECRET) {
+      return res.status(400).json({ success: false, error: 'Slack integration is not configured on the server. Please set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET in the environment variables.' })
+    }
+
     const stateToken = makeOAuthState({ userId: req.userId!, provider: 'slack_org', orgId, audience: 'slack_org' })
-    const redirectUri = `${process.env.FRONTEND_URL}/api/integrations/slack/org-callback`
+    const redirectUri = `${getFrontendUrl()}/api/integrations/slack/org-callback`
     const authUrl = buildSlackAuthUrl(stateToken, redirectUri)
     return res.json({ success: true, data: { authUrl } })
   } catch (err: any) {
@@ -491,11 +548,11 @@ integrationRoutes.get('/slack/org-callback', async (req, res) => {
   const { code, state } = req.query
   if (!code || !state) return res.status(400).json({ error: 'Missing code or state' })
   const params = new URLSearchParams({ code: String(code), state: String(state), provider: 'slack_org' })
-  res.redirect(`${process.env.FRONTEND_URL}/integrations?${params.toString()}`)
+  res.redirect(`${getFrontendUrl()}/integrations?${params.toString()}`)
 })
 
 /** POST /api/integrations/slack/org-callback — exchange org Slack code */
-integrationRoutes.post('/slack/org-callback', requireAuth, requireOrgRole('admin'), async (req: AuthRequest, res) => {
+integrationRoutes.post('/slack/org-callback', requireAuth, async (req: AuthRequest, res) => {
   try {
     const { code, state, orgId } = req.body as { code?: string; state?: string; orgId?: string }
     if (!code || !state) return res.status(400).json({ success: false, error: 'code and state required' })
@@ -526,7 +583,7 @@ integrationRoutes.post('/slack/org-callback', requireAuth, requireOrgRole('admin
         client_id: process.env.SLACK_CLIENT_ID ?? '',
         client_secret: process.env.SLACK_CLIENT_SECRET ?? '',
         code,
-        redirect_uri: `${process.env.FRONTEND_URL}/api/integrations/slack/org-callback`,
+        redirect_uri: `${getFrontendUrl()}/api/integrations/slack/org-callback`,
       }).toString(),
     })
     if (!resp.ok) throw new Error(`Slack token HTTP ${resp.status}`)
@@ -605,7 +662,7 @@ integrationRoutes.get('/github/app-callback', requireAuth, async (req: AuthReque
 
   if (!orgId) {
     return res.redirect(
-      `${process.env.FRONTEND_URL}/integrations/link-github?installation_id=${installation_id}`,
+      `${getFrontendUrl()}/integrations/link-github?installation_id=${installation_id}`,
     )
   }
 
@@ -621,7 +678,7 @@ integrationRoutes.get('/github/app-callback', requireAuth, async (req: AuthReque
     }, { onConflict: 'org_id,provider' })
   if (error) logger.with('err', error).warn('github/app-callback upsert failed')
 
-  return res.redirect(`${process.env.FRONTEND_URL}/integrations?github_connected=true`)
+  return res.redirect(`${getFrontendUrl()}/integrations?github_connected=true`)
 })
 
 // ---------------------------------------------------------------------------
