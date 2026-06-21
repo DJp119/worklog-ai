@@ -623,4 +623,9 @@ describe('audit fixes - structural shape', () => {
     expect(lockBranch![0], 'must return 5xx on lock failure').toMatch(/status\(5\d\d\)/)
     expect(lockBranch![0], 'must NOT log "best-effort" and continue').not.toMatch(/best-effort/)
   })
+
+  it('goalService.ts: example.atlassian.net placeholder is removed', () => {
+    const src = readFile('server/src/services/goalService.ts')
+    expect(src).not.toMatch(/example\.atlassian\.net/)
+  })
 })

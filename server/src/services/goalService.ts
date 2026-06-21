@@ -7,6 +7,7 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { supabase } from '../lib/database.js'
 import { logger } from '../lib/logger.js'
 
 // ---------------------------------------------------------------------------
@@ -299,7 +300,30 @@ async function fetchGithubNodeId(
   }
 }
 
-export async function parseLinkUrl(url: string): Promise<ParsedLink> {
+/**
+ * Resolve the browse URL for a JIRA key using the org's connected site domain.
+ * Returns empty string if the org has no JIRA integration or no site configured —
+ * the goalRollupJob will enrich it on next run.
+ */
+async function resolveJiraBrowseUrl(orgId: string | undefined, key: string): Promise<string> {
+  if (!orgId) return ''
+  try {
+    const { data: orgInt } = await supabase
+      .from('org_integrations')
+      .select('config')
+      .eq('org_id', orgId)
+      .eq('provider', 'jira')
+      .eq('is_active', true)
+      .maybeSingle()
+    const cfg = orgInt?.config as { sites?: Array<{ url?: string; domain?: string }> } | null
+    const site = cfg?.sites?.[0]
+    const domain = site?.domain || (site?.url ? new URL(site.url).hostname : null)
+    if (domain) return `https://${domain}/browse/${key}`
+  } catch { /* best-effort — rollup will self-heal */ }
+  return ''
+}
+
+export async function parseLinkUrl(url: string, orgId?: string): Promise<ParsedLink> {
   const trimmed = url.trim()
 
   // GitHub: /<owner>/<repo>/pull/<n>
@@ -348,7 +372,7 @@ export async function parseLinkUrl(url: string): Promise<ParsedLink> {
     const domainMatch = trimmed.match(/https?:\/\/([\w.-]+\.atlassian\.net)/i)
     const externalUrl = domainMatch
       ? trimmed
-      : `https://example.atlassian.net/browse/${key}`
+      : await resolveJiraBrowseUrl(orgId, key)
     return {
       provider: 'jira',
       linkType: 'issue',
@@ -370,7 +394,7 @@ export async function parseLinkUrl(url: string): Promise<ParsedLink> {
       linkType: 'issue',
       externalId: key,
       externalKey: key,
-      externalUrl: `https://example.atlassian.net/browse/${key}`,
+      externalUrl: await resolveJiraBrowseUrl(orgId, key),
       title: key,
       state: null,
       isDone: false,
@@ -395,7 +419,7 @@ export async function addLink(
     orgId: string
   }
 ) {
-  const parsed = await parseLinkUrl(params.url)
+  const parsed = await parseLinkUrl(params.url, params.orgId)
   const linkType = parsed.linkType
 
   // Best-effort enrichment via provider APIs
@@ -406,32 +430,6 @@ export async function addLink(
   let metadata: Record<string, any> | null = null
 
   if (parsed.provider === 'jira') {
-    try {
-      const { data: orgInt } = await db
-        .from('org_integrations')
-        .select('config')
-        .eq('org_id', params.orgId)
-        .eq('provider', 'jira')
-        .eq('is_active', true)
-        .maybeSingle()
-      if (orgInt && orgInt.config) {
-        const cfg = orgInt.config as { sites?: Array<{ url?: string; domain?: string }> }
-        const site = cfg.sites?.[0]
-        const domain = site?.domain || (site?.url ? new URL(site.url).hostname : null)
-        let externalHostname: string
-        try {
-          externalHostname = new URL(parsed.externalUrl).hostname.toLowerCase()
-        } catch {
-          externalHostname = ''
-        }
-        if (domain && externalHostname === 'example.atlassian.net') {
-          parsed.externalUrl = `https://${domain}/browse/${parsed.externalKey}`
-        }
-      }
-    } catch (err) {
-      logger.with('err', err).warn('addLink: failed to resolve org JIRA domain')
-    }
-
     try {
       const { getJiraClient } = await import('../lib/jiraAdapter.js')
       const client = await getJiraClient(params.userId).catch(() => null)
@@ -444,6 +442,11 @@ export async function addLink(
           if (statusCategory) {
             isDone = statusCategory === 'done'
             state = String(issue.fields?.status?.name ?? statusCategory)
+          }
+          // Enrich browse URL from issue self-link if available
+          if (issue.self) {
+            const base = String(issue.self).split('/rest/')[0]
+            parsed.externalUrl = `${base}/browse/${parsed.externalKey}`
           }
         }
       }
