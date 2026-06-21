@@ -119,7 +119,7 @@ function currentEligibleWeek(timezone: string): string {
  * Given an ISO week string and a timezone, return the UTC ISO strings for
  * the start (inclusive) and end (exclusive) of that week.
  */
-function getSyncBoundaries(weekStr: string, userTimezone: string): { sinceUTC: string; untilUTC: string } {
+function getSyncBoundaries(weekStr: string, userTimezone: string): { sinceUTC: string; untilUTC: string; localStart: string } {
     const parts = weekStr.split('-W')
     if (parts.length !== 2) {
         throw new Error(`Invalid week string: ${weekStr}`)
@@ -140,6 +140,7 @@ function getSyncBoundaries(weekStr: string, userTimezone: string): { sinceUTC: s
     return {
         sinceUTC: start.utc().format(),
         untilUTC: end.utc().format(),
+        localStart: start.format('YYYY-MM-DD'),
     }
 }
 
@@ -306,7 +307,7 @@ async function syncUser(userId: string, syncTimezone: string): Promise<void> {
 
     try {
         const weekStr = currentEligibleWeek(syncTimezone)
-        const { sinceUTC, untilUTC } = getSyncBoundaries(weekStr, syncTimezone)
+        const { sinceUTC, untilUTC, localStart } = getSyncBoundaries(weekStr, syncTimezone)
 
         // Load active integrations
         const { data: integrations, error: intErr } = await supabase
@@ -420,7 +421,7 @@ async function syncUser(userId: string, syncTimezone: string): Promise<void> {
             .upsert(
                 {
                     user_id: userId,
-                    week_start_date: weekStr,
+                    week_start_date: localStart,
                     accomplishments,
                     status: 'auto-generated',
                     pending_review: true,
