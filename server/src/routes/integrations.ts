@@ -208,7 +208,7 @@ integrationRoutes.post('/jira/confirm', requireAuth, async (req: AuthRequest, re
           accessToken: access_token,
           cloudId: sites[0].id,
           baseUrl: `https://api.atlassian.com/ex/jira/${sites[0].id}`,
-          call: async (method: string, path: string, body?: any) => {
+          call: async <T = any>(method: string, path: string, body?: any): Promise<T> => {
             const url = `https://api.atlassian.com/ex/jira/${sites[0].id}${path.startsWith('/') ? path : '/' + path}`
             const resp = await fetch(url, {
               method,
@@ -220,7 +220,7 @@ integrationRoutes.post('/jira/confirm', requireAuth, async (req: AuthRequest, re
               body: body ? JSON.stringify(body) : undefined,
             })
             if (!resp.ok) throw new Error(`JIRA myself call failed: ${resp.status}`)
-            return resp.json()
+            return (await resp.json()) as T
           }
         }
         const myself = await fetchJiraMyself(client)
