@@ -79,15 +79,22 @@ export function LinkEditor({ goalId, links, onChange }: LinkEditorProps) {
                   {link.provider}
                 </span>
                 <div>
-                  <a
-                    href={link.external_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-white font-medium hover:underline flex items-center gap-1 text-sm text-left"
-                  >
-                    {link.title || link.external_key}
-                    <ExternalLink className="w-3.5 h-3.5 text-gray-400 inline" />
-                  </a>
+                  {link.external_url ? (
+                    <a
+                      href={link.external_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-white font-medium hover:underline flex items-center gap-1 text-sm text-left"
+                    >
+                      {link.title || link.external_key}
+                      <ExternalLink className="w-3.5 h-3.5 text-gray-400 inline" />
+                    </a>
+                  ) : (
+                    <span className="text-white font-medium text-sm">
+                      {link.title || link.external_key}
+                      <span className="ml-1.5 text-xs text-gray-500 italic">(pending sync)</span>
+                    </span>
+                  )}
                   {link.state && (
                     <span className={`inline-block mt-1 text-xs px-2 py-0.5 rounded ${
                       link.is_done

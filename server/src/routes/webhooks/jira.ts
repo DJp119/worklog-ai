@@ -93,7 +93,13 @@ jiraWebhookRoutes.post('/', async (req, res) => {
     const isDone = statusCategory === 'done'
     const state = issue.fields?.status?.name ?? null
     const externalKey = issue.key ?? null
-    const externalUrl = issue.self ?? null
+    // Derive browseable URL from REST API self-link
+    // (issue.self = "https://site.atlassian.net/rest/api/3/issue/12345")
+    let externalUrl: string | null = null
+    if (issue.self && issue.key) {
+      const base = String(issue.self).split('/rest/')[0]
+      externalUrl = `${base}/browse/${issue.key}`
+    }
     const title = issue.fields?.summary ?? null
 
     // Update goal_links — org scoping prevents cross-org tampering
