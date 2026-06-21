@@ -39,6 +39,7 @@ import { isFeatureEnabled } from '../services/subscriptionService.js'
 import {
   listAccessibleResources,
   exchangeJiraCode,
+  fetchJiraMyself,
 } from '../lib/jiraAdapter.js'
 
 export const integrationRoutes = Router()
@@ -51,7 +52,7 @@ const getFrontendUrl = (): string => {
   return (process.env.FRONTEND_URL || 'http://localhost:5173').split(',')[0].trim()
 }
 
-const JIRA_SCOPES = 'read:jira-work read:jira-user offline_access openid profile'
+const JIRA_SCOPES = 'read:jira-work read:jira-user offline_access'
 const GITHUB_USER_SCOPES = 'read:user repo'
 const SLACK_SCOPES = 'chat:write commands users:read users:read.email'
 
@@ -198,6 +199,35 @@ integrationRoutes.post('/jira/confirm', requireAuth, async (req: AuthRequest, re
 
     if (sites.length === 0) {
       return res.status(400).json({ success: false, error: 'No JIRA sites accessible to this account' })
+    }
+
+    // Fallback to /myself if id_token extraction didn't work (Bug AM / Bug DL)
+    if (!jiraAccountId && sites.length > 0) {
+      try {
+        const client = {
+          accessToken: access_token,
+          cloudId: sites[0].id,
+          baseUrl: `https://api.atlassian.com/ex/jira/${sites[0].id}`,
+          call: async (method: string, path: string, body?: any) => {
+            const url = `https://api.atlassian.com/ex/jira/${sites[0].id}${path.startsWith('/') ? path : '/' + path}`
+            const resp = await fetch(url, {
+              method,
+              headers: {
+                Authorization: `Bearer ${access_token}`,
+                'Content-Type': 'application/json',
+                Accept: 'application/json',
+              },
+              body: body ? JSON.stringify(body) : undefined,
+            })
+            if (!resp.ok) throw new Error(`JIRA myself call failed: ${resp.status}`)
+            return resp.json()
+          }
+        }
+        const myself = await fetchJiraMyself(client)
+        jiraAccountId = myself.accountId
+      } catch (err) {
+        logger.with('err', err).warn('Failed to fetch JIRA myself accountId fallback')
+      }
     }
 
     // If only one site, persist immediately; otherwise stash in temp state.
