@@ -318,7 +318,8 @@ goalRoutes.post('/:goalId/links', requireAuth, async (req: AuthRequest, res) => 
     res.status(201).json({ success: true, data })
   } catch (err: any) {
     logger.with('err', err).error('POST link failed')
-    res.status(500).json({ success: false, error: err.message ?? 'Internal server error' })
+    const isValidationError = err.message?.includes('Unrecognized work item') || err.message?.includes('not connected')
+    res.status(isValidationError ? 400 : 500).json({ success: false, error: err.message ?? 'Internal server error' })
   }
 })
 
