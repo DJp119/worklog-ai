@@ -8,12 +8,15 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { listMyOrgs, listOrgGoals, createOrg, type MyOrgRow } from '../lib/teamsApi'
-import { createGoal } from '../lib/goalsApi'
+import { createGoal, getGoal, deleteGoal } from '../lib/goalsApi'
 import { useAuth } from '../context/AuthContext'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { GoalCard } from '../components/goals/GoalCard'
 import { GoalForm } from '../components/goals/GoalForm'
-import type { Goal } from 'shared'
+import { KeyResultEditor } from '../components/goals/KeyResultEditor'
+import { AssigneePicker } from '../components/goals/AssigneePicker'
+import { LinkEditor } from '../components/goals/LinkEditor'
+import type { Goal, GoalWithDetails } from 'shared'
 
 export default function Goals() {
   const { t } = useTranslation()
@@ -25,6 +28,7 @@ export default function Goals() {
   const [goals, setGoals] = useState<Goal[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
+  const [openGoal, setOpenGoal] = useState<GoalWithDetails | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [creatingOrg, setCreatingOrg] = useState(false)
   const [newOrgName, setNewOrgName] = useState('')
@@ -84,6 +88,26 @@ export default function Goals() {
     void _goal
     setShowForm(false)
     if (activeOrgId) await loadGoals(activeOrgId)
+  }
+
+  async function handleOpenGoal(goal: Goal) {
+    try {
+      const full = await getGoal(goal.id)
+      setOpenGoal(full)
+    } catch (err) {
+      console.error(err)
+    }
+  }
+
+  async function handleDeleteGoal(goalId: string) {
+    if (!confirm(t('goals.confirmDelete'))) return
+    try {
+      await deleteGoal(goalId)
+      setOpenGoal(null)
+      if (activeOrgId) await loadGoals(activeOrgId)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    }
   }
 
   if (loading) {
@@ -181,8 +205,68 @@ export default function Goals() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {goals.map((g) => (
-            <GoalCard key={g.id} goal={g} />
+            <GoalCard key={g.id} goal={g} onClick={() => handleOpenGoal(g)} />
           ))}
+        </div>
+      )}
+
+      {openGoal && activeOrgId && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
+          <div className="glass-strong rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-bold text-white">{openGoal.title}</h2>
+              <button
+                onClick={() => setOpenGoal(null)}
+                className="text-gray-300 hover:text-white"
+              >
+                ×
+              </button>
+            </div>
+            {openGoal.description && <p className="text-gray-300">{openGoal.description}</p>}
+
+            <section>
+              <h3 className="text-sm font-semibold text-gray-300 mb-2">
+                {t('goals.keyResults')}
+              </h3>
+              <KeyResultEditor
+                goalId={openGoal.id}
+                keyResults={openGoal.key_results}
+                onChange={() => handleOpenGoal(openGoal)}
+              />
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold text-gray-300 mb-2">
+                {t('goals.assignees')}
+              </h3>
+              <AssigneePicker
+                orgId={activeOrgId}
+                goalId={openGoal.id}
+                assignees={openGoal.assignees}
+                onChange={() => handleOpenGoal(openGoal)}
+              />
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold text-gray-300 mb-2">
+                {t('goals.linkedItems')}
+              </h3>
+              <LinkEditor
+                goalId={openGoal.id}
+                links={openGoal.links || []}
+                onChange={() => handleOpenGoal(openGoal)}
+              />
+            </section>
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/5">
+              <button
+                onClick={() => handleDeleteGoal(openGoal.id)}
+                className="px-4 py-2 rounded-lg text-red-300 hover:bg-red-500/10"
+              >
+                {t('common.delete')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

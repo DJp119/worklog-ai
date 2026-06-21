@@ -16,6 +16,7 @@ import { GoalCard } from '../components/goals/GoalCard'
 import { GoalForm } from '../components/goals/GoalForm'
 import { KeyResultEditor } from '../components/goals/KeyResultEditor'
 import { AssigneePicker } from '../components/goals/AssigneePicker'
+import { LinkEditor } from '../components/goals/LinkEditor'
 import type { Goal, GoalWithDetails, Team } from 'shared'
 
 export default function TeamGoals() {
@@ -244,6 +245,17 @@ export default function TeamGoals() {
                 orgId={activeOrgId}
                 goalId={openGoal.id}
                 assignees={openGoal.assignees}
+                onChange={() => handleOpenGoal(openGoal)}
+              />
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold text-gray-300 mb-2">
+                {t('goals.linkedItems')}
+              </h3>
+              <LinkEditor
+                goalId={openGoal.id}
+                links={openGoal.links || []}
                 onChange={() => handleOpenGoal(openGoal)}
               />
             </section>
