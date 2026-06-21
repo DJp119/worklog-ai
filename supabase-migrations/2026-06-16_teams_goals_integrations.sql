@@ -1163,7 +1163,7 @@ BEGIN
   END IF;
 
   IF TG_TABLE_NAME = 'goal_key_results' THEN
-    IF NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
+    IF TG_OP = 'UPDATE' AND NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
       RAISE EXCEPTION 'Changing goal_id is not allowed for key results';
     END IF;
     -- Lock only when linking to a goal
@@ -1174,7 +1174,7 @@ BEGIN
       RAISE EXCEPTION 'Cannot add key result: Goal already has child goals';
     END IF;
   ELSIF TG_TABLE_NAME = 'goal_links' THEN
-    IF NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
+    IF TG_OP = 'UPDATE' AND NEW.goal_id IS DISTINCT FROM OLD.goal_id THEN
       RAISE EXCEPTION 'Changing goal_id is not allowed for work links';
     END IF;
     IF TG_OP = 'INSERT' OR (TG_OP = 'UPDATE' AND NEW.goal_id IS NOT NULL) THEN
