@@ -140,6 +140,15 @@ export async function addLink(
   })
 }
 
+export async function removeLink(
+  goalId: string,
+  linkId: string,
+): Promise<void> {
+  await apiRequest(`/api/goals/${goalId}/links/${linkId}`, {
+    method: 'DELETE',
+  })
+}
+
 // ---------------------------------------------------------------------------
 // Enum helpers (for dropdowns)
 // ---------------------------------------------------------------------------
