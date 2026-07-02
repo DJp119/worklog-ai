@@ -678,15 +678,17 @@ integrationRoutes.post('/github/app-connect', requireAuth, async (req: AuthReque
 })
 
 /** GET /api/integrations/github/app-callback — GitHub redirects here after install */
-integrationRoutes.get('/github/app-callback', requireAuth, async (req: AuthRequest, res) => {
+integrationRoutes.get('/github/app-callback', async (req, res) => {
   const { installation_id, setup_action, state } = req.query
   if (!installation_id) return res.status(400).send('Missing installation_id')
 
   let orgId: string | null = null
+  let userId: string | null = null
   if (state) {
     const payload = verifyOAuthState(String(state), 'github_app')
-    if (payload && payload.orgId && payload.userId === req.userId!) {
+    if (payload && payload.orgId && payload.userId) {
       orgId = payload.orgId
+      userId = payload.userId
     }
   }
 
@@ -703,7 +705,7 @@ integrationRoutes.get('/github/app-callback', requireAuth, async (req: AuthReque
       provider: 'github_app',
       external_install_id: String(installation_id),
       is_active: true,
-      installed_by: req.userId!,
+      installed_by: userId!,
       config: { setup_action: setup_action ?? null },
     }, { onConflict: 'org_id,provider' })
   if (error) logger.with('err', error).warn('github/app-callback upsert failed')
