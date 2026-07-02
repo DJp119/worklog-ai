@@ -720,5 +720,14 @@
   "integrations.slackPinTitle": "Link your Slack account",
   "integrations.slackPinHint": "Run /worklog in Slack — a 6-digit code will be DM'd to you. Enter it here to link your account.",
   "integrations.slackPinConfirm": "Confirm",
-  "integrations.slackLinked": "Slack account linked."
+  "integrations.slackLinked": "Slack account linked.",
+  "integrations.githubAppLinkTitle": "Link GitHub App Installation",
+  "integrations.githubAppLinkDesc": "GitHub App installation {{installationId}} is ready to be linked to your organization.",
+  "integrations.githubAppMissingInstallationId": "Missing installation ID. Please start the GitHub App installation again.",
+  "integrations.noOrgsAvailable": "You don't have any organizations to link this installation to.",
+  "integrations.githubAppLinkError": "Failed to load organizations.",
+  "integrations.selectOrg": "Select Organization",
+  "integrations.selectOrgPlaceholder": "Choose an organization…",
+  "integrations.linkGithubApp": "Link GitHub App",
+  "integrations.githubAppLinked": "GitHub App installation linked successfully!"
 }

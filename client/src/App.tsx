@@ -25,6 +25,7 @@ const Goals = lazy(() => import('./pages/Goals'))
 const TeamGoals = lazy(() => import('./pages/TeamGoals'))
 const OrgSettings = lazy(() => import('./pages/OrgSettings'))
 const Integrations = lazy(() => import('./pages/Integrations'))
+const LinkGithub = lazy(() => import('./pages/LinkGithub'))
 
 function ProtectedRoute({
   children,
@@ -168,6 +169,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Integrations />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/integrations/link-github"
+          element={
+            <ProtectedRoute>
+              <LinkGithub />
             </ProtectedRoute>
           }
         />
