@@ -713,6 +713,46 @@ integrationRoutes.get('/github/app-callback', async (req, res) => {
   return res.redirect(`${getFrontendUrl()}/integrations?github_connected=true`)
 })
 
+/** POST /api/integrations/github/app-callback — Link installation from LinkGithub page */
+integrationRoutes.post('/github/app-callback', requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const { orgId, installation_id } = req.body as { orgId?: string; installation_id?: string }
+    if (!orgId || !installation_id) {
+      return res.status(400).json({ success: false, error: 'orgId and installation_id required' })
+    }
+
+    // Verify user is admin of this org
+    const { getUserOrgRole, orgRoleAtLeast } = await import('../services/authz.js')
+    const role = await getUserOrgRole(req.supabase!, req.userId!, orgId)
+    if (!role || !orgRoleAtLeast(role, 'admin')) {
+      return res.status(403).json({ success: false, error: 'Forbidden — org admin required' })
+    }
+
+    // Check integrations feature is enabled for org
+    const integrationsEnabled = await isFeatureEnabled(req.supabase!, orgId, 'integrations')
+    if (!integrationsEnabled) {
+      return res.status(403).json({ success: false, error: 'Integrations require a Pro plan or higher.' })
+    }
+
+    const { error } = await supabase
+      .from('org_integrations')
+      .upsert({
+        org_id: orgId,
+        provider: 'github_app',
+        external_install_id: String(installation_id),
+        is_active: true,
+        installed_by: req.userId!,
+        config: { setup_action: null },
+      }, { onConflict: 'org_id,provider' })
+    if (error) throw error
+
+    return res.json({ success: true, data: { provider: 'github_app' } })
+  } catch (err: any) {
+    logger.with('err', err).error('POST github/app-callback failed')
+    res.status(500).json({ success: false, error: err.message ?? 'Internal server error' })
+  }
+})
+
 // ---------------------------------------------------------------------------
 // Slack account linking (6-digit PIN — Bug AQ)
 // Rate-limited in production: 5 PIN-start + 5 PIN-confirm attempts per
