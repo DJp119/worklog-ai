@@ -1,7 +1,6 @@
 /**
  * server/src/routes/webhooks/slack.ts
  *
-<<<<<<< Updated upstream
  * Slack webhook handler for events and slash commands.
  * - Verifies v0 signing signature with 5-min clock skew
  * - Handles /worklog, /goals, /goals <index> <n>% slash commands
@@ -10,23 +9,12 @@
  *
  * Mounted at: /api/webhooks/slack (with raw-body/urlencoded capture in index.ts)
  * Called from: server/src/index.ts
-=======
- * Slack webhook handler for slash commands.
- * - Verifies v0 signing signature with 5-min clock skew
- * - Handles /worklog slash command
- * - Maps Slack user to app user via slack_user_links table
- *
- * Mounted at: /api/webhooks/slack
->>>>>>> Stashed changes
  */
 
 import { Router } from 'express'
 import { supabase } from '../../lib/database.js'
 import { verifySlackSignature } from '../../lib/webhookSecurity.js'
-<<<<<<< Updated upstream
 import { canEditGoal, getViewableUserIds } from '../../services/authz.js'
-=======
->>>>>>> Stashed changes
 import { logger } from '../../lib/logger.js'
 
 export const slackWebhookRoutes = Router()
@@ -54,7 +42,6 @@ slackWebhookRoutes.post('/', async (req, res) => {
     return handleSlashCommand(body, res)
   }
 
-<<<<<<< Updated upstream
   // Event handling (notifications, etc.)
   if (body.type === 'event_callback' && body.event) {
     res.status(200).json({ ok: true })
@@ -83,28 +70,12 @@ async function handleSlashCommand(body: Record<string, any>, res: any) {
   // the linked user's org_members. Prefer the org that has this Slack
   // workspace installed; fall back to the user's first active org.
   const { data: link } = await supabase
-=======
-  res.status(200).json({ ok: true })
-})
-
-async function handleSlashCommand(body: Record<string, any>, res: any) {
-  const { team_id, user_id, command } = body
-
-  if (command !== '/worklog') {
-    return res.json({ response_type: 'ephemeral', text: `Unknown command: ${command}` })
-  }
-
-  // Resolve Slack user → app user via slack_user_links table.
-  // If this table doesn't exist yet, the query will fail gracefully.
-  const { data: link, error: linkError } = await supabase
->>>>>>> Stashed changes
     .from('slack_user_links')
     .select('user_id')
     .eq('slack_team_id', team_id)
     .eq('slack_user_id', user_id)
     .maybeSingle()
 
-<<<<<<< Updated upstream
   if (!link) {
     return res.json({
       response_type: 'ephemeral',
@@ -336,48 +307,6 @@ async function handleSlashCommand(body: Record<string, any>, res: any) {
   return res.json({
     response_type: 'ephemeral',
     text: `Goal progress updated to ${percent}%`,
-=======
-  if (linkError) {
-    logger.with('err', linkError).error('Slack user link lookup failed')
-    return res.json({
-      response_type: 'ephemeral',
-      text: '⚠️ Slack integration is not fully set up yet. Please ensure the slack_user_links table exists in your database.',
-    })
-  }
-
-  if (!link) {
-    return res.json({
-      response_type: 'ephemeral',
-      text: '🔗 Your Slack account is not linked. Use the Impactly web app to connect your Slack account.',
-    })
-  }
-
-  // /worklog — show current week's entry for the linked user
-  const weekStart = getMondayISO()
-  const { data: entry } = await supabase
-    .from('work_log_entries')
-    .select('accomplishments, challenges, learnings, goals_next_week')
-    .eq('user_id', link.user_id)
-    .eq('week_start_date', weekStart)
-    .maybeSingle()
-
-  if (!entry) {
-    return res.json({
-      response_type: 'ephemeral',
-      text: `📝 No worklog for week of ${weekStart}. Create one in the Impactly app!`,
-    })
-  }
-
-  const sections = []
-  if (entry.accomplishments) sections.push(`*Accomplishments:*\n${entry.accomplishments}`)
-  if (entry.challenges) sections.push(`*Challenges:*\n${entry.challenges}`)
-  if (entry.learnings) sections.push(`*Learnings:*\n${entry.learnings}`)
-  if (entry.goals_next_week) sections.push(`*Goals Next Week:*\n${entry.goals_next_week}`)
-
-  return res.json({
-    response_type: 'ephemeral',
-    text: `📋 *Worklog — Week of ${weekStart}*\n\n${sections.join('\n\n') || '_No content yet._'}`,
->>>>>>> Stashed changes
   })
 }
 
