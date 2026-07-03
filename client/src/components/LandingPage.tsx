@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { usePageMeta } from '../hooks/usePageMeta'
 import { useIsLoggedIn } from '../hooks/useIsLoggedIn'
 import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs'
 import Shield from 'lucide-react/dist/esm/icons/shield.mjs'
@@ -85,6 +86,12 @@ function LazyOnVisible({
 export default function LandingPage() {
   const { t } = useTranslation()
   const isLoggedIn = useIsLoggedIn()
+
+  usePageMeta({
+    title: 'Impactly AI',
+    description: 'Stop stressing over annual appraisals. Impactly AI captures your weekly achievements and generates promotion-ready self-evaluations automatically.',
+    path: '/',
+  })
 
   return (
     <div className="bg-futuristic flex-1 flex flex-col min-h-screen">
