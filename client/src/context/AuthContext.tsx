@@ -6,9 +6,11 @@ interface User {
   id: string
   email: string
   name?: string
+  firstName?: string | null
   companyName?: string
   jobTitle?: string
   preferredLanguage?: string | null
+  onboardingCompleted?: boolean
 }
 
 export class AuthError extends Error {
@@ -31,6 +33,7 @@ interface AuthContextType {
   logout: () => Promise<void>
   verifyEmail: (userId: string, token: string) => Promise<void>
   resendVerificationEmail: (email: string) => Promise<void>
+  refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -194,6 +197,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  async function refreshProfile() {
+    const token =
+      accessToken ||
+      localStorage.getItem('accessToken') ||
+      sessionStorage.getItem('accessToken')
+    if (!token) return
+    try {
+      const response = await fetch(`${API_URL}/api/users/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.data)
+      }
+    } catch (error) {
+      console.error('Failed to refresh profile:', error)
+    }
+  }
+
   async function handleRefreshToken() {
     if (!refreshToken) return
 
@@ -250,6 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         verifyEmail,
         resendVerificationEmail,
+        refreshProfile,
       }}
     >
       {children}

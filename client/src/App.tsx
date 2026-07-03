@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react'
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { Layout } from './components/Layout'
@@ -16,14 +16,28 @@ const Appraisal = lazy(() => import('./pages/Appraisal'))
 const Chat = lazy(() => import('./pages/Chat'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Feedback = lazy(() => import('./pages/Feedback'))
+const Onboarding = lazy(() => import('./pages/Onboarding'))
 const Terms = lazy(() => import('./pages/Terms'))
 const Privacy = lazy(() => import('./pages/Privacy'))
 const AIPulseHub = lazy(() => import('./pages/ai-pulse/Hub').then(m => ({ default: m.AIPulseHub })))
+const Billing = lazy(() => import('./pages/Billing'))
+const Goals = lazy(() => import('./pages/Goals'))
+const TeamGoals = lazy(() => import('./pages/TeamGoals'))
+const OrgSettings = lazy(() => import('./pages/OrgSettings'))
+const Integrations = lazy(() => import('./pages/Integrations'))
+const LinkGithub = lazy(() => import('./pages/LinkGithub'))
 const NotFound = lazy(() => import('./pages/NotFound'))
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({
+  children,
+  requireOnboarding = true,
+}: {
+  children: React.ReactNode
+  requireOnboarding?: boolean
+}) {
   const { user, loading } = useAuth()
   const { t } = useTranslation()
+  const location = useLocation()
 
   if (loading) {
     return (
@@ -39,7 +53,34 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />
   }
 
+  // First-run gate: force unfinished users into the onboarding flow once.
+  // Only redirects on an explicit `false` so partially-hydrated user objects
+  // (field absent) don't bounce the user mid-load.
+  if (requireOnboarding && user.onboardingCompleted === false && location.pathname !== '/onboarding') {
+    return <Navigate to="/onboarding" replace />
+  }
+
   return <Layout>{children}</Layout>
+}
+
+// Onboarding renders full-screen (no Layout chrome) but still requires auth.
+function OnboardingRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth()
+  const { t } = useTranslation()
+
+  if (loading) {
+    return (
+      <div className="bg-futuristic min-h-screen flex items-center justify-center">
+        <div className="text-gray-400">{t('common.loading')}</div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
+
+  return <>{children}</>
 }
 
 function AppRoutes() {
@@ -100,10 +141,66 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/goals"
+          element={
+            <ProtectedRoute>
+              <Goals />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/team-goals"
+          element={
+            <ProtectedRoute>
+              <TeamGoals />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/org-settings"
+          element={
+            <ProtectedRoute>
+              <OrgSettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/integrations"
+          element={
+            <ProtectedRoute>
+              <Integrations />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/integrations/link-github"
+          element={
+            <ProtectedRoute>
+              <LinkGithub />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/onboarding"
+          element={
+            <OnboardingRoute>
+              <Onboarding />
+            </OnboardingRoute>
+          }
+        />
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/terms" element={<Layout><Terms /></Layout>} />
         <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
         <Route path="/ai-pulse" element={<Layout><AIPulseHub /></Layout>} />
+        <Route
+          path="/billing"
+          element={
+            <ProtectedRoute>
+              <Billing />
+            </ProtectedRoute>
+          }
+        />
         <Route path="*" element={<Layout><NotFound /></Layout>} />
       </Routes>
     </Suspense>

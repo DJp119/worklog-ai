@@ -465,7 +465,7 @@ aiPulseRoutes.get('/for-you', requireAuth, async (req: AuthRequest, res: Respons
 aiPulseRoutes.get('/og/article/:slug', async (req: Request, res: Response) => {
   try {
     const { slug } = req.params
-    const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',')[0].trim()
+    const _frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',')[0].trim() // eslint-disable-line no-unused-vars -- reserved for future use
 
     // Fetch article
     const { data: article, error } = await supabase

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { LanguageSwitcher } from './LanguageSwitcher'
+import { useHasOrg } from '../hooks/useHasOrg'
 
 interface LayoutProps {
   children: ReactNode
@@ -13,6 +14,7 @@ export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const hasOrg = useHasOrg()
 
   const handleSignOut = async () => {
     try {
@@ -64,6 +66,26 @@ export function Layout({ children }: LayoutProps) {
                   >
                     {t('nav.appraisals')}
                   </Link>
+                  <Link
+                    to="/goals"
+                    className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
+                  >
+                    {t('nav.goals')}
+                  </Link>
+                  <Link
+                    to="/team-goals"
+                    className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
+                  >
+                    {t('nav.teamGoals')}
+                  </Link>
+                  {hasOrg && (
+                    <Link
+                      to="/integrations"
+                      className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
+                    >
+                      {t('nav.integrations')}
+                    </Link>
+                  )}
                   <Link
                     to="/chat"
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5 flex items-center gap-1"

@@ -186,8 +186,16 @@ export interface UserProfile {
   id: string
   email: string
   name?: string
+  firstName?: string | null
   companyName?: string
   jobTitle?: string
+  industry?: string | null
+  function?: string | null
+  yearsExperience?: string | null
+  companySize?: string | null
+  reviewFrequency?: string | null
+  orgGoalsAlignment?: boolean
+  onboardingCompleted?: boolean
   reminderDay: number
   reminderTime: string
   reminderEnabled: boolean
@@ -206,6 +214,17 @@ export async function updateProfile(
   return apiRequest<UserProfile>('/api/users/profile', {
     method: 'PUT',
     body: JSON.stringify(body),
+  })
+}
+
+// ============================================
+// Waitlist API
+// ============================================
+
+export async function joinWaitlist(email: string, source?: string): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>('/api/waitlist', {
+    method: 'POST',
+    body: JSON.stringify({ email, source }),
   })
 }
 

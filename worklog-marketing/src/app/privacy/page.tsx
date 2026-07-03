@@ -88,8 +88,18 @@ export default function PrivacyPage() {
             </ul>
           </section>
 
+          <section>
+            <h2 className="text-xl md:text-2xl font-semibold text-white mb-3">4. Google AdSense &amp; Advertising Cookies</h2>
+            <p className="leading-relaxed text-sm md:text-base mb-3">
+              We use Google AdSense to serve advertisements on our website. Google, as a third-party vendor, uses cookies to serve ads on our site. Google’s use of advertising cookies enables it and its partners to serve ads to our users based on their visit to our site and/or other sites on the Internet.
+            </p>
+            <p className="leading-relaxed text-sm md:text-base text-gray-400">
+              Users may opt out of personalized advertising by visiting Google's <a href="https://www.google.com/settings/ads" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline">Ads Settings</a>. Alternatively, users can opt out of a third-party vendor's use of cookies for personalized advertising by visiting <a href="https://www.aboutads.info" target="_blank" rel="noopener noreferrer" className="text-indigo-400 hover:underline">www.aboutads.info</a>.
+            </p>
+          </section>
+
           <section className="p-6 bg-indigo-500/5 border border-indigo-500/20 rounded-xl">
-            <h2 className="text-xl md:text-2xl font-bold text-white mb-3">4. Data Security</h2>
+            <h2 className="text-xl md:text-2xl font-bold text-white mb-3">5. Data Security</h2>
             <p className="leading-relaxed text-sm md:text-base mb-3">
               All data is encrypted in transit using TLS 1.3 and at rest using AES-256 standards. We enforce database-level Row-Level Security (RLS) so
               that every backend database query is cryptographically filtered to return only the rows owned by the currently authenticated user session.
@@ -100,7 +110,7 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl md:text-2xl font-semibold text-white mb-3">5. Data Retention & Deletion</h2>
+            <h2 className="text-xl md:text-2xl font-semibold text-white mb-3">6. Data Retention &amp; Deletion</h2>
             <p className="leading-relaxed text-sm md:text-base mb-3">
               We retain your data for as long as your account is active to provide you with historical log features. You can request deletion of your account and
               associated data at any time.
@@ -111,9 +121,9 @@ export default function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl md:text-2xl font-semibold text-white mb-3">6. Contact</h2>
+            <h2 className="text-xl md:text-2xl font-semibold text-white mb-3">7. Contact</h2>
             <p className="leading-relaxed text-sm md:text-base">
-              For any questions regarding this Privacy Policy or your data, please contact us using the in-app feedback forms or email the support address listed in your account settings dashboard.
+              For any questions regarding this Privacy Policy, your data, or the services, please email us directly at <a href="mailto:impactlyai@zohomail.in" className="text-indigo-400 hover:underline">impactlyai@zohomail.in</a>.
             </p>
           </section>
         </article>
@@ -127,6 +137,7 @@ export default function PrivacyPage() {
             <Link href="/blog" className="hover:text-gray-300 transition-colors">Blog</Link>
             <Link href="/templates/self-appraisal" className="hover:text-gray-300 transition-colors">Templates</Link>
             <Link href="/terms" className="hover:text-gray-300 transition-colors">Terms</Link>
+            <a href="mailto:impactlyai@zohomail.in" className="hover:text-gray-300 transition-colors">Contact</a>
           </div>
         </div>
       </footer>

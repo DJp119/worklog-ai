@@ -1,7 +1,7 @@
 import { supabase } from './supabase.js'
 
 import { generateMonthlySummary } from './summaryService.js'
-import type { MonthlySummary, UserProfile, ChatMessage } from 'shared'
+import type { MonthlySummary, UserProfile } from 'shared'
 import { languageInstruction } from './userLanguage.js'
 
 function getMonthsBetween(startStr: string, endStr: string): string[] {
@@ -51,7 +51,6 @@ export function stitchSummaries(summaries: MonthlySummary[]): string {
   if (summaries.length === 0) return 'No work data available for this period.'
   
   return summaries.map(s => {
-    const date = new Date(s.month_year)
     // Avoid timezone issues by using UTC parts or just manually mapping
     const [year, monthStr] = s.month_year.split('-')
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
