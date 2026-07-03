@@ -13,6 +13,7 @@ import { chatRoutes } from './routes/chat.js'
 import { feedbackRoutes } from './routes/feedback.js'
 import { aiPulseRoutes } from './routes/aiPulse.js'
 import { translateRoutes } from './routes/translate.js'
+<<<<<<< Updated upstream
 import { waitlistRoutes } from './routes/waitlist.js'
 import { organizationRoutes } from './routes/organizations.js'
 import { teamRoutes } from './routes/teams.js'
@@ -24,6 +25,9 @@ import { integrationRoutes } from './routes/integrations.js'
 import { subscriptionRoutes } from './routes/subscriptions.js'
 import { reportRoutes } from './routes/reports.js'
 import { channelPreferenceRoutes } from './routes/channelPreferences.js'
+=======
+import { slackWebhookRoutes } from './routes/webhooks/slack.js'
+>>>>>>> Stashed changes
 import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { newsCollectionJob } from './jobs/newsCollectionJob.js'
@@ -87,6 +91,15 @@ app.use(cors({
     callback(new Error('Not allowed by CORS'))
   },
   credentials: true,
+}))
+
+// Capture raw body for webhook signature verification (Slack, GitHub, Jira)
+app.use('/api/webhooks', express.json({
+  verify: (req: any, _res, buf) => { req.rawBody = buf },
+}))
+app.use('/api/webhooks', express.urlencoded({
+  extended: true,
+  verify: (req: any, _res, buf) => { req.rawBody = buf },
 }))
 
 // Middleware
@@ -176,6 +189,7 @@ app.use('/api/chat', chatRoutes)
 app.use('/api/feedback', feedbackRoutes)
 app.use('/api/ai-pulse', aiPulseRoutes)
 app.use('/api/translate', translateRoutes)
+<<<<<<< Updated upstream
 app.use('/api/waitlist', waitlistRoutes)
 app.use('/api/orgs', organizationRoutes)
 app.use('/api/teams', teamRoutes)
@@ -187,6 +201,9 @@ app.use('/api/integrations', integrationRoutes)
 app.use('/api/subscriptions', subscriptionRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/channel-preferences', channelPreferenceRoutes)
+=======
+app.use('/api/webhooks/slack', slackWebhookRoutes)
+>>>>>>> Stashed changes
 
 // Root route
 app.get('/', (req, res) => {

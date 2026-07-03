@@ -1,6 +1,7 @@
 /**
  * server/src/lib/webhookSecurity.ts
  *
+<<<<<<< Updated upstream
  * Webhook signature verification + idempotent event recording.
  * GitHub: HMAC-SHA256 with app-global GITHUB_APP_WEBHOOK_SECRET (Bug CF fix).
  * JIRA: token query parameter (Bug CE fix — JIRA Cloud webhooks lack HMAC headers).
@@ -155,4 +156,61 @@ export async function updateEventStatus(
   if (params.error) updates.error = params.error
 
   await db.from('integration_events').update(updates).eq('id', params.eventId)
+=======
+ * Slack v0 request signature verification.
+ * See: https://api.slack.com/authentication/verifying-requests-from-slack
+ */
+
+import crypto from 'crypto'
+import { logger } from './logger.js'
+
+const SLACK_SIGNING_SECRET = process.env.SLACK_SIGNING_SECRET || ''
+const FIVE_MINUTES_SEC = 5 * 60
+
+/**
+ * Verify a Slack request signature (v0 scheme).
+ *
+ * @param rawBody  - The raw request body as a Buffer
+ * @param timestamp - The `x-slack-request-timestamp` header value
+ * @param signature - The `x-slack-signature` header value
+ * @returns true if the signature is valid and within the clock-skew window
+ */
+export function verifySlackSignature(
+  rawBody: Buffer,
+  timestamp: string,
+  signature: string,
+): boolean {
+  if (!SLACK_SIGNING_SECRET) {
+    logger.warn('SLACK_SIGNING_SECRET not set — rejecting webhook')
+    return false
+  }
+
+  // Reject requests older than 5 minutes (replay protection)
+  const ts = parseInt(timestamp, 10)
+  if (isNaN(ts)) return false
+
+  const nowSec = Math.floor(Date.now() / 1000)
+  if (Math.abs(nowSec - ts) > FIVE_MINUTES_SEC) {
+    logger.warn('Slack request timestamp too old or too new')
+    return false
+  }
+
+  const sigBaseString = `v0:${timestamp}:${rawBody.toString()}`
+  const hmac = crypto
+    .createHmac('sha256', SLACK_SIGNING_SECRET)
+    .update(sigBaseString)
+    .digest('hex')
+
+  const expectedSignature = `v0=${hmac}`
+
+  // Constant-time comparison
+  try {
+    return crypto.timingSafeEqual(
+      Buffer.from(signature),
+      Buffer.from(expectedSignature),
+    )
+  } catch {
+    return false
+  }
+>>>>>>> Stashed changes
 }

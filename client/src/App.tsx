@@ -26,6 +26,7 @@ const TeamGoals = lazy(() => import('./pages/TeamGoals'))
 const OrgSettings = lazy(() => import('./pages/OrgSettings'))
 const Integrations = lazy(() => import('./pages/Integrations'))
 const LinkGithub = lazy(() => import('./pages/LinkGithub'))
+const NotFound = lazy(() => import('./pages/NotFound'))
 
 function ProtectedRoute({
   children,
@@ -200,6 +201,7 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+        <Route path="*" element={<Layout><NotFound /></Layout>} />
       </Routes>
     </Suspense>
   )
