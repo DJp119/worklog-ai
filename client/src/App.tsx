@@ -20,12 +20,16 @@ const Onboarding = lazy(() => import('./pages/Onboarding'))
 const Terms = lazy(() => import('./pages/Terms'))
 const Privacy = lazy(() => import('./pages/Privacy'))
 const AIPulseHub = lazy(() => import('./pages/ai-pulse/Hub').then(m => ({ default: m.AIPulseHub })))
+<<<<<<< Updated upstream
 const Billing = lazy(() => import('./pages/Billing'))
 const Goals = lazy(() => import('./pages/Goals'))
 const TeamGoals = lazy(() => import('./pages/TeamGoals'))
 const OrgSettings = lazy(() => import('./pages/OrgSettings'))
 const Integrations = lazy(() => import('./pages/Integrations'))
 const LinkGithub = lazy(() => import('./pages/LinkGithub'))
+=======
+const NotFound = lazy(() => import('./pages/NotFound'))
+>>>>>>> Stashed changes
 
 function ProtectedRoute({
   children,
@@ -192,6 +196,7 @@ function AppRoutes() {
         <Route path="/terms" element={<Layout><Terms /></Layout>} />
         <Route path="/privacy" element={<Layout><Privacy /></Layout>} />
         <Route path="/ai-pulse" element={<Layout><AIPulseHub /></Layout>} />
+<<<<<<< Updated upstream
         <Route
           path="/billing"
           element={
@@ -200,6 +205,9 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
+=======
+        <Route path="*" element={<Layout><NotFound /></Layout>} />
+>>>>>>> Stashed changes
       </Routes>
     </Suspense>
   )

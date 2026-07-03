@@ -75,3 +75,6 @@ skillspector/
 /.venv/Lib
 /.venv
 nul
+*.md
+.agent/AGENTS.md
+*.md
