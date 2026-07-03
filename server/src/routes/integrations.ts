@@ -53,8 +53,7 @@ const getFrontendUrl = (): string => {
 }
 
 const JIRA_SCOPES = 'read:jira-work read:jira-user offline_access'
-const GITHUB_USER_SCOPES = 'read:user repo'
-const SLACK_SCOPES = 'chat:write commands users:read users:read.email'
+const SLACK_SCOPES = 'chat:write,commands,users:read,users:read.email,users.profile:read'
 
 function buildJiraAuthUrl(state: string, redirectUri: string): string {
   const params = new URLSearchParams({
@@ -618,20 +617,33 @@ integrationRoutes.post('/slack/org-callback', requireAuth, async (req: AuthReque
     })
     if (!resp.ok) throw new Error(`Slack token HTTP ${resp.status}`)
     const tok: any = await resp.json()
-    if (!tok.ok) throw new Error(`Slack token exchange failed: ${tok.error}`)
-    if (!tok.bot_token || !tok.team?.id) throw new Error('Slack token missing bot_token or team.id')
+    if (!tok.ok) {
+      throw new Error(`Slack token exchange failed: ${tok.error} - full response: ${JSON.stringify(tok)}`)
+    }
+    // Slack returns either bot token (for apps with Bot User) or user token (for apps without)
+    // For org-level integrations, we need bot_token and team.id.
+    // If missing, the app may need: 1) Bot User in Slack App settings 2) Bot Token Scopes configured
+    const teamId = tok.team?.id || tok.authed_team?.id
+    if (!teamId) {
+      logger.with('response', JSON.stringify(tok, null, 2)).error('Slack token missing team.id - app may lack Bot User or proper installation')
+      throw new Error('Slack token missing team.id. Ensure Bot User is added to your Slack App and reinstall. Response: ' + JSON.stringify({ hasBotToken: !!tok.bot_token, hasAccessToken: !!tok.access_token, hasTeam: !!tok.team, hasAuthedUser: !!tok.authed_user }))
+    }
+    if (!tok.bot_token) {
+      logger.with('response', JSON.stringify(tok, null, 2)).error('Slack token missing bot_token - check Bot User and Bot Token Scopes')
+      throw new Error('Slack token missing bot_token. Add a Bot User in your Slack App settings (Settings → Bot User) and add bot scopes (chat:write, commands, users:read, users:read.email). Reinstall the app to your workspace.')
+    }
 
     const { error } = await supabase
       .from('org_integrations')
       .upsert({
         org_id: resolvedOrgId,
         provider: 'slack',
-        external_install_id: String(tok.team.id),
+        external_install_id: String(teamId),
         bot_token_enc: encryptSecret(tok.bot_token),
         access_token_enc: encryptSecret(tok.access_token ?? tok.bot_token),
         refresh_token_enc: null,
         config: {
-          teamName: tok.team.name,
+          teamName: tok.team?.name,
           botUserId: tok.bot_user_id,
           scope: tok.scope,
         },
