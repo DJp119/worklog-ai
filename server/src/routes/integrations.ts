@@ -53,6 +53,7 @@ const getFrontendUrl = (): string => {
 }
 
 const JIRA_SCOPES = 'read:jira-work read:jira-user offline_access'
+const GITHUB_USER_SCOPES = 'read:user repo'
 const SLACK_SCOPES = 'chat:write,commands,users:read,users:read.email,users.profile:read'
 
 function buildJiraAuthUrl(state: string, redirectUri: string): string {
