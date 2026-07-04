@@ -24,6 +24,7 @@ import { integrationRoutes } from './routes/integrations.js'
 import { subscriptionRoutes } from './routes/subscriptions.js'
 import { reportRoutes } from './routes/reports.js'
 import { channelPreferenceRoutes } from './routes/channelPreferences.js'
+import { pushRoutes } from './routes/push.js'
 import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { newsCollectionJob } from './jobs/newsCollectionJob.js'
@@ -196,6 +197,7 @@ app.use('/api/integrations', integrationRoutes)
 app.use('/api/subscriptions', subscriptionRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/channel-preferences', channelPreferenceRoutes)
+app.use('/api/push', pushRoutes)
 
 // Root route
 app.get('/', (req, res) => {

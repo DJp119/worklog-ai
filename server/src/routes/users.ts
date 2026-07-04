@@ -22,7 +22,7 @@ userRoutes.get('/profile', async (req: AuthRequest, res: Response) => {
 
         const { data: user, error } = await supabase
             .from('users')
-            .select('id, email, name, first_name, company_name, job_title, industry, function, years_experience, company_size, review_frequency, org_goals_alignment, onboarding_completed, reminder_day, reminder_time, reminder_enabled, email_verified, created_at')
+            .select('id, email, name, first_name, company_name, job_title, industry, function, years_experience, company_size, review_frequency, org_goals_alignment, onboarding_completed, reminder_day, reminder_time, reminder_enabled, email_verified, created_at, total_logs, current_streak, last_logged_date, logging_cadence')
             .eq('id', userId)
             .single()
 
@@ -63,6 +63,10 @@ userRoutes.get('/profile', async (req: AuthRequest, res: Response) => {
                 emailVerified: user.email_verified,
                 preferredLanguage: profileRow?.preferred_language ?? null,
                 createdAt: user.created_at,
+                totalLogs: user.total_logs ?? 0,
+                currentStreak: user.current_streak ?? 0,
+                lastLoggedDate: user.last_logged_date ?? null,
+                loggingCadence: user.logging_cadence ?? 'weekly',
             },
         })
     } catch (error) {
@@ -96,6 +100,7 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
         const reminder_time = body.reminder_time ?? body.reminderTime
         const reminder_enabled = body.reminder_enabled ?? body.reminderEnabled
         const preferred_language = body.preferred_language ?? body.preferredLanguage ?? null
+        const logging_cadence = body.logging_cadence ?? body.loggingCadence
 
         // Validate preferred_language against supported enum (null is allowed — means "auto")
         if (preferred_language !== null && preferred_language !== undefined && !isSupportedEmailLang(preferred_language)) {
@@ -125,6 +130,14 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
         if (reminder_day !== undefined) updateData.reminder_day = reminder_day
         if (reminder_time !== undefined) updateData.reminder_time = reminder_time
         if (reminder_enabled !== undefined) updateData.reminder_enabled = reminder_enabled
+        if (logging_cadence !== undefined) {
+            if (logging_cadence === 'daily' || logging_cadence === 'weekly') {
+                updateData.logging_cadence = logging_cadence
+            } else {
+                logger.warn('Update profile validation failed: logging_cadence must be daily or weekly')
+                return res.status(400).json({ success: false, error: 'Invalid logging cadence' })
+            }
+        }
 
         if (preferred_language !== undefined) {
             // Upsert into user_profiles (the table that holds preferred_language).
@@ -218,6 +231,7 @@ userRoutes.put('/profile', async (req: AuthRequest, res: Response) => {
                 reminderTime: user.reminder_time,
                 reminderEnabled: user.reminder_enabled,
                 preferredLanguage: preferred_language,
+                loggingCadence: user.logging_cadence ?? 'weekly',
             },
         })
     } catch (error) {

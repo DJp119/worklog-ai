@@ -108,12 +108,32 @@ entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
       return res.status(500).json({ success: false, error: 'Failed to create entry' })
     }
 
+    // Fetch updated user stats for PostHog event (trigger will have updated these)
+    const { data: userStats } = await supabase
+      .from('users')
+      .select('total_logs, current_streak, created_at, logging_cadence')
+      .eq('id', userId)
+      .single()
+
     // Invalidate monthly summary since we added a new log
     if (data && data.week_start_date) {
       // Don't await to avoid slowing down the response
       invalidateMonthlySummary(userId, data.week_start_date).catch(err => {
         logger.error('Failed to invalidate monthly summary on entry create: {}', err.message, err)
       })
+    }
+
+    const signupWeekDate = userStats?.created_at 
+      ? new Date(userStats.created_at) 
+      : new Date()
+    
+    // Get ISO week of signup
+    const getWeek = (d: Date) => {
+      const date = new Date(d.getTime())
+      date.setHours(0, 0, 0, 0)
+      date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7)
+      const week1 = new Date(date.getFullYear(), 0, 4)
+      return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7)
     }
 
     captureEvent(userId, 'work_log_created', {
@@ -123,6 +143,10 @@ entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
       has_learnings: !!body.learnings,
       has_goals: !!body.goals_next_week,
       hours_logged: body.hours_logged ?? null,
+      total_logs: userStats?.total_logs ?? 1,
+      current_streak: userStats?.current_streak ?? 1,
+      logging_cadence: userStats?.logging_cadence ?? 'weekly',
+      signup_cohort_week: getWeek(signupWeekDate)
     })
 
     logger.with('entryId', data?.id).info('Successfully created new entry')
