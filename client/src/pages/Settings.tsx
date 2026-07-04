@@ -2,6 +2,7 @@ import { useState, useEffect, FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { getProfile, updateProfile } from '../lib/api'
+import { subscribeToPushNotifications, unsubscribeFromPushNotifications } from '../lib/push'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { supportedLanguages } from '../i18n/useAutoLocale'
 import { getLocalizedDayNames, formatHourOption } from '../lib/formatters'
@@ -26,6 +27,7 @@ interface Profile {
   reminder_hour: number
   reminder_enabled: boolean
   preferred_language: string
+  logging_cadence: 'daily' | 'weekly'
 }
 
 interface PasswordForm {
@@ -76,6 +78,7 @@ export default function Settings() {
     reminder_hour: 9,
     reminder_enabled: true,
     preferred_language: 'auto',
+    logging_cadence: 'weekly',
   })
 
   const [passwordForm, setPasswordForm] = useState<PasswordForm>({
@@ -86,9 +89,22 @@ export default function Settings() {
   const [showPassword, setShowPassword] = useState(false)
   const [passwordLoading, setPasswordLoading] = useState(false)
 
+  const [pushEnabled, setPushEnabled] = useState(false)
+  const [pushSupported, setPushSupported] = useState(false)
+  const [pushLoading, setPushLoading] = useState(false)
+
   useEffect(() => {
     if (user) {
       loadProfile()
+    }
+    
+    if ('serviceWorker' in navigator && 'PushManager' in window) {
+      setPushSupported(true)
+      navigator.serviceWorker.ready.then(reg => {
+        reg.pushManager.getSubscription().then(sub => {
+          setPushEnabled(!!sub)
+        })
+      })
     }
   }, [user])
 
@@ -112,6 +128,7 @@ export default function Settings() {
         reminder_hour: utcTimeToLocalHour(data.reminderTime || '09:00'),
         reminder_enabled: data.reminderEnabled ?? true,
         preferred_language: data.preferredLanguage || 'auto',
+        logging_cadence: data.loggingCadence || 'weekly',
       })
     } catch (err) {
       console.error('Failed to load profile:', err)
@@ -198,6 +215,7 @@ export default function Settings() {
         reminderTime: localHourToUtc(profile.reminder_hour),
         reminderEnabled: profile.reminder_enabled,
         preferredLanguage: profile.preferred_language === 'auto' ? null : profile.preferred_language,
+        loggingCadence: profile.logging_cadence,
       })
 
       setMessage(t('settings.savedSuccess'))
@@ -607,7 +625,23 @@ export default function Settings() {
       <div className="glass-strong rounded-xl p-6 border border-white/10">
         <h2 className="text-lg font-semibold text-white mb-4">{t('settings.reminders')}</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
+          <div className="mb-6">
+            <label htmlFor="logging_cadence" className="block text-sm font-medium text-gray-300">
+              Logging Cadence
+            </label>
+            <p className="text-xs text-gray-500 mb-2">How often do you plan to log your work?</p>
+            <select
+              id="logging_cadence"
+              value={profile.logging_cadence}
+              onChange={(e) => handleChange('logging_cadence', e.target.value)}
+              className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+            >
+              <option value="weekly" className="bg-[#0a0a0f]">Weekly</option>
+              <option value="daily" className="bg-[#0a0a0f]">Daily</option>
+            </select>
+          </div>
+
+          <div className="pt-4 border-t border-white/10">
             <label className="flex items-center cursor-pointer">
               <input
                 type="checkbox"
@@ -661,6 +695,49 @@ export default function Settings() {
                 <p className="mt-1 text-xs text-gray-500">{t('settings.localTimezone')}</p>
               </div>
             </>
+          )}
+
+          {pushSupported && (
+            <div className="mt-4 pt-4 border-t border-white/10">
+              <label className="flex items-center justify-between cursor-pointer">
+                <div>
+                  <span className="text-sm font-medium text-gray-300">
+                    Browser Push Notifications
+                  </span>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Receive push notifications in your browser when it's time to log your work.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={pushLoading}
+                  onClick={async () => {
+                    setPushLoading(true)
+                    try {
+                      if (pushEnabled) {
+                        await unsubscribeFromPushNotifications()
+                        setPushEnabled(false)
+                      } else {
+                        const permission = await Notification.requestPermission()
+                        if (permission === 'granted') {
+                          await subscribeToPushNotifications()
+                          setPushEnabled(true)
+                        } else {
+                          setError('Notification permission denied by browser')
+                        }
+                      }
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : 'Failed to toggle push notifications')
+                    } finally {
+                      setPushLoading(false)
+                    }
+                  }}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${pushEnabled ? 'bg-indigo-500' : 'bg-white/10'} ${pushLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${pushEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                </button>
+              </label>
+            </div>
           )}
 
           <div className="pt-4">

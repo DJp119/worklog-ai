@@ -202,6 +202,10 @@ export interface UserProfile {
   emailVerified: boolean
   preferredLanguage?: string | null
   createdAt: string
+  totalLogs?: number
+  currentStreak?: number
+  lastLoggedDate?: string | null
+  loggingCadence?: string
 }
 
 export async function getProfile(): Promise<UserProfile> {

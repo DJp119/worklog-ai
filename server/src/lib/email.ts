@@ -260,13 +260,22 @@ export async function sendPasswordResetEmail(to: string, userId: string, resetTo
 /**
  * Send weekly worklog reminder email
  */
-export async function sendReminderEmail(to: string, userName?: string, lang: string = 'en'): Promise<boolean> {
+export async function sendReminderEmail(to: string, userName?: string, lang: string = 'en', currentStreak: number = 0, totalLogs: number = 0): Promise<boolean> {
   // FRONTEND_URL may be comma-separated for CORS; use only the first (primary) URL for links
   const frontendUrl = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',')[0].trim()
   const logUrl = `${frontendUrl}/log`
   const settingsUrl = `${frontendUrl}/settings`
 
-  const [hiNamed, hiAnon, heading, intro1, intro2, button, footerHint, manageLink, subject] = await Promise.all([
+  let cohortMessage = ''
+  if (currentStreak > 1) {
+    cohortMessage = `🔥 You're on a ${currentStreak}-week streak! Keep the momentum going.`
+  } else if (currentStreak === 0 && totalLogs > 0) {
+    cohortMessage = `Welcome back! It's been a while. Log today to start a new streak.`
+  } else if (totalLogs === 0) {
+    cohortMessage = `Welcome to Worklog AI! Start your first streak by logging today.`
+  }
+
+  const [hiNamed, hiAnon, heading, intro1, intro2, button, footerHint, manageLink, subject, translatedCohortMsg] = await Promise.all([
     userName ? tx(`Hi ${userName}`, lang) : Promise.resolve(''),
     tx('Hi there', lang),
     tx('⚡ Time to Log Your Work', lang),
@@ -276,6 +285,7 @@ export async function sendReminderEmail(to: string, userName?: string, lang: str
     tx("You're receiving this because you have weekly reminders enabled.", lang),
     tx('Manage reminder preferences', lang),
     tx('⚡ Weekly Reminder: Log Your Work — Worklog AI', lang),
+    cohortMessage ? tx(cohortMessage, lang) : Promise.resolve(''),
   ])
 
   const greeting = userName ? hiNamed : hiAnon
@@ -292,6 +302,7 @@ export async function sendReminderEmail(to: string, userName?: string, lang: str
     <div style="background-color: #ffffff; border-radius: 12px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
       <h1 style="color: #4F46E5; margin-top: 0;">${escapeHtml(heading)}</h1>
       <p style="font-size: 16px;">${escapeHtml(greeting)},</p>
+      ${translatedCohortMsg ? `<p style="font-size: 16px; font-weight: bold; color: #4F46E5;">${escapeHtml(translatedCohortMsg)}</p>` : ''}
       <p style="font-size: 16px;">
         ${escapeHtml(intro1)}
       </p>
@@ -314,7 +325,7 @@ export async function sendReminderEmail(to: string, userName?: string, lang: str
 </html>
 `
 
-  const textBody = `${greeting},\n\n${intro1}\n\n${button}: ${logUrl}\n\n${footerHint} ${manageLink}: ${settingsUrl}`
+  const textBody = `${greeting},\n\n${translatedCohortMsg ? translatedCohortMsg + '\n\n' : ''}${intro1}\n\n${button}: ${logUrl}\n\n${footerHint} ${manageLink}: ${settingsUrl}`
 
   const result = await sendEmail({
     to,
