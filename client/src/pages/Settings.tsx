@@ -633,7 +633,7 @@ export default function Settings() {
             <select
               id="logging_cadence"
               value={profile.logging_cadence}
-              onChange={(e) => handleChange('logging_cadence', e.target.value)}
+              onChange={(e) => handleChange('logging_cadence', e.target.value as 'daily' | 'weekly')}
               className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
             >
               <option value="weekly" className="bg-[#0a0a0f]">Weekly</option>

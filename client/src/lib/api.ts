@@ -205,7 +205,7 @@ export interface UserProfile {
   totalLogs?: number
   currentStreak?: number
   lastLoggedDate?: string | null
-  loggingCadence?: string
+  loggingCadence?: 'daily' | 'weekly'
 }
 
 export async function getProfile(): Promise<UserProfile> {
