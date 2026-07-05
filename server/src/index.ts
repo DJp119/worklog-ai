@@ -29,17 +29,14 @@ import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { newsCollectionJob } from './jobs/newsCollectionJob.js'
 import { weeklyDigestJob } from './jobs/weeklyDigestJob.js'
-<<<<<<< Updated upstream
 import { weeklySyncJob } from './jobs/weeklySyncJob.js'
 import { goalRollupJob } from './jobs/goalRollupJob.js'
 import { goalDigestJob } from './jobs/goalDigestJob.js'
 import { pruneJob } from './jobs/pruneJob.js'
-=======
 import { activationLoop } from './jobs/marketing/activationLoop.js'
 import { dormancyWatch } from './jobs/marketing/dormancyWatch.js'
 import { weeklyReview } from './jobs/marketing/weeklyReview.js'
 import { isDatabaseConfigured } from './lib/database.js'
->>>>>>> Stashed changes
 import { getPostHogClient, shutdownPostHog, captureException, captureEvent } from './lib/posthog.js'
 import { logger } from './lib/logger.js'
 import { requestIdMiddleware } from './middleware/requestId.js'
@@ -317,18 +314,10 @@ async function startServer() {
   monthlySummaryJob.start()
   newsCollectionJob.start()
   weeklyDigestJob.start()
-<<<<<<< Updated upstream
   weeklySyncJob.start()
   goalRollupJob.start()
   goalDigestJob.start()
   pruneJob.start()
-  })
-} // end startServer
-
-startServer().catch((err) => {
-  logger.with('err', err).error('Failed to start server')
-  process.exit(1)
-=======
 
   // Marketing loops (gated by env var)
   if (process.env.MARKETING_LOOPS_ENABLED === 'true') {
@@ -339,7 +328,12 @@ startServer().catch((err) => {
   } else {
     logger.info('Marketing loops disabled (set MARKETING_LOOPS_ENABLED=true to enable)')
   }
->>>>>>> Stashed changes
+  })
+} // end startServer
+
+startServer().catch((err) => {
+  logger.with('err', err).error('Failed to start server')
+  process.exit(1)
 })
 
 // Graceful shutdown
@@ -349,16 +343,13 @@ process.on('SIGTERM', async () => {
   monthlySummaryJob.stop()
   newsCollectionJob.stop()
   weeklyDigestJob.stop()
-<<<<<<< Updated upstream
   weeklySyncJob.stop()
   goalRollupJob.stop()
   goalDigestJob.stop()
   pruneJob.stop()
-=======
   activationLoop.stop()
   dormancyWatch.stop()
   weeklyReview.stop()
->>>>>>> Stashed changes
   await shutdownPostHog()
   process.exit(0)
 })
@@ -369,16 +360,13 @@ process.on('SIGINT', async () => {
   monthlySummaryJob.stop()
   newsCollectionJob.stop()
   weeklyDigestJob.stop()
-<<<<<<< Updated upstream
   weeklySyncJob.stop()
   goalRollupJob.stop()
   goalDigestJob.stop()
   pruneJob.stop()
-=======
   activationLoop.stop()
   dormancyWatch.stop()
   weeklyReview.stop()
->>>>>>> Stashed changes
   await shutdownPostHog()
   process.exit(0)
 })
