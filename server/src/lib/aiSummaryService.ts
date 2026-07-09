@@ -74,18 +74,3 @@ Return only valid JSON. No markdown code blocks. No extra text.`
   }
 }
 
-/**
- * Batch summarize multiple articles (fire-and-forget for cron jobs)
- */
-export async function batchSummarizeArticles(
-  articles: { id: string; title: string; content: string; source_name: string }[]
-): Promise<number> {
-  let success = 0
-  for (const article of articles) {
-    const summary = await generateArticleSummary(article.title, article.content, article.source_name)
-    if (summary) {
-      success++
-    }
-  }
-  return success
-}

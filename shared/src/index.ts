@@ -61,6 +61,12 @@ export interface GenerateAppraisalRequest {
     values?: string
 }
 
+export interface GenerateAppraisalResponse {
+    appraisal_id: string
+    generated_text: string
+    word_count: number
+}
+
 // Monthly Summary types
 export interface MonthlySummary {
     id: string
@@ -547,3 +553,72 @@ export interface GenerateReportRequest {
     periodStart: string
     periodEnd: string
 }
+/ /   R e m i n d e r   l o g   t y p e s  
+ e x p o r t   i n t e r f a c e   R e m i n d e r L o g   {  
+         i d :   s t r i n g  
+         u s e r _ i d :   s t r i n g  
+         s e n t _ a t :   s t r i n g  
+         e m a i l _ a d d r e s s :   s t r i n g  
+         s t a t u s :   ' s e n t '   |   ' f a i l e d '   |   ' b o u n c e d '  
+         e r r o r _ m e s s a g e ? :   s t r i n g  
+ }  
+  
+ / /   E r r o r   t y p e s  
+ e x p o r t   i n t e r f a c e   A p i E r r o r   {  
+         m e s s a g e :   s t r i n g  
+         c o d e :   s t r i n g  
+         d e t a i l s ? :   R e c o r d < s t r i n g ,   s t r i n g [ ] >  
+ }  
+  
+ / /   A I   P u l s e   t y p e s  
+ e x p o r t   i n t e r f a c e   A I A r t i c l e   {  
+         i d :   s t r i n g  
+         t i t l e :   s t r i n g  
+         s l u g :   s t r i n g  
+         s u m m a r y :   s t r i n g  
+         c o n t e n t :   s t r i n g  
+         s o u r c e _ u r l ? :   s t r i n g  
+         s o u r c e _ n a m e ? :   s t r i n g  
+         c a t e g o r y :   ' n e w s '   |   ' m o d e l s '   |   ' s t a r t u p s '   |   ' r e s e a r c h '   |   ' t o o l s '   |   ' o p e n _ s o u r c e '   |   ' f u n d i n g '   |   ' i n d i a _ a i '   |   ' w o r l d _ a i '  
+         p u b l i s h e d _ a t :   s t r i n g  
+         i m p a c t _ s u m m a r y ? :   s t r i n g  
+         c t a _ t e x t ? :   s t r i n g  
+         c t a _ l i n k ? :   s t r i n g  
+         t h u m b n a i l _ u r l ? :   s t r i n g  
+         v i e w s _ c o u n t :   n u m b e r  
+         b o o k m a r k _ c o u n t :   n u m b e r  
+         s h a r e _ c o u n t :   n u m b e r  
+         c r e a t e d _ a t :   s t r i n g  
+         u p d a t e d _ a t :   s t r i n g  
+ }  
+  
+ e x p o r t   i n t e r f a c e   A I I m p a c t C a r d   {  
+         i d :   s t r i n g  
+         s l u g :   s t r i n g  
+         i n d u s t r y :   ' j o b s '   |   ' h e a l t h c a r e '   |   ' e d u c a t i o n '   |   ' f i n a n c e '   |   ' m a r k e t i n g '   |   ' e n g i n e e r i n g '   |   ' d e s i g n '   |   ' h r '   |   ' a g r i c u l t u r e '   |   ' m a n u f a c t u r i n g '  
+         i n d u s t r y _ d i s p l a y _ n a m e :   s t r i n g  
+         w h a t _ c h a n g e d :   s t r i n g  
+         i m p a c t _ l e v e l :   ' h i g h '   |   ' m e d i u m '   |   ' l o w '  
+         c o m p a n i e s _ i n v o l v e d :   s t r i n g [ ]  
+         f u t u r e _ p r e d i c t i o n :   s t r i n g  
+         o p p o r t u n i t i e s :   s t r i n g [ ]  
+         r i s k s :   s t r i n g [ ]  
+         t o o l s :   s t r i n g [ ]  
+         c r e a t e d _ a t :   s t r i n g  
+         u p d a t e d _ a t :   s t r i n g  
+ }  
+  
+ e x p o r t   i n t e r f a c e   B o o k m a r k R e q u e s t   {  
+         a r t i c l e _ i d ? :   s t r i n g  
+         i m p a c t _ c a r d _ i d ? :   s t r i n g  
+ }  
+  
+ e x p o r t   i n t e r f a c e   B o o k m a r k   {  
+         i d :   s t r i n g  
+         u s e r _ i d :   s t r i n g  
+         a r t i c l e _ i d ? :   s t r i n g  
+         i m p a c t _ c a r d _ i d ? :   s t r i n g  
+         c r e a t e d _ a t :   s t r i n g  
+ }  
+  
+ 

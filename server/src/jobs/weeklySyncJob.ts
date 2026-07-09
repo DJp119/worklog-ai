@@ -26,7 +26,8 @@ import { logger } from '../lib/logger.js'
 import { getUserSyncFilters } from '../services/subscriptionService.js'
 import { mdc } from '../lib/mdc.js'
 import { getJiraClient, searchJiraJQL } from '../lib/jiraAdapter.js'
-import { getGithubClient, parseGithubUrl } from '../lib/githubAdapter.js'
+import { getGithubClient } from '../lib/githubAdapter.js'
+import { startJob } from '../lib/scheduler.js'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
@@ -61,21 +62,6 @@ interface SyncItem {
     is_done: boolean
     summary: string
     source_type: 'issue' | 'pr' | 'review' | 'commit' | 'message' | 'thread'
-}
-
-// ---------------------------------------------------------------------------
-// Schedule guard (Issue AV)
-// ---------------------------------------------------------------------------
-
-/**
- * When `IS_SCHEDULER_NODE === 'true'`, only this process should run cron
- * jobs. We default to `true` for backward compat in single-instance deploys.
- */
-function isSchedulerNode(): boolean {
-    const v = process.env.IS_SCHEDULER_NODE
-    if (v === 'true' || v === '1') return true
-    if (v === 'false' || v === '0') return false
-    return true
 }
 
 // ---------------------------------------------------------------------------
@@ -263,7 +249,6 @@ async function fetchGithubItems(
                 }
                 // Issues (Bug AD)
                 try {
-                    parseGithubUrl
                     const issueQ = `repo:${repo} is:issue updated:${sinceUTC.slice(0, 10)}..${untilUTC.slice(0, 10)}`
                     const issResp: any = await (client as any).call('GET', `/search/issues?q=${encodeURIComponent(issueQ)}&per_page=50`)
                     const issues = issResp?.items ?? []
@@ -477,84 +462,53 @@ async function syncUser(userId: string, syncTimezone: string): Promise<void> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Job class
-// ---------------------------------------------------------------------------
+export async function runNow(): Promise<void> {
+    const jobRunId = randomUUID()
+    await mdc.run({ jobRunId, jobName: 'weekly_sync' }, async () => {
+        // Find eligible users (Bug AR/BF: safe_local_time would normally be used in raw
+        // SQL, but here we read sync_timezone and compute in Node because the migration
+        // exposes `safe_local_time` for server-side use; the read query uses the column
+        // directly since invalid timezones are guarded at API write boundaries).
+        const { data: users, error } = await supabase
+            .from('users')
+            .select(
+                'id, integration_preferences:integration_preferences!left(' +
+                    'sync_timezone, last_weekly_sync_week, sync_enabled' +
+                    '), user_integrations:user_integrations!inner(id, is_active)'
+            )
+            .eq('user_integrations.is_active', true)
 
-class WeeklySyncJob {
-    private task: cron.ScheduledTask | null = null
-
-    start(): void {
-        if (!isSchedulerNode()) {
-            logger.warn('IS_SCHEDULER_NODE is not true; weeklySyncJob will not run on this process')
+        if (error) {
+            logger.error('WeeklySync: eligible users query failed: {}', error.message, error)
             return
         }
-        if (this.task) return
-        this.task = cron.schedule('0 * * * *', () => {
-            logger.info('WeeklySync cron: starting')
-            this.runNow().catch((err) => {
-                logger.error('WeeklySync cron error: {}', (err instanceof Error ? err.message : String(err)), err)
-            })
-        })
-        logger.info('WeeklySync cron job scheduled (0 * * * * - every hour)')
-    }
 
-    stop(): void {
-        if (this.task) {
-            this.task.stop()
-            this.task = null
-            logger.info('WeeklySync job stopped')
+        if (!users || users.length === 0) {
+            logger.info('WeeklySync: no eligible users')
+            return
         }
-    }
 
-    async runNow(): Promise<void> {
-        const jobRunId = randomUUID()
-        await mdc.run({ jobRunId, jobName: 'weekly_sync' }, async () => {
-            // Find eligible users (Bug AR/BF: safe_local_time would normally be used in raw
-            // SQL, but here we read sync_timezone and compute in Node because the migration
-            // exposes `safe_local_time` for server-side use; the read query uses the column
-            // directly since invalid timezones are guarded at API write boundaries).
-            const { data: users, error } = await supabase
-                .from('users')
-                .select(
-                    'id, integration_preferences:integration_preferences!left(' +
-                        'sync_timezone, last_weekly_sync_week, sync_enabled' +
-                        '), user_integrations:user_integrations!inner(id, is_active)'
-                )
-                .eq('user_integrations.is_active', true)
-
-            if (error) {
-                logger.error('WeeklySync: eligible users query failed: {}', error.message, error)
-                return
+        let processed = 0
+        for (const u of users as any[]) {
+            const prefs = Array.isArray(u.integration_preferences)
+                ? u.integration_preferences[0]
+                : u.integration_preferences
+            const syncEnabled = prefs?.sync_enabled !== false // default true
+            if (!syncEnabled) continue
+            const storedTz = prefs?.sync_timezone
+            const tz = isValidTimezone(storedTz) ? storedTz : 'UTC'
+            if (storedTz && !isValidTimezone(storedTz)) {
+                logger
+                    .with('userId', u.id)
+                    .with('storedTz', storedTz)
+                    .warn('WeeklySync: invalid stored timezone, falling back to UTC')
             }
+            await syncUser(u.id, tz)
+            processed++
+        }
 
-            if (!users || users.length === 0) {
-                logger.info('WeeklySync: no eligible users')
-                return
-            }
-
-            let processed = 0
-            for (const u of users as any[]) {
-                const prefs = Array.isArray(u.integration_preferences)
-                    ? u.integration_preferences[0]
-                    : u.integration_preferences
-                const syncEnabled = prefs?.sync_enabled !== false // default true
-                if (!syncEnabled) continue
-                const storedTz = prefs?.sync_timezone
-                const tz = isValidTimezone(storedTz) ? storedTz : 'UTC'
-                if (storedTz && !isValidTimezone(storedTz)) {
-                    logger
-                        .with('userId', u.id)
-                        .with('storedTz', storedTz)
-                        .warn('WeeklySync: invalid stored timezone, falling back to UTC')
-                }
-                await syncUser(u.id, tz)
-                processed++
-            }
-
-            logger.with('processed', processed).info('WeeklySync completed')
-        })
-    }
+        logger.with('processed', processed).info('WeeklySync completed')
+    })
 }
 
-export const weeklySyncJob = new WeeklySyncJob()
+export const weeklySyncJob = startJob('weekly_sync', '0 * * * *', runNow)

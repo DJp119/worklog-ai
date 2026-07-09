@@ -12,11 +12,7 @@
 CREATE TABLE IF NOT EXISTS user_profiles (
   id UUID PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
-  company_name TEXT,
-  job_title TEXT,
-  reminder_day INTEGER DEFAULT 1, -- 0-6 (Sunday-Saturday), default Monday
-  reminder_time TIME DEFAULT '09:00', -- Default 9 AM
-  reminder_enabled BOOLEAN DEFAULT true,
+  preferred_language TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -214,6 +210,7 @@ CREATE TABLE IF NOT EXISTS users (
   reminder_time TEXT DEFAULT '09:00', -- UTC hour in HH:00 format
   reminder_enabled BOOLEAN DEFAULT true,
   email_verified BOOLEAN DEFAULT false,
+  preferred_language TEXT DEFAULT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -479,12 +476,7 @@ CREATE TRIGGER update_ai_impact_cards_updated_at
 -- 5. I18N — preferred language + translation cache
 -- =============================================
 
--- 5.1 Add preferred_language column to user_profiles (and users)
-ALTER TABLE user_profiles
-  ADD COLUMN IF NOT EXISTS preferred_language TEXT DEFAULT NULL;
-
-ALTER TABLE users
-  ADD COLUMN IF NOT EXISTS preferred_language TEXT DEFAULT NULL;
+-- 5.1 Add preferred_language (already included in table definitions)
 
 -- 5.2 Translation cache table (public read so anon clients can fetch translations)
 CREATE TABLE IF NOT EXISTS translation_cache (

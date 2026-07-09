@@ -3,7 +3,7 @@ import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, resolve } from 'path'
 import { logger } from '../lib/logger.js'
-import { supabase } from '../lib/supabase.js'
+import { supabase } from '../lib/database.js'
 import { mistral, chatModel } from '../lib/mistral.js'
 
 export const translateRoutes = Router()

@@ -1,4 +1,4 @@
-import { supabase } from './supabase.js'
+import { supabase } from './database.js'
 
 import { generateMonthlySummary } from './summaryService.js'
 import type { MonthlySummary, UserProfile } from 'shared'

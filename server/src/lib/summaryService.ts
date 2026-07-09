@@ -1,4 +1,4 @@
-import { supabase } from './supabase.js'
+import { supabase } from './database.js'
 import { mistral, chatModel } from './mistral.js'
 import type { MonthlySummary } from 'shared'
 import { logger } from './logger.js'
