@@ -11,13 +11,13 @@
  * Started in: server/src/index.ts
  */
 
+import cron from 'node-cron'
 import { randomUUID } from 'crypto'
 import { supabase } from '../lib/database.js'
 import { logger } from '../lib/logger.js'
 import { mdc } from '../lib/mdc.js'
 import { getJiraClient, getJiraClientForOrg, searchJiraJQL } from '../lib/jiraAdapter.js'
 import { getGithubClient } from '../lib/githubAdapter.js'
-import { startJob } from '../lib/scheduler.js'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,6 +41,17 @@ interface OrgIntegrationRow {
     org_id: string
     provider: string
     is_active: boolean
+}
+
+// ---------------------------------------------------------------------------
+// Schedule guard
+// ---------------------------------------------------------------------------
+
+function isSchedulerNode(): boolean {
+    const v = process.env.IS_SCHEDULER_NODE
+    if (v === 'true' || v === '1') return true
+    if (v === 'false' || v === '0') return false
+    return true
 }
 
 // ---------------------------------------------------------------------------
@@ -281,17 +292,19 @@ async function recomputeLeaves(sortedLeafIds: string[]): Promise<void> {
  * leaf if no other impacted goal has it as its parent. The result is sorted
  * by UUID (Issue AE/AY) to ensure deterministic lock acquisition order.
  */
-async function findLeafGoalIds(impacted: Set<string>, getParent: (_id: string) => Promise<string | null>): Promise<string[]> { // eslint-disable-line no-unused-vars -- _id label in function-type; caller uses real id
-    const leaves: string[] = []
-    for (const id of impacted) {
-        const parent = await getParent(id)
-        if (parent && impacted.has(parent)) {
-            // not a leaf — some other impacted goal is its parent
-            continue
+function findLeafGoalIds(impacted: Set<string>, getParent: (_id: string) => Promise<string | null>): Promise<string[]> { // eslint-disable-line no-unused-vars -- _id label in function-type; caller uses real id
+    return (async () => {
+        const leaves: string[] = []
+        for (const id of impacted) {
+            const parent = await getParent(id)
+            if (parent && impacted.has(parent)) {
+                // not a leaf — some other impacted goal is its parent
+                continue
+            }
+            leaves.push(id)
         }
-        leaves.push(id)
-    }
-    return leaves.sort()
+        return leaves.sort()
+    })()
 }
 
 async function processOrg(orgId: string): Promise<{ updated: number; leaves: number; orgId: string }> {
@@ -333,49 +346,81 @@ async function processOrg(orgId: string): Promise<{ updated: number; leaves: num
     return { updated: refresh.updated, leaves: leaves.length, orgId }
 }
 
-export async function runNow(): Promise<void> {
-    const jobRunId = randomUUID()
-    await mdc.run({ jobRunId, jobName: 'goal_rollup' }, async () => {
-        // Find orgs with active goal_links (Issue AK)
-        const { data: orgs, error } = await supabase
-            .from('goal_links')
-            .select('org_id')
-        if (error) {
-            logger.error('GoalRollup: org query failed: {}', error.message, error)
+// ---------------------------------------------------------------------------
+// Job class
+// ---------------------------------------------------------------------------
+
+class GoalRollupJob {
+    private task: cron.ScheduledTask | null = null
+
+    start(): void {
+        if (!isSchedulerNode()) {
+            logger.warn('IS_SCHEDULER_NODE is not true; goalRollupJob will not run on this process')
             return
         }
-        const uniqueOrgIds = Array.from(
-            new Set(((orgs || []) as { org_id: string }[]).map((r) => r.org_id))
-        )
+        if (this.task) return
+        // Every night at 02:00 UTC
+        this.task = cron.schedule('0 2 * * *', () => {
+            logger.info('GoalRollup cron: starting')
+            this.runNow().catch((err) => {
+                logger.error('GoalRollup cron error: {}', (err instanceof Error ? err.message : String(err)), err)
+            })
+        })
+        logger.info('GoalRollup cron job scheduled (0 2 * * * - nightly at 02:00 UTC)')
+    }
 
-        if (uniqueOrgIds.length === 0) {
-            logger.info('GoalRollup: no orgs with goal links')
-            return
+    stop(): void {
+        if (this.task) {
+            this.task.stop()
+            this.task = null
+            logger.info('GoalRollup job stopped')
         }
+    }
 
-        let totalUpdated = 0
-        let totalLeaves = 0
-        for (const orgId of uniqueOrgIds) {
-            try {
-                const res = await processOrg(orgId)
-                totalUpdated += res.updated
-                totalLeaves += res.leaves
-                logger
-                    .with('orgId', orgId)
-                    .with('updatedLinks', res.updated)
-                    .with('recomputedLeaves', res.leaves)
-                    .info('GoalRollup: org processed')
-            } catch (err) {
-                logger.with('err', err).with('orgId', orgId).warn('GoalRollup: org failed')
+    async runNow(): Promise<void> {
+        const jobRunId = randomUUID()
+        await mdc.run({ jobRunId, jobName: 'goal_rollup' }, async () => {
+            // Find orgs with active goal_links (Issue AK)
+            const { data: orgs, error } = await supabase
+                .from('goal_links')
+                .select('org_id')
+            if (error) {
+                logger.error('GoalRollup: org query failed: {}', error.message, error)
+                return
             }
-        }
+            const uniqueOrgIds = Array.from(
+                new Set(((orgs || []) as { org_id: string }[]).map((r) => r.org_id))
+            )
 
-        logger
-            .with('orgCount', uniqueOrgIds.length)
-            .with('totalUpdatedLinks', totalUpdated)
-            .with('totalRecomputedLeaves', totalLeaves)
-            .info('GoalRollup completed')
-    })
+            if (uniqueOrgIds.length === 0) {
+                logger.info('GoalRollup: no orgs with goal links')
+                return
+            }
+
+            let totalUpdated = 0
+            let totalLeaves = 0
+            for (const orgId of uniqueOrgIds) {
+                try {
+                    const res = await processOrg(orgId)
+                    totalUpdated += res.updated
+                    totalLeaves += res.leaves
+                    logger
+                        .with('orgId', orgId)
+                        .with('updatedLinks', res.updated)
+                        .with('recomputedLeaves', res.leaves)
+                        .info('GoalRollup: org processed')
+                } catch (err) {
+                    logger.with('err', err).with('orgId', orgId).warn('GoalRollup: org failed')
+                }
+            }
+
+            logger
+                .with('orgCount', uniqueOrgIds.length)
+                .with('totalUpdatedLinks', totalUpdated)
+                .with('totalRecomputedLeaves', totalLeaves)
+                .info('GoalRollup completed')
+        })
+    }
 }
 
-export const goalRollupJob = startJob('goal_rollup', '0 2 * * *', runNow)
+export const goalRollupJob = new GoalRollupJob()

@@ -5,8 +5,6 @@ import { sendReminderEmail } from '../lib/email.js'
 import { logger } from '../lib/logger.js'
 import { mdc } from '../lib/mdc.js'
 
-import { resolveLanguagePreference } from '../lib/userLanguage.js'
-
 interface ReminderUser {
     id: string
     email: string
@@ -14,18 +12,47 @@ interface ReminderUser {
     preferred_language: string | null
 }
 
-import { startJob } from '../lib/scheduler.js'
 
-export const reminderJob = startJob('reminder', '0 * * * *', sendReminders)
+class ReminderJob {
+    private task: cron.ScheduledTask | null = null
 
-/**
- * Find users whose reminder preferences match the current UTC day+hour
- * and send them a reminder email.
- */
-export async function sendReminders(): Promise<void> {
-    const jobRunId = randomUUID()
-    await mdc.run({ jobRunId, jobName: 'reminder' }, async () => {
-        const now = new Date()
+    /**
+     * Start the hourly reminder job.
+     * Runs at the top of every hour (minute 0).
+     * Checks which users have reminder_enabled=true,
+     * reminder_day matching the current UTC day-of-week,
+     * and reminder_time matching the current UTC hour.
+     */
+    start(): void {
+        // Run every hour at minute 0
+        this.task = cron.schedule('0 * * * *', () => {
+            logger.info('Reminder cron: checking for users to remind...')
+            this.sendReminders().catch(err => {
+                logger.error('Reminder cron error: {}', err.message, err)
+            })
+        })
+        logger.info('Reminder cron job scheduled (0 * * * * — every hour)')
+    }
+
+    /**
+     * Stop the reminder job
+     */
+    stop(): void {
+        if (this.task) {
+            this.task.stop()
+            this.task = null
+            logger.info('Reminder job stopped')
+        }
+    }
+
+    /**
+     * Find users whose reminder preferences match the current UTC day+hour
+     * and send them a reminder email.
+     */
+    private async sendReminders(): Promise<void> {
+        const jobRunId = randomUUID()
+        await mdc.run({ jobRunId, jobName: 'reminder' }, async () => {
+            const now = new Date()
         const utcDay = now.getUTCDay()   // 0 = Sunday, 6 = Saturday
         const utcHour = now.getUTCHours()
         const utcTimeStr = `${utcHour.toString().padStart(2, '0')}:00`
@@ -33,6 +60,10 @@ export async function sendReminders(): Promise<void> {
         logger.with('utcDay', utcDay).with('utcHour', utcTimeStr).info('Reminder cron: checking schedule')
 
         try {
+            // Query users with matching reminder preferences.
+            // preferred_language lives in user_profiles (per the i18n migration);
+            // the base schema also added a redundant column on users, but the
+            // Settings page writes to user_profiles, so that is the source of truth.
             const { data: users, error } = await supabase
                 .from('users')
                 .select('id, email, name, preferred_language, user_profiles:user_profiles(preferred_language)')
@@ -57,9 +88,14 @@ export async function sendReminders(): Promise<void> {
 
             for (const user of users as ReminderUser[]) {
                 try {
-                    const lang = resolveLanguagePreference(user)
+                    // Prefer user_profiles.preferred_language (canonical, written by Settings);
+                    // fall back to users.preferred_language for backward compat with the
+                    // pre-migration redundant column.
+                    const profilePref = (user as any).user_profiles?.preferred_language
+                    const lang = profilePref || user.preferred_language || 'en'
                     const sent = await sendReminderEmail(user.email, user.name || undefined, lang)
 
+                    // Log the reminder attempt
                     await supabase.from('reminder_logs').insert({
                         user_id: user.id,
                         email_address: user.email,
@@ -76,6 +112,7 @@ export async function sendReminders(): Promise<void> {
                     failCount++
                     logger.with('targetUserId', user.id).error('Reminder cron: failed for user: {}', err instanceof Error ? err.message : String(err), err)
 
+                    // Log the failure
                     try {
                         await supabase.from('reminder_logs').insert({
                             user_id: user.id,
@@ -84,6 +121,7 @@ export async function sendReminders(): Promise<void> {
                             error_message: err instanceof Error ? err.message : 'Unknown error',
                         })
                     } catch (logErr) {
+                        // don't let logging failure crash the loop
                         logger.error('Reminder cron: failed to log error: {}', logErr instanceof Error ? logErr.message : String(logErr), logErr)
                     }
                 }
@@ -93,5 +131,15 @@ export async function sendReminders(): Promise<void> {
         } catch (err) {
             logger.error('Reminder cron: unexpected error: {}', err instanceof Error ? err.message : String(err), err)
         }
-    })
+        })
+    }
+
+    /**
+     * Run reminders immediately (for testing)
+     */
+    async runNow(): Promise<void> {
+        await this.sendReminders()
+    }
 }
+
+export const reminderJob = new ReminderJob()

@@ -12,24 +12,31 @@
  * Started in: server/src/index.ts
  */
 
+import cron from 'node-cron'
 import { randomUUID } from 'crypto'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc.js'
 import timezone from 'dayjs/plugin/timezone.js'
 import isoWeek from 'dayjs/plugin/isoWeek.js'
 import { supabase } from '../lib/database.js'
-
-dayjs.extend(utc)
-dayjs.extend(timezone)
-dayjs.extend(isoWeek)
 import { logger } from '../lib/logger.js'
 import { mdc } from '../lib/mdc.js'
 import { sendGoalDigest } from '../lib/slackNotifier.js'
-import { startJob } from '../lib/scheduler.js'
 
 dayjs.extend(utc)
 dayjs.extend(timezone)
 dayjs.extend(isoWeek)
+
+// ---------------------------------------------------------------------------
+// Schedule guard
+// ---------------------------------------------------------------------------
+
+function isSchedulerNode(): boolean {
+    const v = process.env.IS_SCHEDULER_NODE
+    if (v === 'true' || v === '1') return true
+    if (v === 'false' || v === '0') return false
+    return true
+}
 
 // ---------------------------------------------------------------------------
 // Per-org processor
@@ -113,49 +120,84 @@ async function processOrg(org: OrgRow): Promise<{ membersProcessed: number; dige
     return { membersProcessed: (members as MemberRow[]).length, digestsSent }
 }
 
-export async function runNow(): Promise<void> {
-    const jobRunId = randomUUID()
-    await mdc.run({ jobRunId, jobName: 'goal_digest' }, async () => {
-        // Find orgs with active Slack install
-        const { data: orgs, error } = await supabase
-            .from('organizations')
-            .select('id, name, org_integrations:org_integrations!inner(provider, is_active)')
-            .eq('org_integrations.provider', 'slack')
-            .eq('org_integrations.is_active', true)
+// ---------------------------------------------------------------------------
+// Job class
+// ---------------------------------------------------------------------------
 
-        if (error) {
-            logger.error('GoalDigest: org query failed: {}', error.message, error)
+class GoalDigestJob {
+    private task: cron.ScheduledTask | null = null
+
+    start(): void {
+        if (!isSchedulerNode()) {
+            logger.warn('IS_SCHEDULER_NODE is not true; goalDigestJob will not run on this process')
             return
         }
+        if (this.task) return
+        // Every Monday at 09:00 UTC — the per-user local scheduling aspect is
+        // approximated by running once on Monday morning. (The plan's
+        // "per-user 9 AM local" requires per-user cron entries which are
+        // out of scope here; this baseline gives a single weekly blast.)
+        this.task = cron.schedule('0 9 * * 1', () => {
+            logger.info('GoalDigest cron: starting')
+            this.runNow().catch((err) => {
+                logger.error('GoalDigest cron error: {}', (err instanceof Error ? err.message : String(err)), err)
+            })
+        })
+        logger.info('GoalDigest cron job scheduled (0 9 * * 1 - Mondays at 09:00 UTC)')
+    }
 
-        if (!orgs || orgs.length === 0) {
-            logger.info('GoalDigest: no orgs with active Slack install')
-            return
+    stop(): void {
+        if (this.task) {
+            this.task.stop()
+            this.task = null
+            logger.info('GoalDigest job stopped')
         }
+    }
 
-        let totalMembers = 0
-        let totalDigests = 0
-        for (const org of orgs as OrgRow[]) {
-            try {
-                const res = await processOrg(org)
-                totalMembers += res.membersProcessed
-                totalDigests += res.digestsSent
-                logger
-                    .with('orgId', org.id)
-                    .with('membersProcessed', res.membersProcessed)
-                    .with('digestsSent', res.digestsSent)
-                    .info('GoalDigest: org processed')
-            } catch (err) {
-                logger.with('err', err).with('orgId', org.id).warn('GoalDigest: org failed')
+    async runNow(): Promise<void> {
+        const jobRunId = randomUUID()
+        await mdc.run({ jobRunId, jobName: 'goal_digest' }, async () => {
+            // Find orgs with active Slack install
+            const { data: orgs, error } = await supabase
+                .from('organizations')
+                .select('id, name, org_integrations:org_integrations!inner(provider, is_active)')
+                .eq('org_integrations.provider', 'slack')
+                .eq('org_integrations.is_active', true)
+
+            if (error) {
+                logger.error('GoalDigest: org query failed: {}', error.message, error)
+                return
             }
-        }
 
-        logger
-            .with('orgCount', (orgs as OrgRow[]).length)
-            .with('totalMembers', totalMembers)
-            .with('totalDigests', totalDigests)
-            .info('GoalDigest completed')
-    })
+            if (!orgs || orgs.length === 0) {
+                logger.info('GoalDigest: no orgs with active Slack install')
+                return
+            }
+
+            let totalMembers = 0
+            let totalDigests = 0
+            for (const org of orgs as OrgRow[]) {
+                try {
+                    const res = await processOrg(org)
+                    totalMembers += res.membersProcessed
+                    totalDigests += res.digestsSent
+                    logger
+                        .with('orgId', org.id)
+                        .with('membersProcessed', res.membersProcessed)
+                        .with('digestsSent', res.digestsSent)
+                        .info('GoalDigest: org processed')
+                } catch (err) {
+                    logger.with('err', err).with('orgId', org.id).warn('GoalDigest: org failed')
+                }
+            }
+
+            logger
+                .with('orgCount', (orgs as OrgRow[]).length)
+                .with('totalMembers', totalMembers)
+                .with('totalDigests', totalDigests)
+                .info('GoalDigest completed')
+        })
+    }
 }
 
-export const goalDigestJob = startJob('goal_digest', '0 9 * * 1', runNow)
+export const goalDigestJob = new GoalDigestJob()

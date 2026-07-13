@@ -1,8 +1,6 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { posthog } from '../lib/analytics'
-import { getStoredTokens, storeStoredTokens, clearStoredTokens } from '../lib/authStorage'
-import { refreshAccessToken } from '../lib/api'
 
 interface User {
   id: string
@@ -62,7 +60,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   async function loadAuthState() {
     try {
-      const { accessToken: savedAccessToken, refreshToken: savedRefreshToken } = getStoredTokens()
+      const savedAccessToken = localStorage.getItem('accessToken') || sessionStorage.getItem('accessToken')
+      const savedRefreshToken = localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken')
 
       if (savedAccessToken && savedRefreshToken) {
         setAccessToken(savedAccessToken)
@@ -121,7 +120,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const newAccessToken = data.data.accessToken
     const newRefreshToken = data.data.refreshToken
 
-    storeStoredTokens({ accessToken: newAccessToken, refreshToken: newRefreshToken }, rememberMe ? localStorage : sessionStorage)
     setAccessToken(newAccessToken)
     setRefreshToken(newRefreshToken)
     setUser(data.data.user)
@@ -132,6 +130,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       company_name: data.data.user.companyName,
       job_title: data.data.user.jobTitle,
     })
+
+    if (rememberMe) {
+      localStorage.setItem('accessToken', newAccessToken)
+      localStorage.setItem('refreshToken', newRefreshToken)
+    } else {
+      sessionStorage.setItem('accessToken', newAccessToken)
+      sessionStorage.setItem('refreshToken', newRefreshToken)
+    }
   }
 
   async function signup(email: string, password: string, name?: string, companyName?: string, jobTitle?: string) {
@@ -192,7 +198,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function refreshProfile() {
-    const token = accessToken || getStoredTokens().accessToken
+    const token =
+      accessToken ||
+      localStorage.getItem('accessToken') ||
+      sessionStorage.getItem('accessToken')
     if (!token) return
     try {
       const response = await fetch(`${API_URL}/api/users/profile`, {
@@ -210,12 +219,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function handleRefreshToken() {
     if (!refreshToken) return
 
-    const success = await refreshAccessToken()
-    if (success) {
-      const tokens = getStoredTokens()
-      setAccessToken(tokens.accessToken)
-      setRefreshToken(tokens.refreshToken)
-    } else {
+    try {
+      const response = await fetch(`${API_URL}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken }),
+      })
+
+      if (!response.ok) {
+        clearAuth()
+        return
+      }
+
+      const data = await response.json()
+      const newAccessToken = data.data.accessToken
+      const newRefreshToken = data.data.refreshToken
+
+      setAccessToken(newAccessToken)
+      setRefreshToken(newRefreshToken)
+
+      if (localStorage.getItem('refreshToken')) {
+        localStorage.setItem('accessToken', newAccessToken)
+        localStorage.setItem('refreshToken', newRefreshToken)
+      } else {
+        sessionStorage.setItem('accessToken', newAccessToken)
+        sessionStorage.setItem('refreshToken', newRefreshToken)
+      }
+    } catch (error) {
+      console.error('Token refresh failed:', error)
       clearAuth()
     }
   }
@@ -224,10 +255,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
     setAccessToken(null)
     setRefreshToken(null)
-    clearStoredTokens()
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('refreshToken')
+    sessionStorage.removeItem('accessToken')
+    sessionStorage.removeItem('refreshToken')
   }
-
-
 
   return (
     <AuthContext.Provider
