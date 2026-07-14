@@ -1,0 +1,1 @@
+self.__SSG_MANIFEST=new Set(["\u002Fblog\u002F[slug]","\u002Ftemplates\u002Fself-appraisal\u002F[role]"]);self.__SSG_MANIFEST_CB&&self.__SSG_MANIFEST_CB()
