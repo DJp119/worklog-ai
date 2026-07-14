@@ -86,8 +86,3 @@ nul
 *.md
 .agent/AGENTS.md
 *.md
-/.agent/.agents/plugins
-/.agent/.agents
-/.agent
-.agent/.agents/plugins/marketplace.json
-*.json
