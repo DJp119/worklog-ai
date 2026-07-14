@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/templates/layout,_N_T_/templates/self-appraisal/layout,_N_T_/templates/self-appraisal/[role]/layout,_N_T_/templates/self-appraisal/[role]/page,_N_T_/templates/self-appraisal/marketing-manager"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/templates/self-appraisal/$d$role/__PAGE__",
+    "/templates/self-appraisal/$d$role",
+    "/templates/self-appraisal",
+    "/templates",
+    "/_index",
+    "/_head"
+  ]
+}

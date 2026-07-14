@@ -1,0 +1,37 @@
+globalThis.__BUILD_MANIFEST = {
+  "pages": {
+    "/_app": [
+      "static/chunks/0k1._next_dist_compiled_12l7n2z._.js",
+      "static/chunks/0k1._next_dist_shared_lib_0autx2o._.js",
+      "static/chunks/0k1._next_dist_client_0wog-z2._.js",
+      "static/chunks/0k1._next_dist_10n4v0z._.js",
+      "static/chunks/0k1._next_app_033xjgi.js",
+      "static/chunks/[next]_entry_page-loader_ts_03dyvp_._.js",
+      "static/chunks/0k1._react-dom_0703nn2._.js",
+      "static/chunks/0k1._130zlx~._.js",
+      "static/chunks/[root-of-the-server]__0~en0cv._.js",
+      "static/chunks/worklog-marketing_pages__app_07xvfw~._.js",
+      "static/chunks/turbopack-worklog-marketing_pages__app_0tefsuj._.js"
+    ],
+    "/_error": [
+      "static/chunks/0k1._next_dist_compiled_12l7n2z._.js",
+      "static/chunks/0k1._next_dist_shared_lib_0swhiq.._.js",
+      "static/chunks/0k1._next_dist_client_0wog-z2._.js",
+      "static/chunks/0k1._next_dist_0cp6s6s._.js",
+      "static/chunks/[next]_entry_page-loader_ts_0-x.fc2._.js",
+      "static/chunks/0k1._react-dom_0703nn2._.js",
+      "static/chunks/0k1._130zlx~._.js",
+      "static/chunks/[root-of-the-server]__04wg80k._.js",
+      "static/chunks/worklog-marketing_pages__error_07xvfw~._.js",
+      "static/chunks/turbopack-worklog-marketing_pages__error_11q4c1-._.js"
+    ]
+  },
+  "devFiles": [],
+  "polyfillFiles": [],
+  "lowPriorityFiles": [
+    "static/development/_buildManifest.js",
+    "static/development/_ssgManifest.js",
+    "static/development/_clientMiddlewareManifest.js"
+  ],
+  "rootMainFiles": []
+};
