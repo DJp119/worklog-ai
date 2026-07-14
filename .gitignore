@@ -46,3 +46,11 @@ memory/
 
 # Temp files
 all-tracked.txt
+*.ts
+*.json
+*.rsc
+*.meta
+/graphify-out
+/worklog-marketing/.next
+skillspector/
+docs/setup.md
