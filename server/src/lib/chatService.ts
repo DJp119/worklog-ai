@@ -1,7 +1,8 @@
 import { supabase } from './supabase.js'
 
 import { generateMonthlySummary } from './summaryService.js'
-import type { MonthlySummary, UserProfile, ChatMessage } from 'shared'
+import type { MonthlySummary, UserProfile } from 'shared'
+import { languageInstruction } from './userLanguage.js'
 
 function getMonthsBetween(startStr: string, endStr: string): string[] {
   const start = new Date(startStr)
@@ -50,7 +51,6 @@ export function stitchSummaries(summaries: MonthlySummary[]): string {
   if (summaries.length === 0) return 'No work data available for this period.'
   
   return summaries.map(s => {
-    const date = new Date(s.month_year)
     // Avoid timezone issues by using UTC parts or just manually mapping
     const [year, monthStr] = s.month_year.split('-')
     const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -62,12 +62,16 @@ export function stitchSummaries(summaries: MonthlySummary[]): string {
 
 export function buildSystemPrompt(
   stitchedSummaries: string,
-  userProfile: Partial<UserProfile>
+  userProfile: Partial<UserProfile> & { preferred_language?: string | null },
+  requestLanguage?: string | null
 ): string {
+  const profileLang = userProfile.preferred_language?.split('-')[0].toLowerCase()
+  const requestLang = requestLanguage?.split('-')[0].toLowerCase()
+  const lang = profileLang || requestLang || 'en'
   return `You are an AI appraisal assistant for ${userProfile.name || 'a professional'}.
 Job Title: ${userProfile.job_title || 'Not specified'}
 Company: ${userProfile.company_name || 'Not specified'}
-
+${languageInstruction(lang)}
 YOUR DATA SOURCE — Monthly work summaries:
 ${stitchedSummaries}
 

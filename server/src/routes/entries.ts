@@ -1,8 +1,9 @@
 import { Router } from 'express'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
-import type { WorkLogEntry, CreateWorkLogRequest, ApiResponse } from 'shared'
+import type { CreateWorkLogRequest } from 'shared'
 import { invalidateMonthlySummary } from '../lib/summaryService.js'
 import { captureEvent, captureException } from '../lib/posthog.js'
+import { logger } from '../lib/logger.js'
 
 export const entriesRoutes = Router()
 
@@ -22,13 +23,15 @@ entriesRoutes.get('/', requireAuth, async (req: AuthRequest, res) => {
       .order('week_start_date', { ascending: false })
 
     if (error) {
-      console.error('Fetch entries error:', error)
+      logger.error('Fetch entries error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to fetch entries' })
     }
 
+    logger.with('count', data?.length || 0).info('Successfully fetched entries')
+
     res.json({ success: true, data: data || [] })
   } catch (error) {
-    console.error('Entries error:', error)
+    logger.error('Entries error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -51,12 +54,15 @@ entriesRoutes.get('/:id', requireAuth, async (req: AuthRequest, res) => {
       .single()
 
     if (error) {
+      logger.with('entryId', id).warn('Entry not found or unauthorized')
       return res.status(404).json({ success: false, error: 'Entry not found' })
     }
 
+    logger.with('entryId', id).info('Successfully fetched entry')
+
     res.json({ success: true, data })
   } catch (error) {
-    console.error('Fetch entry error:', error)
+    logger.error('Fetch entry error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -76,6 +82,7 @@ entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
     const missing = required.filter(field => !body[field as keyof CreateWorkLogRequest])
 
     if (missing.length > 0) {
+      logger.warn('Create entry validation failed: Missing fields {}', missing.join(', '))
       return res.status(400).json({
         success: false,
         error: `Missing required fields: ${missing.join(', ')}`
@@ -97,16 +104,36 @@ entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
       .single()
 
     if (error) {
-      console.error('Create entry error:', error)
+      logger.error('Create entry error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to create entry' })
     }
+
+    // Fetch updated user stats for PostHog event (trigger will have updated these)
+    const { data: userStats } = await supabase
+      .from('users')
+      .select('total_logs, current_streak, created_at, logging_cadence')
+      .eq('id', userId)
+      .single()
 
     // Invalidate monthly summary since we added a new log
     if (data && data.week_start_date) {
       // Don't await to avoid slowing down the response
       invalidateMonthlySummary(userId, data.week_start_date).catch(err => {
-        console.error('Failed to invalidate monthly summary on entry create:', err)
+        logger.error('Failed to invalidate monthly summary on entry create: {}', err.message, err)
       })
+    }
+
+    const signupWeekDate = userStats?.created_at 
+      ? new Date(userStats.created_at) 
+      : new Date()
+    
+    // Get ISO week of signup
+    const getWeek = (d: Date) => {
+      const date = new Date(d.getTime())
+      date.setHours(0, 0, 0, 0)
+      date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7)
+      const week1 = new Date(date.getFullYear(), 0, 4)
+      return 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7)
     }
 
     captureEvent(userId, 'work_log_created', {
@@ -116,11 +143,17 @@ entriesRoutes.post('/', requireAuth, async (req: AuthRequest, res) => {
       has_learnings: !!body.learnings,
       has_goals: !!body.goals_next_week,
       hours_logged: body.hours_logged ?? null,
+      total_logs: userStats?.total_logs ?? 1,
+      current_streak: userStats?.current_streak ?? 1,
+      logging_cadence: userStats?.logging_cadence ?? 'weekly',
+      signup_cohort_week: getWeek(signupWeekDate)
     })
+
+    logger.with('entryId', data?.id).info('Successfully created new entry')
 
     res.status(201).json({ success: true, data })
   } catch (error) {
-    console.error('Create entry error:', error)
+    logger.error('Create entry error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
@@ -149,13 +182,14 @@ entriesRoutes.put('/:id', requireAuth, async (req: AuthRequest, res) => {
       .single()
 
     if (error) {
+      logger.with('entryId', id).warn('Update entry failed: Not found or unauthorized')
       return res.status(404).json({ success: false, error: 'Entry not found' })
     }
 
     // Invalidate monthly summary since we modified a log
     if (data && data.week_start_date) {
       invalidateMonthlySummary(userId, data.week_start_date).catch(err => {
-        console.error('Failed to invalidate monthly summary on entry update:', err)
+        logger.error('Failed to invalidate monthly summary on entry update: {}', err.message, err)
       })
     }
 
@@ -164,9 +198,11 @@ entriesRoutes.put('/:id', requireAuth, async (req: AuthRequest, res) => {
       week_start_date: data?.week_start_date,
     })
 
+    logger.with('entryId', id).info('Successfully updated entry')
+
     res.json({ success: true, data })
   } catch (error) {
-    console.error('Update entry error:', error)
+    logger.error('Update entry error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
@@ -194,13 +230,14 @@ entriesRoutes.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
       .single()
 
     if (error) {
+      logger.with('entryId', id).warn('Delete entry failed: Not found or unauthorized')
       return res.status(404).json({ success: false, error: 'Entry not found' })
     }
 
     // Invalidate monthly summary since we deleted a log
     if (deletedData && deletedData.week_start_date) {
       invalidateMonthlySummary(userId, deletedData.week_start_date).catch(err => {
-        console.error('Failed to invalidate monthly summary on entry delete:', err)
+        logger.error('Failed to invalidate monthly summary on entry delete: {}', err.message, err)
       })
     }
 
@@ -209,9 +246,11 @@ entriesRoutes.delete('/:id', requireAuth, async (req: AuthRequest, res) => {
       week_start_date: deletedData?.week_start_date,
     })
 
+    logger.with('entryId', id).info('Successfully deleted entry')
+
     res.json({ success: true, data: null })
   } catch (error) {
-    console.error('Delete entry error:', error)
+    logger.error('Delete entry error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }

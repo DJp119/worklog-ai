@@ -1,6 +1,7 @@
 import { Router, Response } from 'express'
 import { requireAuth, AuthRequest } from '../middleware/auth.js'
 import { supabase } from '../lib/database.js'
+import { logger } from '../lib/logger.js'
 
 const router = Router()
 
@@ -54,12 +55,12 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response): Promise<v
       .single()
 
     if (error) {
-      console.error('[Feedback] Insert error:', error)
+      logger.error('Feedback insert error: {}', error.message, error)
       res.status(500).json({ error: 'Failed to submit feedback' })
       return
     }
 
-    console.log(`[Feedback] New feedback from user ${req.userId}: ${category} (${rating}/5)`)
+    logger.with('category', category).with('rating', rating).info('New feedback received')
 
     res.status(201).json({
       success: true,
@@ -67,7 +68,7 @@ router.post('/', requireAuth, async (req: AuthRequest, res: Response): Promise<v
       message: 'Thank you for your feedback!',
     })
   } catch (error) {
-    console.error('[Feedback] Error:', error)
+    logger.error('Feedback error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -84,14 +85,14 @@ router.get('/', requireAuth, async (req: AuthRequest, res: Response): Promise<vo
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('[Feedback] Fetch error:', error)
+      logger.error('Feedback fetch error: {}', error.message, error)
       res.status(500).json({ error: 'Failed to fetch feedback' })
       return
     }
 
     res.json({ success: true, data: data || [] })
   } catch (error) {
-    console.error('[Feedback] Error:', error)
+    logger.error('Feedback list error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

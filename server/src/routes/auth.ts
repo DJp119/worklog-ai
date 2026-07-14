@@ -8,6 +8,7 @@ import {
   validatePasswordStrength,
 } from '../lib/auth-utils.js'
 import { sendVerificationEmail, sendPasswordResetEmail } from '../lib/email.js'
+import { languageFromAcceptHeader } from '../lib/userLanguage.js'
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -15,9 +16,11 @@ import {
   revokeRefreshToken,
   validateRefreshToken,
   requireAuth,
-  type JWTPayload,
+  hashToken,
 } from '../middleware/auth.js'
 import { captureEvent, captureException, identifyUser } from '../lib/posthog.js'
+import { logger } from '../lib/logger.js'
+import { getErrorMessage, getErrorMessageSync } from '../i18n/errors.js'
 
 export const authRoutes = Router()
 
@@ -38,15 +41,18 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
 
     // Validate inputs
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' })
+      logger.warn('Signup validation failed: Email and password required')
+      return res.status(400).json({ error: await getErrorMessage(req, 'emailPasswordRequired') })
     }
 
     if (!isValidEmail(email)) {
-      return res.status(400).json({ error: 'Valid email required' })
+      logger.warn('Signup validation failed: Invalid email format')
+      return res.status(400).json({ error: await getErrorMessage(req, 'validEmailRequired') })
     }
 
     const passwordValidation = validatePasswordStrength(password)
     if (!passwordValidation.valid) {
+      logger.warn('Signup validation failed: Password strength requirements not met')
       return res.status(400).json({ error: passwordValidation.errors.join(', ') })
     }
 
@@ -70,10 +76,11 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
     if (userError) {
       if (userError.code === '23505') {
         // Unique violation
-        return res.status(400).json({ error: 'Email already registered' })
+        logger.warn('Signup failed: Email already registered')
+        return res.status(400).json({ error: await getErrorMessage(req, 'emailAlreadyRegistered') })
       }
-      console.error('Signup user create error:', userError)
-      return res.status(500).json({ error: 'Failed to create account' })
+      logger.error('Signup user create error: {}', userError.message, userError)
+      return res.status(500).json({ error: getErrorMessageSync('failedToCreateAccount') })
     }
 
     // Generate email verification token
@@ -85,26 +92,36 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
       .from('email_verifications')
       .insert({
         user_id: userData.id,
-        token: emailToken,
+        token_hash: hashToken(emailToken),
         expires_at: emailExpiresAt.toISOString(),
       })
 
     if (verificationError) {
-      console.error('Verification token error:', verificationError)
+      logger.error('Verification token error: {}', verificationError.message, verificationError)
       // Don't fail signup if token creation fails, but log the error
     }
 
+    // Create the user_profiles row alongside the users row. Custom-auth signup
+    // does not fire the Supabase Auth trigger that normally populates
+    // user_profiles, so the row would otherwise be missing and the first
+    // preferred_language upsert would fail on the email NOT NULL constraint.
+    const { error: profileCreateError } = await supabase
+      .from('user_profiles')
+      .upsert(
+        { id: userData.id, email: userData.email, updated_at: new Date().toISOString() },
+        { onConflict: 'id' }
+      )
+
+    if (profileCreateError) {
+      // Don't fail signup if this fails (user is already created); log it so
+      // the row can be repaired later.
+      logger.error('user_profiles row create error: {}', profileCreateError.message, profileCreateError)
+    }
+
     // Send verification email (don't fail signup if email fails)
-    console.log('=== EMAIL DEBUG ===')
-    console.log('Sending verification email to:', email)
-    console.log('User ID:', userData.id)
-    console.log('BREVO_FROM_EMAIL:', process.env.BREVO_FROM_EMAIL)
-    console.log('BREVO_API_KEY configured:', !!process.env.BREVO_API_KEY)
-    const emailSent = await sendVerificationEmail(email, userData.id, emailToken)
-    console.log('Email sent result:', emailSent ? 'SUCCESS' : 'FAILED')
-    console.log('=== END EMAIL DEBUG ===')
+    const emailSent = await sendVerificationEmail(email, userData.id, emailToken, languageFromAcceptHeader(req.headers['accept-language'] as string | undefined))
     if (!emailSent) {
-      console.warn('Verification email not sent (Brevo not configured or failed)')
+      logger.warn('Verification email not sent (Brevo not configured or failed)')
     }
 
     identifyUser(userData.id, {
@@ -121,6 +138,8 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
       has_job_title: !!job_title,
     })
 
+    logger.info('New user signed up successfully')
+
     res.status(201).json({
       success: true,
       message: 'Account created. Please check your email to verify.',
@@ -131,7 +150,7 @@ authRoutes.post('/signup', async (req: AuthRequest, res: Response) => {
       },
     })
   } catch (error) {
-    console.error('Signup error:', error)
+    logger.error('Signup error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
@@ -146,7 +165,8 @@ authRoutes.post('/verify-email', async (req: AuthRequest, res: Response) => {
     const { userId, token } = req.body
 
     if (!userId || !token) {
-      return res.status(400).json({ error: 'User ID and token required' })
+      logger.warn('Email verification failed: User ID and token required')
+      return res.status(400).json({ error: await getErrorMessage(req, 'userIdAndTokenRequired') })
     }
 
     // Find verification record
@@ -154,17 +174,19 @@ authRoutes.post('/verify-email', async (req: AuthRequest, res: Response) => {
       .from('email_verifications')
       .select('*')
       .eq('user_id', userId)
-      .eq('token', token)
+      .eq('token_hash', hashToken(token))
       .single()
 
     if (verifyError || !verifyData) {
-      return res.status(400).json({ error: 'Invalid or expired verification token' })
+      logger.warn('Email verification failed: Invalid or expired token')
+      return res.status(400).json({ error: await getErrorMessage(req, 'invalidOrExpiredToken') })
     }
 
     // Check if token is expired
     const expiresAt = new Date(verifyData.expires_at)
     if (expiresAt < new Date()) {
-      return res.status(400).json({ error: 'Verification token has expired' })
+      logger.warn('Email verification failed: Token has expired')
+      return res.status(400).json({ error: await getErrorMessage(req, 'tokenExpired') })
     }
 
     // Mark user as verified
@@ -174,8 +196,8 @@ authRoutes.post('/verify-email', async (req: AuthRequest, res: Response) => {
       .eq('id', userId)
 
     if (updateError) {
-      console.error('Email verification update error:', updateError)
-      return res.status(500).json({ error: 'Failed to verify email' })
+      logger.error('Email verification update error: {}', updateError.message, updateError)
+      return res.status(500).json({ error: getErrorMessageSync('failedToVerifyEmail') })
     }
 
     // Delete verification token
@@ -183,12 +205,115 @@ authRoutes.post('/verify-email', async (req: AuthRequest, res: Response) => {
 
     captureEvent(userId, 'email_verified')
 
+    logger.info('Email verified successfully')
+
     res.json({
       success: true,
       message: 'Email verified successfully',
     })
   } catch (error) {
-    console.error('Email verification error:', error)
+    logger.error('Email verification error: {}', error instanceof Error ? error.message : String(error), error)
+    captureException(error)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+/**
+ * POST /api/auth/resend-verification
+ * Resend verification email with 60s rate limit
+ */
+authRoutes.post('/resend-verification', async (req: AuthRequest, res: Response) => {
+  try {
+    const { email } = req.body
+
+    if (!email) {
+      return res.status(400).json({ error: await getErrorMessage(req, 'emailPasswordRequired') })
+    }
+
+    if (!isValidEmail(email)) {
+      return res.status(400).json({ error: await getErrorMessage(req, 'validEmailRequired') })
+    }
+
+    // Find user by email
+    const { data: user } = await supabase
+      .from('users')
+      .select('id, email, email_verified')
+      .eq('email', email.toLowerCase())
+      .single()
+
+    // Always return success to prevent email enumeration
+    if (!user) {
+      return res.json({
+        success: true,
+        message: 'If an unverified account exists with this email, a new verification link has been sent.',
+      })
+    }
+
+    // If already verified, also return generic success (no harm done)
+    if (user.email_verified) {
+      return res.json({
+        success: true,
+        message: 'If an unverified account exists with this email, a new verification link has been sent.',
+      })
+    }
+
+    // Rate limit: check for any verification token created in the last 60 seconds
+    const sixtySecondsAgo = new Date(Date.now() - 60 * 1000).toISOString()
+    const { data: recentToken } = await supabase
+      .from('email_verifications')
+      .select('id, created_at')
+      .eq('user_id', user.id)
+      .gte('created_at', sixtySecondsAgo)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (recentToken) {
+      return res.status(429).json({ error: await getErrorMessage(req, 'pleaseWaitVerification') })
+    }
+
+    // Clean up any old expired/unused tokens for this user
+    await supabase
+      .from('email_verifications')
+      .delete()
+      .eq('user_id', user.id)
+
+    // Generate a fresh token with 24h expiry
+    const emailToken = generateToken()
+    const emailExpiresAt = new Date()
+    emailExpiresAt.setHours(emailExpiresAt.getHours() + 24)
+
+    const { error: insertError } = await supabase
+      .from('email_verifications')
+      .insert({
+        user_id: user.id,
+        token_hash: hashToken(emailToken),
+        expires_at: emailExpiresAt.toISOString(),
+      })
+
+    if (insertError) {
+      logger.error('Resend verification token error: {}', insertError.message, insertError)
+      return res.status(500).json({ error: getErrorMessageSync('failedToResendVerification') })
+    }
+
+    // Send the verification email
+    const emailSent = await sendVerificationEmail(user.email, user.id, emailToken, languageFromAcceptHeader(req.headers['accept-language'] as string | undefined))
+    if (!emailSent) {
+      logger.warn('Resend verification email not sent (Brevo not configured or failed)')
+    }
+
+    captureEvent(user.id, 'verification_email_resent', {
+      email_sent: emailSent,
+    })
+
+    logger.info('Verification email resent successfully')
+
+    res.json({
+      success: true,
+      message: 'If an unverified account exists with this email, a new verification link has been sent.',
+    })
+  } catch (error) {
+    logger.error('Resend verification error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
@@ -203,7 +328,8 @@ authRoutes.post('/login', async (req: AuthRequest, res: Response) => {
     const { email, password, rememberMe } = req.body
 
     if (!email || !password) {
-      return res.status(400).json({ error: 'Email and password required' })
+      logger.warn('Login validation failed: Email and password required')
+      return res.status(400).json({ error: await getErrorMessage(req, 'emailPasswordRequired') })
     }
 
     // Find user by email
@@ -215,18 +341,25 @@ authRoutes.post('/login', async (req: AuthRequest, res: Response) => {
 
     if (!user) {
       // Generic error to prevent email enumeration
-      return res.status(401).json({ error: 'Invalid email or password' })
+      logger.warn('Login failed: Invalid email or password (user not found)')
+      return res.status(401).json({ error: await getErrorMessage(req, 'invalidCredentials') })
     }
 
     // Check if email is verified
     if (!user.email_verified) {
-      return res.status(403).json({ error: 'Please verify your email before logging in' })
+      logger.warn('Login failed: Email not verified')
+      return res.status(403).json({
+        error: await getErrorMessage(req, 'emailNotVerified'),
+        code: 'EMAIL_NOT_VERIFIED',
+        email: user.email,
+      })
     }
 
     // Verify password
     const isValid = await comparePassword(password, user.password_hash)
     if (!isValid) {
-      return res.status(401).json({ error: 'Invalid email or password' })
+      logger.warn('Login failed: Invalid email or password (wrong password)')
+      return res.status(401).json({ error: await getErrorMessage(req, 'invalidCredentials') })
     }
 
     // Generate tokens
@@ -245,6 +378,8 @@ authRoutes.post('/login', async (req: AuthRequest, res: Response) => {
       remember_me: !!rememberMe,
     })
 
+    logger.info('User logged in successfully')
+
     res.json({
       success: true,
       data: {
@@ -252,8 +387,10 @@ authRoutes.post('/login', async (req: AuthRequest, res: Response) => {
           id: user.id,
           email: user.email,
           name: user.name,
+          firstName: user.first_name ?? null,
           companyName: user.company_name,
           jobTitle: user.job_title,
+          onboardingCompleted: user.onboarding_completed ?? false,
         },
         accessToken,
         refreshToken,
@@ -261,7 +398,7 @@ authRoutes.post('/login', async (req: AuthRequest, res: Response) => {
       },
     })
   } catch (error) {
-    console.error('Login error:', error)
+    logger.error('Login error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
@@ -281,12 +418,13 @@ authRoutes.post('/logout', async (req: AuthRequest, res: Response) => {
       await revokeRefreshToken(refreshToken)
       if (logoutUserId) {
         captureEvent(logoutUserId, 'user_logged_out')
+        logger.info('User logged out successfully')
       }
     }
 
     res.json({ success: true })
   } catch (error) {
-    console.error('Logout error:', error)
+    logger.error('Logout error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -307,8 +445,14 @@ authRoutes.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
       .single()
 
     if (error || !user) {
-      return res.status(404).json({ error: 'User not found' })
+      return res.status(404).json({ error: await getErrorMessage(req, 'userNotFound') })
     }
+
+    const { data: profileRow } = await supabase
+      .from('user_profiles')
+      .select('preferred_language')
+      .eq('id', userId)
+      .maybeSingle()
 
     res.json({
       success: true,
@@ -319,11 +463,12 @@ authRoutes.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
         companyName: user.company_name,
         jobTitle: user.job_title,
         emailVerified: user.email_verified,
+        preferredLanguage: profileRow?.preferred_language ?? null,
         createdAt: user.created_at,
       },
     })
   } catch (error) {
-    console.error('Get user profile error:', error)
+    logger.error('Get user profile error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -337,7 +482,7 @@ authRoutes.post('/forgot-password', async (req: AuthRequest, res: Response) => {
     const { email } = req.body
 
     if (!email) {
-      return res.status(400).json({ error: 'Email required' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'emailPasswordRequired') })
     }
 
     // Find user by email
@@ -370,31 +515,33 @@ authRoutes.post('/forgot-password', async (req: AuthRequest, res: Response) => {
       .from('password_reset_tokens')
       .insert({
         user_id: user.id,
-        token: resetToken,
+        token_hash: hashToken(resetToken),
         expires_at: resetExpiresAt.toISOString(),
       })
 
     if (tokenError) {
-      console.error('Password reset token error:', tokenError)
+      logger.error('Password reset token error: {}', tokenError.message, tokenError)
       // Don't fail the request, just log the error
     }
 
     // Send reset email
-    const emailSent = await sendPasswordResetEmail(user.email, user.id, resetToken)
+    const emailSent = await sendPasswordResetEmail(user.email, user.id, resetToken, languageFromAcceptHeader(req.headers['accept-language'] as string | undefined))
     if (!emailSent) {
-      console.warn('Password reset email not sent (Brevo not configured)')
+      logger.warn('Password reset email not sent (Brevo not configured)')
     }
 
     captureEvent(user.id, 'password_reset_requested', {
       email_sent: emailSent,
     })
 
+    logger.info('Password reset requested successfully')
+
     res.json({
       success: true,
       message: 'If an account exists with this email, a password reset link has been sent.',
     })
   } catch (error) {
-    console.error('Forgot password error:', error)
+    logger.error('Forgot password error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
@@ -409,7 +556,7 @@ authRoutes.post('/reset-password', async (req: AuthRequest, res: Response) => {
     const { token, newPassword } = req.body
 
     if (!token || !newPassword) {
-      return res.status(400).json({ error: 'Token and new password required' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'currentAndNewPasswordRequired') })
     }
 
     // Validate new password strength
@@ -421,18 +568,18 @@ authRoutes.post('/reset-password', async (req: AuthRequest, res: Response) => {
     // Find valid reset token
     const { data: resetData, error: resetError } = await supabase
       .from('password_reset_tokens')
-      .select('user_id, expires_at')
-      .eq('token', token)
+      .select('id, user_id, expires_at')
+      .eq('token_hash', hashToken(token))
       .single()
 
     if (resetError || !resetData) {
-      return res.status(400).json({ error: 'Invalid or expired reset token' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'invalidOrExpiredToken') })
     }
 
     // Check if token is expired
     const expiresAt = new Date(resetData.expires_at)
     if (expiresAt < new Date()) {
-      return res.status(400).json({ error: 'Reset token has expired' })
+      return res.status(400).json({ error: await getErrorMessage(req, 'tokenExpired') })
     }
 
     // Hash new password
@@ -445,21 +592,32 @@ authRoutes.post('/reset-password', async (req: AuthRequest, res: Response) => {
       .eq('id', resetData.user_id)
 
     if (updateError) {
-      console.error('Password update error:', updateError)
+      logger.error('Password update error: {}', updateError.message, updateError)
       return res.status(500).json({ error: 'Failed to reset password' })
     }
 
+    // Revoke all active refresh tokens for this user — parity with change-password (users.ts:251-259).
+    // Why: the reset-password flow is the account-compromise recovery path; if we don't revoke,
+    // an attacker holding a stolen refresh token retains access for the original 7-30 day window.
+    await supabase
+      .from('refresh_tokens')
+      .update({ revoked: true, revoked_at: new Date().toISOString() })
+      .eq('user_id', resetData.user_id)
+      .eq('revoked', false)
+
     // Delete used reset token
-    await supabase.from('password_reset_tokens').delete().eq('id', resetData.user_id)
+    await supabase.from('password_reset_tokens').delete().eq('id', resetData.id)
 
     captureEvent(resetData.user_id, 'password_reset_completed')
+
+    logger.info('Password reset successfully')
 
     res.json({
       success: true,
       message: 'Password reset successfully',
     })
   } catch (error) {
-    console.error('Reset password error:', error)
+    logger.error('Reset password error: {}', error instanceof Error ? error.message : String(error), error)
     captureException(error)
     res.status(500).json({ error: 'Internal server error' })
   }
@@ -474,28 +632,36 @@ authRoutes.post('/refresh', async (req: AuthRequest, res: Response) => {
     const { refreshToken } = req.body
 
     if (!refreshToken) {
-      return res.status(400).json({ error: 'Refresh token required' })
+      logger.warn('Token refresh failed: Refresh token required')
+      return res.status(400).json({ error: await getErrorMessage(req, 'refreshTokenRequired') })
     }
 
     // Validate refresh token
     const tokenRecord = await validateRefreshToken(refreshToken)
     if (!tokenRecord) {
-      return res.status(401).json({ error: 'Invalid or expired refresh token' })
+      logger.warn('Token refresh failed: Invalid or expired refresh token')
+      return res.status(401).json({ error: await getErrorMessage(req, 'invalidRefreshToken') })
     }
 
     // Get user from token record (already joined in validateRefreshToken)
     const user = (tokenRecord as any).users
     if (!user) {
-      return res.status(404).json({ error: 'User not found' })
+      return res.status(404).json({ error: await getErrorMessage(req, 'userNotFound') })
     }
 
     // Revoke old refresh token
     await revokeRefreshToken(refreshToken)
 
+    // Honor the original login's rememberMe choice: 30 days if they checked it,
+    // 7 days if they didn't. Default to 30 for legacy rows missing the column value.
+    const sessionTtlDays = (tokenRecord as any).session_ttl_days ?? 30
+
     // Generate new tokens
     const newAccessToken = generateAccessToken({ userId: user.id, email: user.email })
     const newRefreshToken = generateRefreshToken()
-    await createRefreshToken(user.id, newRefreshToken, 30) // 30 days
+    await createRefreshToken(user.id, newRefreshToken, sessionTtlDays)
+
+    logger.info('Token refreshed successfully')
 
     res.json({
       success: true,
@@ -506,7 +672,7 @@ authRoutes.post('/refresh', async (req: AuthRequest, res: Response) => {
       },
     })
   } catch (error) {
-    console.error('Token refresh error:', error)
+    logger.error('Token refresh error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ error: 'Internal server error' })
   }
 })

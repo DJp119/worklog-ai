@@ -2,7 +2,7 @@
   "version": "2.0",
   "technicalLevel": "technical",
   "preferredStyle": {
-    "verbosity": "moderate",
+    "verbosity": "detailed",
     "codeComments": true,
     "explanations": true
   },
@@ -10,5 +10,5 @@
     "typescript"
   ],
   "suggestedBy": "ecc-tools-repo-analysis",
-  "createdAt": "2026-04-23T18:12:03.480Z"
+  "createdAt": "2026-05-24T11:16:18.413Z"
 }

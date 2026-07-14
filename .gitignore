@@ -33,6 +33,56 @@ coverage/
 
 # Misc
 .cache/
-.env
 
-.claude/ralph-loop.local.md
+# AI Agent Workspaces
+.agents/
+.claude/
+.codex/
+.qwen/
+memory/
+
+# Temp files
+all-tracked.txt
+*.ts
+*.json
+*.rsc
+*.meta
+/graphify-out
+/worklog-marketing/.next
+skillspector/
+docs/setup.md
+
+# Additional common ignores
+.vite/
+.next/
+.nuxt/
+.gatsby/
+.vercel/
+.svelte-kit/
+.parcel-cache/
+.eslintcache
+.pnpm-store/
+.yarn/
+.npm/
+.tmp/
+.temp/
+*.bak
+*.backup
+*.orig
+*.tmp
+*.temp
+*.sublime-workspace
+*.sublime-project
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+agent-skills/
+skillspector/
+/.agent
+/.venv/Lib/site-packages/_distutils_hack
+/.venv/Lib
+/.venv
+nul
+*.md
+.agent/AGENTS.md
+*.md

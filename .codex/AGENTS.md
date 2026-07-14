@@ -21,8 +21,6 @@ The generated baseline enables GitHub, Context7, Exa, Memory, Playwright, and Se
 
 ## Workflow Files
 
-- `.claude/commands/update-vercel-deployment-config.md`
-- `.claude/commands/update-server-auth-or-supabase-integration.md`
-- `.claude/commands/update-render-deployment-config.md`
+- No dedicated workflow command files were generated for this repo.
 
 Use these workflow files as reusable task scaffolds when the detected repository workflows recur.

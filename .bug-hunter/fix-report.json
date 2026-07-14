@@ -1,0 +1,72 @@
+{
+  "generatedAt": "2026-06-05T00:00:00.000Z",
+  "summary": {
+    "bugsAssigned": 6,
+    "bugsFixed": 6,
+    "bugsNeedingLargerRefactor": 0,
+    "bugsSkipped": 0,
+    "filesModified": [
+      "server/src/routes/auth.ts",
+      "server/src/lib/email.ts",
+      "server/src/middleware/auth.ts",
+      "server/src/routes/users.ts",
+      "supabase-schema.sql"
+    ]
+  },
+  "fixes": [
+    {
+      "bugId": "BUG-1",
+      "severity": "Low",
+      "filesChanged": ["server/src/routes/auth.ts:569", "server/src/routes/auth.ts:598"],
+      "whatChanged": "Added 'id' to the SELECT clause (now 'id, user_id, expires_at') and changed the DELETE to .eq('id', resetData.id) so the consumed token is actually removed.",
+      "confidenceLabel": "high",
+      "sideEffects": ["None"],
+      "notes": "Minimal patch. No callers depend on the previous (broken) behavior."
+    },
+    {
+      "bugId": "BUG-2",
+      "severity": "Low",
+      "filesChanged": ["server/src/lib/email.ts:12-30", "server/src/lib/email.ts:159-184", "server/src/lib/email.ts:215-241", "server/src/lib/email.ts:277-310"],
+      "whatChanged": "Added a private escapeHtml() helper and applied it to every translated-string interpolation inside the three htmlBody templates (verification, password reset, weekly reminder). Also exported isSupportedEmailLang() for downstream enum validation.",
+      "confidenceLabel": "high",
+      "sideEffects": ["Email subject line and textBody intentionally left unescaped — they are not in an HTML context."],
+      "notes": "Minimal patch. Plain-text parts and URL interpolations (link, logUrl, settingsUrl) are server-generated and not translated, so they are not escaped."
+    },
+    {
+      "bugId": "BUG-3",
+      "severity": "Medium",
+      "filesChanged": ["server/src/middleware/auth.ts:25-28"],
+      "whatChanged": "Replaced the hardcoded fallback 'dev-secret-change-in-production' with a fail-fast throw on missing or short (<32 char) JWT_SECRET. The server now refuses to boot without a real secret.",
+      "confidenceLabel": "high",
+      "sideEffects": ["Any deployment that did not set JWT_SECRET will now crash on startup instead of silently running with a forgeable secret — this is the intended security outcome."],
+      "notes": "Minimal patch. The existing startup warning at server/src/index.ts:179-184 is now a no-op (the throw fires before app.listen) but was left in place as a defense-in-depth signal in case auth.ts is ever refactored."
+    },
+    {
+      "bugId": "BUG-4",
+      "severity": "Low",
+      "filesChanged": ["server/src/routes/users.ts:8", "server/src/routes/users.ts:84-87"],
+      "whatChanged": "Imported isSupportedEmailLang from server/src/lib/email.js and added an enum-validation check on preferred_language right after destructuring. Returns 400 with detail 'Unsupported preferred_language value' on invalid input. null (auto-detect) is still allowed.",
+      "confidenceLabel": "high",
+      "sideEffects": ["None"],
+      "notes": "Minimal patch. The validation runs before any DB write, so invalid input never reaches the upsert."
+    },
+    {
+      "bugId": "BUG-5",
+      "severity": "Low",
+      "filesChanged": ["server/src/middleware/auth.ts:1-9"],
+      "whatChanged": "Added a top-of-file SECURITY comment explaining that req.supabase is a service-role client (RLS bypass) and that all route handlers MUST scope queries by req.userId. No code behavior changed.",
+      "confidenceLabel": "high",
+      "sideEffects": ["None"],
+      "notes": "Minimal patch — documentation only, as the bug is a forward-looking defense-in-depth gap rather than an exploitable code path."
+    },
+    {
+      "bugId": "BUG-6",
+      "severity": "Low",
+      "filesChanged": ["supabase-schema.sql:251-265", "server/src/middleware/auth.ts:53-58", "server/src/routes/auth.ts:645-651"],
+      "whatChanged": "1) Added session_ttl_days INT NOT NULL DEFAULT 30 column to refresh_tokens (CREATE TABLE + idempotent ALTER TABLE). 2) createRefreshToken now stores session_ttl_days in the insert row. 3) The /refresh handler reads the old token's session_ttl_days and passes it to createRefreshToken, so a rememberMe=false session no longer escalates to 30 days on the first refresh.",
+      "confidenceLabel": "high",
+      "sideEffects": ["Existing refresh_tokens rows without session_ttl_days will get the default 30 from the idempotent ALTER; the /refresh handler falls back to 30 via the nullish coalesce for legacy rows that pre-date the column."],
+      "notes": "Migration is idempotent and safe to run on a populated table. The login handler already passed the correct TTL; only the persistence and the refresh read were missing."
+    }
+  ]
+}

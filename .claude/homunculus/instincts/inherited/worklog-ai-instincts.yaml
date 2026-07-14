@@ -1,5 +1,5 @@
 # Instincts generated from https://github.com/DJp119/worklog-ai
-# Generated: 2026-04-23T18:12:03.480Z
+# Generated: 2026-05-24T11:16:18.413Z
 # Version: 2.0
 # NOTE: This file supplements (does not replace) any existing curated instincts.
 # High-confidence manually curated instincts should be preserved alongside these.
@@ -17,12 +17,12 @@ source_repo: https://github.com/DJp119/worklog-ai
 
 ## Action
 
-Keep commit messages concise (~33 characters)
+Keep commit messages concise (~19 characters)
 
 ## Evidence
 
-- Average commit message length: 33 chars
-- Based on 18 commits
+- Average commit message length: 19 chars
+- Based on 1 commits
 
 ---
 id: worklog-ai-naming-files
@@ -77,12 +77,12 @@ source_repo: https://github.com/DJp119/worklog-ai
 
 ## Action
 
-Prefer default exports
+Prefer named exports
 
 ## Evidence
 
 - Export pattern analysis
-- Dominant style: default
+- Dominant style: named
 
 ---
 id: worklog-ai-arch-type-based
@@ -125,109 +125,91 @@ Place tests in the tests/ or __tests__/ directory, mirroring src structure
 - Tests live in dedicated test folders
 
 ---
-id: worklog-ai-workflow-update-vercel-deployment-config
-trigger: "when doing update vercel deployment config"
-confidence: 0.7
-domain: workflow
+id: worklog-ai-instinct-camelcase-files
+trigger: "When creating a new file"
+confidence: 0.8
+domain: code-style
 source: repo-analysis
-source_repo: https://github.com/DJp119/worklog-ai
+source_repo: DJp119/worklog-ai
 ---
 
-# Worklog Ai Workflow Update Vercel Deployment Config
+# Worklog Ai Instinct Camelcase Files
 
 ## Action
 
-Follow the update-vercel-deployment-config workflow:
-1. Edit vercel.json to update configuration or environment schema.
-2. Optionally update or create scripts/vercel-prepare-output.mjs or client/public/scripts/vercel-prepare-output.mjs to prepare output directory.
-3. Edit client/src/App.tsx or client/main.tsx if SPA routing is involved.
-4. Commit changes to vercel.json and related scripts.
+Name the file using camelCase
 
 ## Evidence
 
-- Workflow detected from commit patterns
-- Frequency: ~4x per month
-- Files: vercel.json, client/vercel.json, scripts/vercel-prepare-output.mjs
+- Pattern in namingConventions.files: camelCase
 
 ---
-id: worklog-ai-workflow-update-server-auth-or-supabase-integration
-trigger: "when doing update server auth or supabase integration"
-confidence: 0.65
-domain: workflow
-source: repo-analysis
-source_repo: https://github.com/DJp119/worklog-ai
----
-
-# Worklog Ai Workflow Update Server Auth Or Supabase Integration
-
-## Action
-
-Follow the update-server-auth-or-supabase-integration workflow:
-1. Edit server/src/middleware/auth.ts to update authentication logic.
-2. Edit server/src/lib/supabase.ts to change Supabase integration or logging.
-3. Optionally update server/src/index.ts or related route files if needed.
-4. Commit changes to auth and supabase files.
-
-## Evidence
-
-- Workflow detected from commit patterns
-- Frequency: ~3x per month
-- Files: server/src/middleware/auth.ts, server/src/lib/supabase.ts, server/src/index.ts
-
----
-id: worklog-ai-workflow-update-render-deployment-config
-trigger: "when doing update render deployment config"
-confidence: 0.6
-domain: workflow
-source: repo-analysis
-source_repo: https://github.com/DJp119/worklog-ai
----
-
-# Worklog Ai Workflow Update Render Deployment Config
-
-## Action
-
-Follow the update-render-deployment-config workflow:
-1. Edit render.yaml to update build or start commands.
-2. Optionally edit server/Procfile if process commands change.
-3. Commit changes to render.yaml and/or Procfile.
-
-## Evidence
-
-- Workflow detected from commit patterns
-- Frequency: ~2x per month
-- Files: render.yaml, server/Procfile
-
----
-id: worklog-ai-instinct-naming-conventions
-trigger: "When creating or renaming files, functions, classes, or constants in TypeScript code"
+id: worklog-ai-instinct-camelcase-functions
+trigger: "When defining a function"
 confidence: 0.9
 domain: code-style
 source: repo-analysis
 source_repo: DJp119/worklog-ai
 ---
 
-# Worklog Ai Instinct Naming Conventions
+# Worklog Ai Instinct Camelcase Functions
 
 ## Action
 
-Use camelCase for files and functions, PascalCase for classes, and SCREAMING_SNAKE_CASE for constants
+Name the function using camelCase
 
 ## Evidence
 
-- Pattern in codeStyle.namingConventions
-- Consistent usage in config files: client/eslint.config.js, client/tailwind.config.js, etc.
+- Pattern in namingConventions.functions: camelCase
 
 ---
-id: worklog-ai-instinct-import-style
-trigger: "When importing modules in TypeScript files"
-confidence: 0.85
+id: worklog-ai-instinct-pascalcase-classes
+trigger: "When declaring a class"
+confidence: 0.9
 domain: code-style
 source: repo-analysis
 source_repo: DJp119/worklog-ai
 ---
 
-# Worklog Ai Instinct Import Style
+# Worklog Ai Instinct Pascalcase Classes
+
+## Action
+
+Use PascalCase for the class name
+
+## Evidence
+
+- Pattern in namingConventions.classes: PascalCase
+
+---
+id: worklog-ai-instinct-screaming-constants
+trigger: "When defining a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Screaming Constants
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for the constant name
+
+## Evidence
+
+- Pattern in namingConventions.constants: SCREAMING_SNAKE_CASE
+
+---
+id: worklog-ai-instinct-relative-imports
+trigger: "When importing modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Relative Imports
 
 ## Action
 
@@ -235,143 +217,139 @@ Use relative import paths
 
 ## Evidence
 
-- Pattern in codeStyle.importStyle: relative
-- Consistent with TypeScript project structure
+- Pattern in importStyle: relative
 
 ---
-id: worklog-ai-instinct-export-style
-trigger: "When exporting modules or components in TypeScript files"
+id: worklog-ai-instinct-named-exports
+trigger: "When exporting modules or functions"
 confidence: 0.8
 domain: code-style
 source: repo-analysis
 source_repo: DJp119/worklog-ai
 ---
 
-# Worklog Ai Instinct Export Style
+# Worklog Ai Instinct Named Exports
 
 ## Action
 
-Use default exports
+Use named exports
 
 ## Evidence
 
-- Pattern in codeStyle.exportStyle: default
+- Pattern in exportStyle: named
 
 ---
-id: worklog-ai-instinct-testing-location
-trigger: "When adding or updating tests"
+id: worklog-ai-instinct-try-catch-errors
+trigger: "When handling errors in code"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Try Catch Errors
+
+## Action
+
+Use try-catch blocks for error handling
+
+## Evidence
+
+- Pattern in errorHandling.style: try-catch
+
+---
+id: worklog-ai-instinct-no-custom-error-classes
+trigger: "When considering custom error classes"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct No Custom Error Classes
+
+## Action
+
+Do not define custom error classes
+
+## Evidence
+
+- Pattern in errorHandling.customErrorClasses: false
+
+---
+id: worklog-ai-instinct-no-global-error-handler
+trigger: "When considering global error handling"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct No Global Error Handler
+
+## Action
+
+Do not implement a global error handler
+
+## Evidence
+
+- Pattern in errorHandling.globalHandler: false
+
+---
+id: worklog-ai-instinct-commit-freeform
+trigger: "When writing a git commit message"
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Commit Freeform
+
+## Action
+
+Use a short, freeform message without a prefix
+
+## Evidence
+
+- Pattern in commits.type: freeform
+- Example: 'News Feed Integrate'
+
+---
+id: worklog-ai-instinct-commit-short
+trigger: "When composing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Commit Short
+
+## Action
+
+Keep the message concise (around 19 characters on average)
+
+## Evidence
+
+- Pattern in commits.averageLength: 19
+
+---
+id: worklog-ai-instinct-tests-in-separate-folder
+trigger: "When adding new tests"
 confidence: 0.8
 domain: testing
 source: repo-analysis
 source_repo: DJp119/worklog-ai
 ---
 
-# Worklog Ai Instinct Testing Location
+# Worklog Ai Instinct Tests In Separate Folder
 
 ## Action
 
-Place tests in a separate directory from source code
+Place test files in a separate folder from source code
 
 ## Evidence
 
-- Pattern in architecture.folderStructure.testLocation: separate
-
----
-id: worklog-ai-instinct-commit-format-freeform
-trigger: "When writing a commit message"
-confidence: 0.85
-domain: git
-source: repo-analysis
-source_repo: DJp119/worklog-ai
----
-
-# Worklog Ai Instinct Commit Format Freeform
-
-## Action
-
-Use a freeform, imperative message without a prefix; keep it concise (~33 characters on average)
-
-## Evidence
-
-- Pattern in commits.type: freeform
-- Examples: 'configured supabase backend logging', 'Fix CORS for Vercel frontend origins'
-
----
-id: worklog-ai-instinct-update-vercel-deployment-config
-trigger: "When someone needs to adjust Vercel deployment settings or fix deployment issues"
-confidence: 0.9
-domain: workflow
-source: repo-analysis
-source_repo: DJp119/worklog-ai
----
-
-# Worklog Ai Instinct Update Vercel Deployment Config
-
-## Action
-
-Edit vercel.json (and optionally related scripts or SPA routing files) and commit the changes
-
-## Evidence
-
-- Workflow: update-vercel-deployment-config
-- Commits: 'Update vercel.json', 'Fix Vercel SPA routing for login path'
-
----
-id: worklog-ai-instinct-update-server-auth-supabase
-trigger: "When someone wants to improve authentication, add logging, or update Supabase usage on the server"
-confidence: 0.85
-domain: workflow
-source: repo-analysis
-source_repo: DJp119/worklog-ai
----
-
-# Worklog Ai Instinct Update Server Auth Supabase
-
-## Action
-
-Edit server/src/middleware/auth.ts and/or server/src/lib/supabase.ts, then commit the changes
-
-## Evidence
-
-- Workflow: update-server-auth-or-supabase-integration
-- Commits: 'Handle token refresh on 401 and improve auth config errors', 'configured supabase backend logging'
-
----
-id: worklog-ai-instinct-update-render-deployment-config
-trigger: "When someone needs to fix or update deployment settings for Render"
-confidence: 0.85
-domain: workflow
-source: repo-analysis
-source_repo: DJp119/worklog-ai
----
-
-# Worklog Ai Instinct Update Render Deployment Config
-
-## Action
-
-Edit render.yaml and/or server/Procfile, then commit the changes
-
-## Evidence
-
-- Workflow: update-render-deployment-config
-
----
-id: worklog-ai-instinct-error-handling-try-catch
-trigger: "When handling errors in TypeScript code"
-confidence: 0.8
-domain: code-style
-source: repo-analysis
-source_repo: DJp119/worklog-ai
----
-
-# Worklog Ai Instinct Error Handling Try Catch
-
-## Action
-
-Use try-catch blocks for error handling; do not use custom error classes or global error boundaries
-
-## Evidence
-
-- Pattern in errorHandling.style: try-catch
-- No customErrorClasses, errorBoundaries, or globalHandler
+- Pattern in architecture.testLocation: separate
 

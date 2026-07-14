@@ -1,12 +1,14 @@
 import { Router } from 'express'
 import { requireAuth, type AuthRequest } from '../middleware/auth.js'
 import { mistral, chatModel } from '../lib/mistral.js'
-import { 
-  getSummariesForRange, 
-  stitchSummaries, 
-  buildSystemPrompt, 
-  applySlidingWindow 
+import {
+  getSummariesForRange,
+  stitchSummaries,
+  buildSystemPrompt,
+  applySlidingWindow
 } from '../lib/chatService.js'
+import { resolveUserLanguage } from '../lib/userLanguage.js'
+import { logger } from '../lib/logger.js'
 
 export const chatRoutes = Router()
 
@@ -26,13 +28,15 @@ chatRoutes.get('/sessions', requireAuth, async (req: AuthRequest, res) => {
       .order('updated_at', { ascending: false })
 
     if (error) {
-      console.error('Fetch chat sessions error:', error)
+      logger.error('Fetch chat sessions error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to fetch chat sessions' })
     }
 
+    logger.with('count', data?.length || 0).info('Successfully fetched chat sessions')
+
     res.json({ success: true, data: data || [] })
   } catch (error) {
-    console.error('Chat sessions error:', error)
+    logger.error('Chat sessions error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -48,6 +52,7 @@ chatRoutes.post('/sessions', requireAuth, async (req: AuthRequest, res) => {
     const { period_start, period_end } = req.body
 
     if (!period_start || !period_end) {
+      logger.warn('Create chat session validation failed: period_start and period_end are required')
       return res.status(400).json({ success: false, error: 'period_start and period_end are required' })
     }
 
@@ -65,13 +70,15 @@ chatRoutes.post('/sessions', requireAuth, async (req: AuthRequest, res) => {
       .single()
 
     if (error) {
-      console.error('Create chat session error:', error)
+      logger.error('Create chat session error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to create chat session' })
     }
 
+    logger.with('sessionId', data?.id).info('Successfully created chat session')
+
     res.status(201).json({ success: true, data })
   } catch (error) {
-    console.error('Create chat session error:', error)
+    logger.error('Create chat session error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -93,13 +100,15 @@ chatRoutes.delete('/sessions/:id', requireAuth, async (req: AuthRequest, res) =>
       .eq('user_id', userId)
 
     if (error) {
-      console.error('Delete chat session error:', error)
+      logger.error('Delete chat session error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to delete chat session' })
     }
 
+    logger.with('sessionId', id).info('Successfully deleted chat session')
+
     res.json({ success: true, data: null })
   } catch (error) {
-    console.error('Delete chat session error:', error)
+    logger.error('Delete chat session error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -123,10 +132,11 @@ chatRoutes.get('/sessions/:id/messages', requireAuth, async (req: AuthRequest, r
       .single()
 
     if (sessionError) {
-      console.error('Session verify error:', sessionError)
+      logger.error('Session verify error: {}', sessionError.message, sessionError)
     }
 
     if (!session) {
+      logger.with('sessionId', id).warn('Chat messages fetch failed: Session not found')
       return res.status(404).json({ success: false, error: 'Session not found', details: sessionError })
     }
 
@@ -137,13 +147,15 @@ chatRoutes.get('/sessions/:id/messages', requireAuth, async (req: AuthRequest, r
       .order('created_at', { ascending: true })
 
     if (error) {
-      console.error('Fetch chat messages error:', error)
+      logger.error('Fetch chat messages error: {}', error.message, error)
       return res.status(500).json({ success: false, error: 'Failed to fetch messages' })
     }
 
+    logger.with('count', data?.length || 0).with('sessionId', id).info('Successfully fetched chat messages')
+
     res.json({ success: true, data: data || [] })
   } catch (error) {
-    console.error('Chat messages error:', error)
+    logger.error('Chat messages error: {}', error instanceof Error ? error.message : String(error), error)
     res.status(500).json({ success: false, error: 'Internal server error' })
   }
 })
@@ -160,6 +172,7 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
     const { content } = req.body
 
     if (!content || typeof content !== 'string') {
+      logger.warn('Chat stream validation failed: Message content is required')
       return res.status(400).json({ success: false, error: 'Message content is required' })
     }
 
@@ -172,10 +185,11 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
       .single()
 
     if (sessionError) {
-      console.error('Session verify error in POST:', sessionError)
+      logger.error('Session verify error in POST: {}', sessionError.message, sessionError)
     }
 
     if (sessionError || !session) {
+      logger.with('sessionId', id).warn('Chat stream failed: Session not found')
       return res.status(404).json({ success: false, error: 'Session not found', details: sessionError })
     }
 
@@ -202,7 +216,8 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
     // 4. Get monthly summaries
     const summaries = await getSummariesForRange(userId, session.period_start, session.period_end)
     const stitchedSummaries = stitchSummaries(summaries)
-    const systemPrompt = buildSystemPrompt(stitchedSummaries, profile || {})
+    const requestLang = await resolveUserLanguage(req, profile?.preferred_language)
+    const systemPrompt = buildSystemPrompt(stitchedSummaries, profile || {}, requestLang)
 
     // 5. Get message history
     const { data: history } = await supabase
@@ -232,6 +247,8 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
         ...fullHistory
       ]
 
+      logger.info('Starting chat stream')
+
       const stream = await mistral.chat.stream({
         model: chatModel,
         messages: messages as any
@@ -251,9 +268,9 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
       res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`)
     } catch (aiError: any) {
       if (aiError.name === 'AbortError' || abortController.signal.aborted) {
-        console.log('Stream aborted by client')
+        logger.info('Stream aborted by client')
       } else {
-        console.error('Mistral API error:', aiError)
+        logger.error('Mistral API error: {}', aiError instanceof Error ? aiError.message : String(aiError), aiError)
         res.write(`data: ${JSON.stringify({ type: 'error', error: 'AI generation failed' })}\n\n`)
       }
     }
@@ -268,10 +285,12 @@ chatRoutes.post('/sessions/:id/messages', requireAuth, async (req: AuthRequest, 
       })
     }
 
+    logger.info('Chat stream completed successfully')
+
     res.end()
 
   } catch (error) {
-    console.error('Chat stream error:', error)
+    logger.error('Chat stream error: {}', error instanceof Error ? error.message : String(error), error)
     if (!res.headersSent) {
       res.status(500).json({ success: false, error: 'Internal server error' })
     } else {

@@ -1,15 +1,20 @@
 import { ReactNode, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
+import { LanguageSwitcher } from './LanguageSwitcher'
+import { useHasOrg } from '../hooks/useHasOrg'
 
 interface LayoutProps {
   children: ReactNode
 }
 
 export function Layout({ children }: LayoutProps) {
+  const { t } = useTranslation()
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const hasOrg = useHasOrg()
 
   const handleSignOut = async () => {
     try {
@@ -34,7 +39,7 @@ export function Layout({ children }: LayoutProps) {
                   <svg className="h-8 w-8 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
-                  <h1 className="ml-2 text-xl font-bold gradient-text">Worklog AI</h1>
+                  <h1 className="ml-2 text-xl font-bold gradient-text">{t('brand.name')}</h1>
                 </div>
               </div>
             </Link>
@@ -47,37 +52,65 @@ export function Layout({ children }: LayoutProps) {
                     to="/dashboard"
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
                   >
-                    Dashboard
+                    {t('nav.dashboard')}
                   </Link>
                   <Link
                     to="/log"
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
                   >
-                    Log Work
+                    {t('nav.logWork')}
                   </Link>
                   <Link
                     to="/appraisals"
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
                   >
-                    Appraisals
+                    {t('nav.appraisals')}
                   </Link>
                   <Link
-                    to="/chat"
+                    to="/goals"
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
                   >
-                    AI Chat
+                    {t('nav.goals')}
+                  </Link>
+                  <Link
+                    to="/team-goals"
+                    className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
+                  >
+                    {t('nav.teamGoals')}
+                  </Link>
+                  {hasOrg && (
+                    <Link
+                      to="/integrations"
+                      className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
+                    >
+                      {t('nav.integrations')}
+                    </Link>
+                  )}
+                  <Link
+                    to="/chat"
+                    className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5 flex items-center gap-1"
+                  >
+                    {t('nav.aiChat')}
+                  </Link>
+                  <Link
+                    to="/ai-pulse"
+                    className="text-indigo-300 hover:text-indigo-200 px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-indigo-500/10 flex items-center gap-1 relative"
+                  >
+                    {t('nav.aiPulse')}
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full animate-ping"></span>
+                    <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full"></span>
                   </Link>
                   <Link
                     to="/settings"
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
                   >
-                    Settings
+                    {t('nav.settings')}
                   </Link>
                   <Link
                     to="/feedback"
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
                   >
-                    Feedback
+                    {t('nav.feedback')}
                   </Link>
                   <div className="w-px h-6 bg-white/10 mx-2"></div>
                   <span className="text-gray-400 text-sm mr-3">{user.email}</span>
@@ -85,16 +118,29 @@ export function Layout({ children }: LayoutProps) {
                     onClick={handleSignOut}
                     className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5"
                   >
-                    Sign Out
+                    {t('nav.signOut')}
                   </button>
                 </>
               ) : (
-                <Link
-                  to="/login"
-                  className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 transition-all glow-primary"
-                >
-                  Sign In
-                </Link>
+                <div className="flex items-center gap-4">
+                  <Link
+                    to="/ai-pulse"
+                    className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5 flex items-center gap-1.5 relative"
+                  >
+                    {t('nav.aiPulse')}
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                  </Link>
+                  <LanguageSwitcher />
+                  <Link
+                    to="/login"
+                    className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 transition-all glow-primary"
+                  >
+                    {t('nav.signIn')}
+                  </Link>
+                </div>
               )}
             </nav>
 
@@ -127,42 +173,53 @@ export function Layout({ children }: LayoutProps) {
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
                   >
-                    Dashboard
+                    {t('nav.dashboard')}
                   </Link>
                   <Link
                     to="/log"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
                   >
-                    Log Work
+                    {t('nav.logWork')}
                   </Link>
                   <Link
                     to="/appraisals"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
                   >
-                    Appraisals
+                    {t('nav.appraisals')}
                   </Link>
                   <Link
                     to="/chat"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
                   >
-                    AI Chat
+                    {t('nav.aiChat')}
+                  </Link>
+                  <Link
+                    to="/ai-pulse"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-indigo-300 hover:text-indigo-200 hover:bg-indigo-500/10 flex items-center gap-2"
+                  >
+                    {t('nav.aiPulse')}
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
                   </Link>
                   <Link
                     to="/settings"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
                   >
-                    Settings
+                    {t('nav.settings')}
                   </Link>
                   <Link
                     to="/feedback"
                     onClick={() => setIsMobileMenuOpen(false)}
                     className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
                   >
-                    Feedback
+                    {t('nav.feedback')}
                   </Link>
                   <div className="border-t border-white/10 mt-4 pt-4 pb-1">
                     <div className="px-3 mb-2 text-sm text-gray-400 truncate">
@@ -175,18 +232,31 @@ export function Layout({ children }: LayoutProps) {
                       }}
                       className="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5"
                     >
-                      Sign Out
+                      {t('nav.signOut')}
                     </button>
                   </div>
                 </>
               ) : (
-                <Link
-                  to="/login"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="block px-3 py-2 rounded-md text-base font-medium text-indigo-400 hover:text-indigo-300 hover:bg-white/5"
-                >
-                  Sign In
-                </Link>
+                <>
+                  <Link
+                    to="/ai-pulse"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-gray-300 hover:text-white hover:bg-white/5 flex items-center gap-2"
+                  >
+                    {t('nav.aiPulse')}
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    </span>
+                  </Link>
+                  <Link
+                    to="/login"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="block px-3 py-2 rounded-md text-base font-medium text-indigo-400 hover:text-indigo-300 hover:bg-white/5"
+                  >
+                    {t('nav.signIn')}
+                  </Link>
+                </>
               )}
             </div>
           </div>
@@ -211,43 +281,46 @@ export function Layout({ children }: LayoutProps) {
                 <svg className="h-6 w-6 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
-                <h3 className="ml-2 text-lg font-bold gradient-text">Worklog AI</h3>
+                <h3 className="ml-2 text-lg font-bold gradient-text">{t('brand.name')}</h3>
               </div>
               <p className="text-gray-400 text-sm">
-                AI-powered self-appraisal generation for high performers.
+                {t('footer.tagline')}
               </p>
             </div>
 
             {/* Links */}
             <div className="flex justify-center space-x-6">
               <Link to="/dashboard" className="text-gray-400 hover:text-white text-sm transition-colors">
-                Dashboard
+                {t('nav.dashboard')}
               </Link>
               <Link to="/log" className="text-gray-400 hover:text-white text-sm transition-colors">
-                Log Work
+                {t('nav.logWork')}
               </Link>
               <Link to="/appraisals" className="text-gray-400 hover:text-white text-sm transition-colors">
-                Appraisals
+                {t('nav.appraisals')}
               </Link>
               <Link to="/chat" className="text-gray-400 hover:text-white text-sm transition-colors">
-                AI Chat
+                {t('nav.aiChat')}
+              </Link>
+              <Link to="/ai-pulse" className="text-indigo-400 hover:text-indigo-300 text-sm transition-colors font-medium">
+                {t('nav.aiPulse')}
               </Link>
               <Link to="/feedback" className="text-gray-400 hover:text-white text-sm transition-colors">
-                Feedback
+                {t('nav.feedback')}
               </Link>
             </div>
 
             {/* Legal */}
             <div className="text-right flex flex-col items-end space-y-2">
               <p className="text-gray-500 text-sm">
-                &copy; {new Date().getFullYear()} Worklog AI
+                {t('footer.copyright', { year: new Date().getFullYear() })}
               </p>
               <div className="flex space-x-4">
                 <Link to="/terms" className="text-gray-400 hover:text-white text-xs transition-colors">
-                  Terms
+                  {t('footer.terms')}
                 </Link>
                 <Link to="/privacy" className="text-gray-400 hover:text-white text-xs transition-colors">
-                  Privacy
+                  {t('footer.privacy')}
                 </Link>
               </div>
             </div>
