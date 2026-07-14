@@ -23,7 +23,7 @@ export default function PainGrid() {
           </div>
           <div>
             <span className="text-[10px] text-red-400/70 font-mono uppercase tracking-widest block font-bold">{t('landing.painGrid.painfulReality')}</span>
-            <h4 className="text-lg font-bold text-white leading-tight">{t('landing.painGrid.decemberPanic')}</h4>
+            <h3 className="text-lg font-bold text-white leading-tight">{t('landing.painGrid.decemberPanic')}</h3>
           </div>
         </div>
 
@@ -57,7 +57,7 @@ export default function PainGrid() {
                   <Icon className="w-5 h-5" />
                 </div>
                 <div>
-                  <h5 className="text-sm font-semibold text-gray-200 mb-0.5">{item.title}</h5>
+                  <h4 className="text-sm font-semibold text-gray-200 mb-0.5">{item.title}</h4>
                   <p className="text-xs text-gray-500 leading-relaxed">{item.desc}</p>
                 </div>
               </li>
@@ -77,7 +77,7 @@ export default function PainGrid() {
           </div>
           <div>
             <span className="text-[10px] text-indigo-400 font-mono uppercase tracking-widest block font-bold">{t('landing.painGrid.betterSolution')}</span>
-            <h4 className="text-lg font-bold text-white leading-tight">{t('landing.painGrid.impactlyRoutine')}</h4>
+            <h3 className="text-lg font-bold text-white leading-tight">{t('landing.painGrid.impactlyRoutine')}</h3>
           </div>
         </div>
 
@@ -111,7 +111,7 @@ export default function PainGrid() {
                   <Icon className="w-5 h-5" />
                 </div>
                 <div>
-                  <h5 className="text-sm font-semibold text-white mb-0.5">{item.title}</h5>
+                  <h4 className="text-sm font-semibold text-white mb-0.5">{item.title}</h4>
                   <p className="text-xs text-gray-400 leading-relaxed">{item.desc}</p>
                 </div>
               </li>

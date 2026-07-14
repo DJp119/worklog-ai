@@ -51,3 +51,11 @@ export function languageInstruction(langCode: string): string {
 }
 
 export { isRtlLang, languageName }
+
+/**
+ * Resolve preferred language from a user row joined with user_profiles.
+ */
+export function resolveLanguagePreference(user: any): string {
+    const profilePref = user?.user_profiles?.preferred_language
+    return profilePref || user?.preferred_language || 'en'
+}

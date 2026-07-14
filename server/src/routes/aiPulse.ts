@@ -533,7 +533,7 @@ aiPulseRoutes.post('/admin/collect-news', async (req: Request, res: Response) =>
 
     logger.info('Manual news collection triggered via admin endpoint')
     // Run collection in background so the request doesn't timeout
-    newsCollectionJob.collectNow().catch((err) => {
+    newsCollectionJob.runNow!().catch((err) => {
       logger.error('Error running manually triggered news collection: {}', err.message)
     })
 

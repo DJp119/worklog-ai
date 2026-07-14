@@ -1,6 +1,6 @@
 import cron from 'node-cron'
 import { randomUUID } from 'crypto'
-import { supabase } from '../lib/supabase.js'
+import { supabase } from '../lib/database.js'
 import { generateMonthlySummary } from '../lib/summaryService.js'
 import { logger } from '../lib/logger.js'
 import { mdc } from '../lib/mdc.js'

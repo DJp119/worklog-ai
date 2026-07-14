@@ -61,7 +61,7 @@ export default function LandingPage() {
   const isLoggedIn = useIsLoggedIn()
 
   usePageMeta({
-    title: 'Impactly AI',
+    title: 'AI Self-Appraisal Generator & Weekly Work Log',
     description: 'Stop stressing over annual appraisals. Impactly AI captures your weekly achievements and generates promotion-ready self-evaluations automatically.',
     path: '/',
   })
@@ -124,6 +124,7 @@ export default function LandingPage() {
         </div>
       </header>
 
+      <main className="flex-1 flex flex-col">
       {/* Hero Section */}
       <section className="relative pt-20 pb-28 px-4 flex flex-col items-center overflow-hidden">
         <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl animate-pulse-glow"></div>
@@ -406,6 +407,7 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+      </main>
 
       {/* Footer */}
       <footer className="border-t border-white/5 bg-black/40 py-12 px-6">
