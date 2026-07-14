@@ -52,24 +52,6 @@ export const SEOHead: React.FC<SEOHeadProps> = ({
     setMeta('twitter:description', description)
     setMeta('twitter:image', image)
 
-    // JSON-LD Structured Data (for Google SEO)
-    const ldJson = {
-      '@context': 'https://schema.org',
-      '@type': type === 'article' ? 'NewsArticle' : 'WebPage',
-      headline: title,
-      description: description,
-      image: image,
-      url: url,
-    }
-
-    let scriptTag = document.querySelector<HTMLScriptElement>('script[type="application/ld+json"]')
-    if (!scriptTag) {
-      scriptTag = document.createElement('script')
-      scriptTag.type = 'application/ld+json'
-      document.head.appendChild(scriptTag)
-    }
-    scriptTag.textContent = JSON.stringify(ldJson)
-
     // Cleanup on unmount
     return () => {
       // Optional: Clean up meta tags if needed

@@ -1,12 +1,27 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import LogRocket from 'logrocket'
+import { useTranslation } from 'react-i18next'
+import { posthog } from '../lib/analytics'
 
 interface User {
   id: string
   email: string
   name?: string
+  firstName?: string | null
   companyName?: string
   jobTitle?: string
+  preferredLanguage?: string | null
+  onboardingCompleted?: boolean
+}
+
+export class AuthError extends Error {
+  code?: string
+  email?: string
+  constructor(message: string, code?: string, email?: string) {
+    super(message)
+    this.name = 'AuthError'
+    this.code = code
+    this.email = email
+  }
 }
 
 interface AuthContextType {
@@ -17,6 +32,8 @@ interface AuthContextType {
   signup: (email: string, password: string, name?: string, companyName?: string, jobTitle?: string) => Promise<void>
   logout: () => Promise<void>
   verifyEmail: (userId: string, token: string) => Promise<void>
+  resendVerificationEmail: (email: string) => Promise<void>
+  refreshProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -24,6 +41,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const { t } = useTranslation()
   const [user, setUser] = useState<User | null>(null)
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [refreshToken, setRefreshToken] = useState<string | null>(null)
@@ -57,11 +75,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (response.ok) {
             const data = await response.json()
             setUser(data.data)
-            LogRocket.identify(data.data.id, {
+            posthog.identify(data.data.id, {
               email: data.data.email,
               name: data.data.name,
-              jobTitle: data.data.jobTitle,
+              job_title: data.data.jobTitle,
             })
+            // Apply the user's saved language preference immediately so the
+            // UI lands in their language on first paint, before useAutoLocale
+            // runs. No-op when preference is null (= browser auto-detect).
+            const preferred = data.data?.preferredLanguage
+            if (preferred && typeof window !== 'undefined') {
+              try {
+                window.localStorage.setItem('impactly_language', preferred)
+              } catch {
+                /* quota — ignore */
+              }
+            }
           } else {
             clearAuth()
           }
@@ -84,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.error || 'Login failed')
+      throw new AuthError(error.error || t('errors.generic'), error.code, error.email)
     }
 
     const data = await response.json()
@@ -95,10 +124,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setRefreshToken(newRefreshToken)
     setUser(data.data.user)
 
-    LogRocket.identify(data.data.user.id, {
+    posthog.identify(data.data.user.id, {
       email: data.data.user.email,
       name: data.data.user.name,
-      jobTitle: data.data.user.jobTitle,
+      company_name: data.data.user.companyName,
+      job_title: data.data.user.jobTitle,
     })
 
     if (rememberMe) {
@@ -119,7 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.error || 'Signup failed')
+      throw new Error(error.error || t('errors.generic'))
     }
 
     return await response.json()
@@ -137,6 +167,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.error('Logout API error:', error)
       }
     }
+    posthog.reset()  // Clear PostHog identified user on logout
     clearAuth()
   }
 
@@ -149,7 +180,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.error || 'Verification failed')
+      throw new Error(error.error || t('errors.generic'))
+    }
+  }
+
+  async function resendVerificationEmail(email: string) {
+    const response = await fetch(`${API_URL}/api/auth/resend-verification`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      throw new Error(error.error || t('errors.generic'))
+    }
+  }
+
+  async function refreshProfile() {
+    const token =
+      accessToken ||
+      localStorage.getItem('accessToken') ||
+      sessionStorage.getItem('accessToken')
+    if (!token) return
+    try {
+      const response = await fetch(`${API_URL}/api/users/profile`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setUser(data.data)
+      }
+    } catch (error) {
+      console.error('Failed to refresh profile:', error)
     }
   }
 
@@ -208,6 +271,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signup,
         logout,
         verifyEmail,
+        resendVerificationEmail,
+        refreshProfile,
       }}
     >
       {children}

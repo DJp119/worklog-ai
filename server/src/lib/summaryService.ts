@@ -1,6 +1,6 @@
 import { supabase } from './supabase.js'
 import { mistral, chatModel } from './mistral.js'
-import type { WorkLogEntry, MonthlySummary } from 'shared'
+import type { MonthlySummary } from 'shared'
 import { logger } from './logger.js'
 
 export async function generateMonthlySummary(userId: string, monthYear: string): Promise<MonthlySummary | null> {

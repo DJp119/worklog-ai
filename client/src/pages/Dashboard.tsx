@@ -1,7 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { getEntries } from '../lib/api'
+import { useTranslation } from 'react-i18next'
+import { getEntries, getProfile, type UserProfile } from '../lib/api'
 import type { WorkLogEntry } from 'shared'
+import { usePageMeta } from '../hooks/usePageMeta'
+import { formatDate } from '../lib/formatters'
+
+const PROFILE_NUDGE_DISMISSED_KEY = 'impactly_profile_nudge_dismissed'
 
 interface DashboardStats {
   totalWeeks: number
@@ -14,21 +19,51 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
+  const { t } = useTranslation()
+  usePageMeta({ title: t('dashboard.title'), noIndex: true })
   const [loading, setLoading] = useState(true)
   const [entries, setEntries] = useState<WorkLogEntry[]>([])
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [currentWeekLogged, setCurrentWeekLogged] = useState(false)
+  const [showProfileNudge, setShowProfileNudge] = useState(false)
 
   useEffect(() => {
     loadDashboard()
+    checkProfileCompleteness()
   }, [])
+
+  async function checkProfileCompleteness() {
+    if (typeof window !== 'undefined' && localStorage.getItem(PROFILE_NUDGE_DISMISSED_KEY) === '1') {
+      return
+    }
+    try {
+      const profile = await getProfile()
+      // Show the nudge when key personalization details are missing (e.g. the
+      // user skipped onboarding). Review frequency drives reminder timing, so
+      // the banner copy calls it out specifically.
+      if (!profile.reviewFrequency) {
+        setShowProfileNudge(true)
+      }
+    } catch (error) {
+      console.error('Failed to check profile completeness:', error)
+    }
+  }
+
+  function dismissProfileNudge() {
+    setShowProfileNudge(false)
+    try {
+      localStorage.setItem(PROFILE_NUDGE_DISMISSED_KEY, '1')
+    } catch {
+      /* quota — ignore */
+    }
+  }
 
   async function loadDashboard() {
     setLoading(true)
     try {
-      const data = await getEntries()
+      const [data, profile] = await Promise.all([getEntries(), getProfile()])
       setEntries(data)
-      calculateStats(data)
+      calculateStats(data, profile)
     } catch (error) {
       console.error('Failed to load dashboard:', error)
     } finally {
@@ -48,7 +83,7 @@ export default function Dashboard() {
     return `${year}-${month}-${day}`
   }
 
-  function calculateStats(entries: WorkLogEntry[]) {
+  function calculateStats(entries: WorkLogEntry[], profile: UserProfile) {
     // Calculate current week start
     const now = new Date()
     const currentStart = getWeekStart(now)
@@ -63,32 +98,15 @@ export default function Dashboard() {
     )
 
     // Total weeks logged
-    const totalWeeks = entries.length
+    const totalWeeks = profile.totalLogs ?? entries.length
 
     // Calculate streaks
-    let currentStreak = 0
+    const currentStreak = profile.currentStreak ?? 0
     let longestStreak = 0
     let tempStreak = 0
 
     // Get all week starts from entries
     const weekStarts = new Set(entries.map(e => e.week_start_date))
-
-    // Calculate current streak (counting backwards from now)
-    const checkDate = new Date()
-    if (!currentWeekLogged) {
-      // If current week not logged, start checking from last week
-      checkDate.setDate(checkDate.getDate() - 7)
-    }
-
-    while (true) {
-      const weekStart = getWeekStart(checkDate)
-      if (weekStarts.has(weekStart)) {
-        currentStreak++
-        checkDate.setDate(checkDate.getDate() - 7)
-      } else {
-        break
-      }
-    }
 
     // Calculate longest streak
     const allWeeks = Array.from(weekStarts).sort()
@@ -144,7 +162,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="text-gray-400">Loading dashboard...</div>
+        <div className="text-gray-400">{t('common.loading')}</div>
       </div>
     )
   }
@@ -154,18 +172,50 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-white">Dashboard</h1>
-          <p className="text-gray-400 mt-1">Track your logging progress</p>
+          <h1 className="text-2xl font-bold text-white">{t('dashboard.title')}</h1>
+          <p className="text-gray-400 mt-1">{t('dashboard.subtitle')}</p>
         </div>
         {!currentWeekLogged && (
           <Link
             to="/log"
             className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 transition-all glow-primary"
           >
-            Log This Week
+            {t('dashboard.logThisWeek')}
           </Link>
         )}
       </div>
+
+      {/* Complete-profile nudge (shown when onboarding was skipped/incomplete) */}
+      {showProfileNudge && (
+        <div className="glass border border-indigo-500/20 rounded-xl p-5">
+          <div className="flex items-start gap-4">
+            <div className="flex-shrink-0 w-9 h-9 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-white">{t('dashboard.completeProfileTitle')}</h3>
+              <p className="mt-1 text-sm text-gray-400">{t('dashboard.completeProfileDesc')}</p>
+              <div className="mt-3 flex items-center gap-4">
+                <Link
+                  to="/onboarding"
+                  className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  {t('dashboard.completeProfileCta')}
+                </Link>
+                <button
+                  type="button"
+                  onClick={dismissProfileNudge}
+                  className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  {t('dashboard.dismiss')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Current Week Status */}
       {currentWeekLogged ? (
@@ -178,10 +228,10 @@ export default function Dashboard() {
             </div>
             <div className="ml-4 flex-1">
               <h3 className="text-sm font-medium text-emerald-400">
-                You're all caught up for this week!
+                {t('dashboard.caughtUp')}
               </h3>
               <p className="mt-2 text-sm text-gray-400">
-                Great job keeping your work log up to date. Consistent tracking makes generating your performance appraisals a breeze.
+                {t('dashboard.caughtUpDesc')}
               </p>
             </div>
           </div>
@@ -196,18 +246,17 @@ export default function Dashboard() {
             </div>
             <div className="ml-4 flex-1">
               <h3 className="text-sm font-medium text-amber-400">
-                You haven't logged this week yet
+                {t('dashboard.notLogged')}
               </h3>
               <p className="mt-2 text-sm text-gray-400">
-                Take 5 minutes to log your accomplishments, challenges, and learnings.
-                Keeping a consistent record will make appraisal time much easier!
+                {t('dashboard.notLoggedDesc')}
               </p>
               <div className="mt-4">
                 <Link
                   to="/log"
                   className="text-sm font-medium text-amber-400 hover:text-amber-300 inline-flex items-center"
                 >
-                  Log your week now
+                  {t('dashboard.logNow')}
                   <svg className="ml-1 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                   </svg>
@@ -230,7 +279,7 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-400">Total Weeks Logged</p>
+                <p className="text-sm font-medium text-gray-400">{t('dashboard.totalWeeks')}</p>
                 <p className="text-2xl font-bold text-white">{stats.totalWeeks}</p>
               </div>
             </div>
@@ -245,8 +294,10 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-400">Current Streak</p>
-                <p className="text-2xl font-bold text-white">{stats.currentStreak} weeks</p>
+                <p className="text-sm font-medium text-gray-400">{t('dashboard.currentStreak')}</p>
+                <p className="text-2xl font-bold text-white">
+                  {t('dashboard.weeks', { count: stats.currentStreak })}
+                </p>
               </div>
             </div>
           </div>
@@ -260,8 +311,10 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-400">Longest Streak</p>
-                <p className="text-2xl font-bold text-white">{stats.longestStreak} weeks</p>
+                <p className="text-sm font-medium text-gray-400">{t('dashboard.longestStreak')}</p>
+                <p className="text-2xl font-bold text-white">
+                  {t('dashboard.weeks', { count: stats.longestStreak })}
+                </p>
               </div>
             </div>
           </div>
@@ -275,9 +328,9 @@ export default function Dashboard() {
                 </svg>
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-400">Total Hours</p>
+                <p className="text-sm font-medium text-gray-400">{t('dashboard.totalHours')}</p>
                 <p className="text-2xl font-bold text-white">{stats.totalHours}</p>
-                <p className="text-xs text-gray-500">Avg: {stats.averageHours}h/week</p>
+                <p className="text-xs text-gray-500">{t('dashboard.avgPerWeek', { hours: stats.averageHours })}</p>
               </div>
             </div>
           </div>
@@ -287,7 +340,7 @@ export default function Dashboard() {
       {/* Recent Entries */}
       <div className="glass rounded-xl border border-white/5">
         <div className="px-6 py-4 border-b border-white/5">
-          <h2 className="text-lg font-semibold text-white">Recent Entries</h2>
+          <h2 className="text-lg font-semibold text-white">{t('dashboard.recentEntries')}</h2>
         </div>
         <div className="divide-y divide-white/5">
           {entries.length === 0 ? (
@@ -295,16 +348,16 @@ export default function Dashboard() {
               <svg className="mx-auto h-12 w-12 text-gray-500" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
               </svg>
-              <h3 className="mt-4 text-sm font-medium text-white">No entries yet</h3>
+              <h3 className="mt-4 text-sm font-medium text-white">{t('dashboard.noEntries')}</h3>
               <p className="mt-2 text-sm text-gray-400">
-                Get started by logging your first week.
+                {t('dashboard.getStarted')}
               </p>
               <div className="mt-6">
                 <Link
                   to="/log"
                   className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:from-indigo-600 hover:to-purple-600 transition-all"
                 >
-                  Log Your Week
+                  {t('dashboard.logYourWeek')}
                 </Link>
               </div>
             </div>
@@ -314,18 +367,14 @@ export default function Dashboard() {
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-sm font-medium text-indigo-400">
-                      Week of {new Date(entry.week_start_date).toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric'
-                      })}
+                      {t('dashboard.weekOf', { date: formatDate(entry.week_start_date, 'medium') })}
                     </p>
                     <p className="mt-2 text-sm text-gray-300 line-clamp-2">
                       {entry.accomplishments}
                     </p>
                     {entry.hours_logged && (
                       <p className="mt-2 text-xs text-gray-500">
-                        {entry.hours_logged} hours logged
+                        {t('dashboard.hoursLogged', { hours: entry.hours_logged })}
                       </p>
                     )}
                   </div>
@@ -333,7 +382,7 @@ export default function Dashboard() {
                     to={`/log?edit=${entry.id}`}
                     className="text-sm text-indigo-400 hover:text-indigo-300 transition-colors"
                   >
-                    View
+                    {t('common.view')}
                   </Link>
                 </div>
               </div>
@@ -346,7 +395,7 @@ export default function Dashboard() {
               to="/log"
               className="text-sm font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
             >
-              View all entries →
+              {t('dashboard.viewAll')}
             </Link>
           </div>
         )}
@@ -356,17 +405,16 @@ export default function Dashboard() {
       {stats && stats.missingWeeks > 0 && (
         <div className="glass rounded-xl p-6 border border-white/5">
           <h2 className="text-lg font-semibold text-white mb-3">
-            Catch Up Needed
+            {t('dashboard.catchUp')}
           </h2>
           <p className="text-sm text-gray-400 mb-4">
-            You're missing {stats.missingWeeks} week{stats.missingWeeks > 1 ? 's' : ''} in the past 3 months.
-            Consider filling in the gaps to have a complete record for your appraisal.
+            {t('dashboard.missingWeeks', { count: stats.missingWeeks })}
           </p>
           <Link
             to="/log"
             className="inline-flex items-center px-4 py-2 rounded-lg text-sm font-medium glass text-white hover:bg-white/10 transition-all"
           >
-            Log Missing Weeks
+            {t('dashboard.logMissing')}
           </Link>
         </div>
       )}

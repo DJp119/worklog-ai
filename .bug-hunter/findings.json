@@ -1,0 +1,47 @@
+[
+  {
+    "bugId": "BUG-7",
+    "severity": "Medium",
+    "category": "security",
+    "file": "server/src/routes/auth.ts",
+    "lines": "552-613",
+    "claim": "POST /api/auth/reset-password updates the user's password but does NOT revoke existing refresh tokens. An attacker who had previously stolen a valid refresh token (e.g., via a prior XSS exfiltration of the client's localStorage, or via DB leak) can keep using it indefinitely after the victim resets their password, because the password update does not touch refresh_tokens. Contrast with the in-app change-password flow at users.ts:251-259, which DOES revoke all refresh tokens. The reset-password flow — which is the one invoked in the account-compromise scenario — is strictly less secure than the in-app change-password flow.",
+    "evidence": "server/src/routes/auth.ts:587-595: only updates users.password_hash; the reset-token DELETE at line 598 only removes the password_reset_tokens row. There is no call to refresh_tokens.revoke or any equivalent for the user. server/src/routes/users.ts:251-259 (the change-password handler) demonstrates the correct pattern: `await supabase.from('refresh_tokens').update({revoked: true, revoked_at: new Date().toISOString()}).eq('user_id', userId).eq('revoked', false)`.",
+    "runtimeTrigger": "1) Attacker exfiltrates victim's refreshToken from localStorage via XSS or device compromise. 2) Victim notices the compromise, requests a password reset via /api/auth/forgot-password, follows the email link, and POSTs to /api/auth/reset-password with a new strong password. 3) Password is updated, but the attacker's refreshToken is still valid (not in refresh_tokens.revoked=true). 4) Attacker calls /api/auth/refresh with the stolen token, gets a new accessToken, retains full account access for the original 7- or 30-day session.",
+    "crossReferences": ["server/src/routes/users.ts:251-259 (change-password DOES revoke — the inconsistency)"],
+    "confidenceScore": 92,
+    "confidenceLabel": "high",
+    "stride": "ElevationOfPrivilege",
+    "cwe": "CWE-613"
+  },
+  {
+    "bugId": "BUG-8",
+    "severity": "Low",
+    "category": "security",
+    "file": "server/src/middleware/auth.ts",
+    "lines": "58-79, 84-95, 100-116",
+    "claim": "Refresh tokens are stored in the refresh_tokens table as plaintext (column `token TEXT NOT NULL UNIQUE` in supabase-schema.sql:254). The same is true of password_reset_tokens (supabase-schema.sql:242) and email_verifications (supabase-schema.sql:230). The threat model (`.bug-hunter/threat-model.md:21`) lists these tokens as 'Credentials' alongside password hashes, and S3 in the same document explicitly states password reset tokens are 'stored as bcrypt-hashed at rest' — but the schema and code never hash them. If the database is compromised (SQL injection, backup leak, rogue insider), the attacker can immediately use every stored refresh token to mint new access tokens without needing to crack anything. A mitigation that is documented as in-place is not actually implemented.",
+    "evidence": "server/src/middleware/auth.ts:58-79: createRefreshToken inserts `{user_id, token: <plaintext>, expires_at, session_ttl_days}` directly. server/src/middleware/auth.ts:84-95: revokeRefreshToken matches by the plaintext `token` column. supabase-schema.sql:230 `email_verifications.token TEXT NOT NULL`; supabase-schema.sql:242 `password_reset_tokens.token TEXT NOT NULL`; supabase-schema.sql:254 `refresh_tokens.token TEXT NOT NULL UNIQUE`. There is no `token_hash` column on any of these tables.",
+    "runtimeTrigger": "1) Attacker obtains read access to the Postgres database (any vector: leaked backup, compromised admin, RLS bypass). 2) SELECT token, user_id, expires_at FROM refresh_tokens WHERE revoked = false AND expires_at > now() — returns every active session token. 3) Attacker calls /api/auth/refresh with each token to mint fresh access tokens. No password cracking required; tokens are usable as-is. 4) Same applies to password_reset_tokens (1h window — much smaller blast radius) and email_verifications (24h window — limited to email verification, no account access).",
+    "crossReferences": ["supabase-schema.sql:230,242,254", ".bug-hunter/threat-model.md:21,S3"],
+    "confidenceScore": 75,
+    "confidenceLabel": "medium",
+    "stride": "InformationDisclosure",
+    "cwe": "CWE-256"
+  },
+  {
+    "bugId": "BUG-9",
+    "severity": "Low",
+    "category": "security",
+    "file": "server/src/middleware/requestId.ts",
+    "lines": "6",
+    "claim": "requestIdMiddleware reads the `x-request-id` header from the client verbatim (line 6) and uses it (a) as the value of the response's `X-Request-Id` header, and (b) as the `requestId` field in the MDC log context, which is then interpolated into every log line emitted during the request. A malicious or misconfigured client can supply newlines, carriage returns, ANSI escape codes, or HTML/script tags in the header. These flow directly into structured log output and into the response header. Log injection (CWE-117) is the primary concern: an attacker can forge log lines that appear to come from other requests, or smuggle terminal escape sequences that alter the operator's log viewer. The response header is a secondary, lower-severity vector (response splitting is blocked by Node's `res.setHeader`, but the value is still echoed to the client).",
+    "evidence": "server/src/middleware/requestId.ts:6: `const requestId = (req.headers['x-request-id'] as string) || randomUUID()` — no validation, no truncation, no character whitelist. The value is then used at line 7 (`res.setHeader('X-Request-Id', requestId)`) and line 10 (`const context: LogContext = { requestId }`). The MDC context is consumed by logger.info/warn/error calls across the auth middleware and route handlers, so any control character or HTML in the header propagates into log records.",
+    "runtimeTrigger": "An attacker sends `GET /api/auth/me` with header `x-request-id: foo\\r\\n[2026-06-06 12:00:00] [INFO] fake_admin_action: user=root action=delete_database`. The server's logger emits two log lines instead of one, and a downstream log viewer renders the second line as a real event. Operators reviewing the logs may be misled into thinking an admin action occurred (or, conversely, the attacker uses it to obscure their own requests by blending them with forged entries).",
+    "crossReferences": ["server/src/middleware/auth.ts:148,157,170 (logger calls that consume the MDC requestId)"],
+    "confidenceScore": 70,
+    "confidenceLabel": "medium",
+    "stride": "Repudiation",
+    "cwe": "CWE-117"
+  }
+]

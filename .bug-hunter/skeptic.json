@@ -1,0 +1,20 @@
+[
+  {
+    "bugId": "BUG-7",
+    "response": "ACCEPT",
+    "analysisSummary": "Re-read server/src/routes/auth.ts:552-613 and server/src/routes/users.ts:192-264. The reset-password handler updates users.password_hash (line 587-590) and deletes the password_reset_tokens row (line 598) — there is no call to revoke the user's refresh_tokens. The change-password handler at users.ts:251-259 DOES revoke: `await supabase.from('refresh_tokens').update({revoked: true, revoked_at: new Date().toISOString()}).eq('user_id', userId).eq('revoked', false)`. The inconsistency is real and material: the account-compromise recovery path (password reset) is strictly less secure than the routine change-password path. Hunter's claim holds. CWE-613 (Insufficient Session Expiration) is the right classification.",
+    "counterEvidence": "None. The code is exactly as the Hunter described."
+  },
+  {
+    "bugId": "BUG-8",
+    "response": "ACCEPT",
+    "analysisSummary": "Re-read server/src/middleware/auth.ts:58-79 (createRefreshToken inserts plaintext token), 84-95 (revokeRefreshToken matches by plaintext), and supabase-schema.sql:230 (email_verifications.token TEXT NOT NULL), 242 (password_reset_tokens.token TEXT NOT NULL), 254 (refresh_tokens.token TEXT NOT NULL UNIQUE). The threat model at .bug-hunter/threat-model.md:21 (Credentials) and S3 ('stored as bcrypt-hashed at rest') explicitly states password reset tokens are bcrypt-hashed at rest — the schema and code do not implement this. Hunter's claim holds. CWE-256 is appropriate; the 512-bit entropy mitigates brute force, but DB exfiltration yields every active session token. The 1h/24h windows on reset/verification tokens limit blast radius, so Low severity is correct. refresh_tokens (7-30 day window) is the highest-value target.",
+    "counterEvidence": "None. The plaintext storage is exactly as the Hunter described."
+  },
+  {
+    "bugId": "BUG-9",
+    "response": "ACCEPT",
+    "analysisSummary": "Re-read server/src/middleware/requestId.ts:1-16. Line 6 reads `req.headers['x-request-id']` as a string with no validation, no truncation, no character whitelist. The value flows to (a) `res.setHeader('X-Request-Id', requestId)` on line 7 (response header echo), and (b) the MDC context at line 10 (consumed by all logger.info/warn/error calls in the request lifecycle). Node's `res.setHeader` blocks HTTP response splitting, so the response header vector is low-impact (just an echo). The MDC vector is the real concern: the structured logger interpolates requestId into every log record, so a client can forge newlines, ANSI escape codes, or HTML/script fragments into the log stream. CWE-117 (Improper Output Neutralization for Logs) is correct. The attacker requires no auth — any unauthenticated request to any endpoint will trigger the logger. Hunter's claim holds. Low severity is appropriate (log injection is hard to weaponize in a JSON-log pipeline, but it is a real defense-in-depth gap).",
+    "counterEvidence": "None. The header is read verbatim with no sanitization."
+  }
+]

@@ -5,9 +5,12 @@
 -- PHASE 1: Database Schema
 -- ============================================
 
--- 1.1 Users profile table (extends auth.users)
+-- 1.1 Users profile table.
+-- This app uses custom auth (the public.users table), not Supabase Auth,
+-- so user_profiles.id is a plain UUID PK with no FK to auth.users.
+-- Application code maintains the id link to public.users.
 CREATE TABLE IF NOT EXISTS user_profiles (
-  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  id UUID PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   company_name TEXT,
   job_title TEXT,
@@ -224,38 +227,42 @@ CREATE POLICY "Users can update own data" ON users FOR UPDATE USING (auth.uid() 
 CREATE TABLE IF NOT EXISTS email_verifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token TEXT NOT NULL,
+  token_hash TEXT NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user_id, token)
+  UNIQUE(user_id, token_hash)
 );
 
-CREATE INDEX IF NOT EXISTS idx_email_verifications_token ON email_verifications(token);
+CREATE INDEX IF NOT EXISTS idx_email_verifications_token_hash ON email_verifications(token_hash);
 
 -- Password reset tokens
 CREATE TABLE IF NOT EXISTS password_reset_tokens (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token TEXT NOT NULL,
+  token_hash TEXT NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user_id, token)
+  UNIQUE(user_id, token_hash)
 );
 
-CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token ON password_reset_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_token_hash ON password_reset_tokens(token_hash);
 
 -- Refresh tokens table
 CREATE TABLE IF NOT EXISTS refresh_tokens (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  token TEXT NOT NULL UNIQUE,
+  token_hash TEXT NOT NULL UNIQUE,
   expires_at TIMESTAMPTZ NOT NULL,
+  session_ttl_days INT NOT NULL DEFAULT 30,
   revoked BOOLEAN DEFAULT false,
   revoked_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
-CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token ON refresh_tokens(token);
+-- Idempotent migration: add session_ttl_days to existing deployments
+ALTER TABLE refresh_tokens ADD COLUMN IF NOT EXISTS session_ttl_days INT NOT NULL DEFAULT 30;
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_token_hash ON refresh_tokens(token_hash);
 
 -- ============================================
 -- PHASE 2: Monthly Summaries & Chat
@@ -467,4 +474,68 @@ CREATE TRIGGER update_ai_impact_cards_updated_at
   BEFORE UPDATE ON ai_impact_cards
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
+
+-- =============================================
+-- 6. Marketing Loops — state tracking for automated marketing jobs
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS marketing_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  loop_name TEXT NOT NULL,
+  user_id UUID,
+  action TEXT NOT NULL,
+  detail JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_marketing_logs_loop_user
+  ON marketing_logs(loop_name, user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_marketing_logs_created
+  ON marketing_logs(loop_name, created_at DESC);
+
+ALTER TABLE marketing_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role can manage marketing logs"
+  ON marketing_logs
+  FOR ALL
+  USING (auth.role() = 'service_role')
+  WITH CHECK (auth.role() = 'service_role');
+
+-- =============================================
+-- 5. I18N — preferred language + translation cache
+-- =============================================
+
+-- 5.1 Add preferred_language column to user_profiles (and users)
+ALTER TABLE user_profiles
+  ADD COLUMN IF NOT EXISTS preferred_language TEXT DEFAULT NULL;
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS preferred_language TEXT DEFAULT NULL;
+
+-- 5.2 Translation cache table (public read so anon clients can fetch translations)
+CREATE TABLE IF NOT EXISTS translation_cache (
+  language_code TEXT NOT NULL,
+  version INTEGER NOT NULL DEFAULT 1,
+  translations JSONB NOT NULL,
+  source TEXT NOT NULL DEFAULT 'google',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  PRIMARY KEY (language_code, version)
+);
+
+ALTER TABLE translation_cache ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Translations are public read"
+  ON translation_cache
+  FOR SELECT
+  USING (true);
+
+CREATE POLICY "Translations service-role write"
+  ON translation_cache
+  FOR ALL
+  USING (auth.role() = 'service_role')
+  WITH CHECK (auth.role() = 'service_role');
+
+CREATE INDEX IF NOT EXISTS idx_translation_cache_language
+  ON translation_cache(language_code, version);
 

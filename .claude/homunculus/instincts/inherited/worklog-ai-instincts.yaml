@@ -1,0 +1,355 @@
+# Instincts generated from https://github.com/DJp119/worklog-ai
+# Generated: 2026-05-24T11:16:18.413Z
+# Version: 2.0
+# NOTE: This file supplements (does not replace) any existing curated instincts.
+# High-confidence manually curated instincts should be preserved alongside these.
+
+---
+id: worklog-ai-commit-length
+trigger: "when writing a commit message"
+confidence: 0.6
+domain: git
+source: repo-analysis
+source_repo: https://github.com/DJp119/worklog-ai
+---
+
+# Worklog Ai Commit Length
+
+## Action
+
+Keep commit messages concise (~19 characters)
+
+## Evidence
+
+- Average commit message length: 19 chars
+- Based on 1 commits
+
+---
+id: worklog-ai-naming-files
+trigger: "when creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/DJp119/worklog-ai
+---
+
+# Worklog Ai Naming Files
+
+## Action
+
+Use camelCase naming convention
+
+## Evidence
+
+- Analyzed file naming patterns in repository
+- Dominant pattern: camelCase
+
+---
+id: worklog-ai-import-relative
+trigger: "when importing modules"
+confidence: 0.75
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/DJp119/worklog-ai
+---
+
+# Worklog Ai Import Relative
+
+## Action
+
+Use relative imports for project files
+
+## Evidence
+
+- Import analysis shows relative import pattern
+- Example: import { x } from '../lib/x'
+
+---
+id: worklog-ai-export-style
+trigger: "when exporting from a module"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: https://github.com/DJp119/worklog-ai
+---
+
+# Worklog Ai Export Style
+
+## Action
+
+Prefer named exports
+
+## Evidence
+
+- Export pattern analysis
+- Dominant style: named
+
+---
+id: worklog-ai-arch-type-based
+trigger: "when adding new code"
+confidence: 0.8
+domain: architecture
+source: repo-analysis
+source_repo: https://github.com/DJp119/worklog-ai
+---
+
+# Worklog Ai Arch Type Based
+
+## Action
+
+Place code in the appropriate type folder (components/, services/, utils/, etc.)
+
+## Evidence
+
+- Type-based module organization detected
+- Folders: 
+
+---
+id: worklog-ai-test-separate
+trigger: "when writing tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: https://github.com/DJp119/worklog-ai
+---
+
+# Worklog Ai Test Separate
+
+## Action
+
+Place tests in the tests/ or __tests__/ directory, mirroring src structure
+
+## Evidence
+
+- Separate test directory pattern detected
+- Tests live in dedicated test folders
+
+---
+id: worklog-ai-instinct-camelcase-files
+trigger: "When creating a new file"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Camelcase Files
+
+## Action
+
+Name the file using camelCase
+
+## Evidence
+
+- Pattern in namingConventions.files: camelCase
+
+---
+id: worklog-ai-instinct-camelcase-functions
+trigger: "When defining a function"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Camelcase Functions
+
+## Action
+
+Name the function using camelCase
+
+## Evidence
+
+- Pattern in namingConventions.functions: camelCase
+
+---
+id: worklog-ai-instinct-pascalcase-classes
+trigger: "When declaring a class"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Pascalcase Classes
+
+## Action
+
+Use PascalCase for the class name
+
+## Evidence
+
+- Pattern in namingConventions.classes: PascalCase
+
+---
+id: worklog-ai-instinct-screaming-constants
+trigger: "When defining a constant"
+confidence: 0.9
+domain: code-style
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Screaming Constants
+
+## Action
+
+Use SCREAMING_SNAKE_CASE for the constant name
+
+## Evidence
+
+- Pattern in namingConventions.constants: SCREAMING_SNAKE_CASE
+
+---
+id: worklog-ai-instinct-relative-imports
+trigger: "When importing modules"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Relative Imports
+
+## Action
+
+Use relative import paths
+
+## Evidence
+
+- Pattern in importStyle: relative
+
+---
+id: worklog-ai-instinct-named-exports
+trigger: "When exporting modules or functions"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Named Exports
+
+## Action
+
+Use named exports
+
+## Evidence
+
+- Pattern in exportStyle: named
+
+---
+id: worklog-ai-instinct-try-catch-errors
+trigger: "When handling errors in code"
+confidence: 0.8
+domain: code-style
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Try Catch Errors
+
+## Action
+
+Use try-catch blocks for error handling
+
+## Evidence
+
+- Pattern in errorHandling.style: try-catch
+
+---
+id: worklog-ai-instinct-no-custom-error-classes
+trigger: "When considering custom error classes"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct No Custom Error Classes
+
+## Action
+
+Do not define custom error classes
+
+## Evidence
+
+- Pattern in errorHandling.customErrorClasses: false
+
+---
+id: worklog-ai-instinct-no-global-error-handler
+trigger: "When considering global error handling"
+confidence: 0.7
+domain: code-style
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct No Global Error Handler
+
+## Action
+
+Do not implement a global error handler
+
+## Evidence
+
+- Pattern in errorHandling.globalHandler: false
+
+---
+id: worklog-ai-instinct-commit-freeform
+trigger: "When writing a git commit message"
+confidence: 0.8
+domain: git
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Commit Freeform
+
+## Action
+
+Use a short, freeform message without a prefix
+
+## Evidence
+
+- Pattern in commits.type: freeform
+- Example: 'News Feed Integrate'
+
+---
+id: worklog-ai-instinct-commit-short
+trigger: "When composing a commit message"
+confidence: 0.7
+domain: git
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Commit Short
+
+## Action
+
+Keep the message concise (around 19 characters on average)
+
+## Evidence
+
+- Pattern in commits.averageLength: 19
+
+---
+id: worklog-ai-instinct-tests-in-separate-folder
+trigger: "When adding new tests"
+confidence: 0.8
+domain: testing
+source: repo-analysis
+source_repo: DJp119/worklog-ai
+---
+
+# Worklog Ai Instinct Tests In Separate Folder
+
+## Action
+
+Place test files in a separate folder from source code
+
+## Evidence
+
+- Pattern in architecture.testLocation: separate
+

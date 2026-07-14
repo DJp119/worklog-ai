@@ -1,365 +1,436 @@
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useTranslation } from 'react-i18next'
+import { usePageMeta } from '../hooks/usePageMeta'
+import { useIsLoggedIn } from '../hooks/useIsLoggedIn'
+import ArrowRight from 'lucide-react/dist/esm/icons/arrow-right.mjs'
+import Shield from 'lucide-react/dist/esm/icons/shield.mjs'
+import Award from 'lucide-react/dist/esm/icons/award.mjs'
+import Calendar from 'lucide-react/dist/esm/icons/calendar.mjs'
+import Terminal from 'lucide-react/dist/esm/icons/terminal.mjs'
+import Lock from 'lucide-react/dist/esm/icons/lock.mjs'
+import ExternalLink from 'lucide-react/dist/esm/icons/external-link.mjs'
 
-export default function LandingPage() {
-  const { user } = useAuth()
+const PainGrid = lazy(() => import('./landing/PainGrid'))
+const PlaygroundWidget = lazy(() => import('./landing/PlaygroundWidget'))
+const FaqAccordion = lazy(() => import('./landing/FaqAccordion'))
+const PricingSection = lazy(() => import('./landing/PricingSection'))
+
+
+function LazyOnVisible({
+  children,
+  rootMargin = '300px',
+  minHeight = 600,
+}: {
+  children: ReactNode
+  rootMargin?: string
+  minHeight?: number
+}) {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const [shouldLoad, setShouldLoad] = useState(false)
+
+  useEffect(() => {
+    const node = ref.current
+    if (!node) return
+    if (typeof IntersectionObserver === 'undefined') {
+      setShouldLoad(true)
+      return
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setShouldLoad(true)
+          observer.disconnect()
+        }
+      },
+      { rootMargin }
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [rootMargin])
 
   return (
-    <div className="bg-futuristic min-h-screen">
+    <div ref={ref} style={shouldLoad ? undefined : { minHeight: `${minHeight}px` }}>
+      {shouldLoad ? <Suspense fallback={null}>{children}</Suspense> : null}
+    </div>
+  )
+}
+
+export default function LandingPage() {
+  const { t } = useTranslation()
+  const isLoggedIn = useIsLoggedIn()
+
+  usePageMeta({
+    title: 'Impactly AI',
+    description: 'Stop stressing over annual appraisals. Impactly AI captures your weekly achievements and generates promotion-ready self-evaluations automatically.',
+    path: '/',
+  })
+
+  return (
+    <div className="bg-futuristic flex-1 flex flex-col min-h-screen">
       {/* Floating Header */}
-      <header className="relative w-full z-50">
-        <div className="max-w-7xl mx-auto px-6 py-6 flex justify-between items-center">
+      <header className="relative w-full z-50 border-b border-white/5 bg-black/10 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex justify-between items-center">
           <Link to="/" className="flex items-center group">
-            <svg className="h-8 w-8 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <svg className="h-7 w-7 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            <span className="ml-2 text-xl font-bold text-white group-hover:text-indigo-400 transition-colors">Worklog AI</span>
+            <span className="ml-2 text-lg font-bold text-white group-hover:text-indigo-400 transition-colors">{t('brand.name')}</span>
           </Link>
+
+          <nav className="hidden md:flex items-center gap-6">
+            <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.nav.features')}</a>
+            <a href="#playground" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.nav.playground')}</a>
+            <a href="#pricing" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.nav.pricing')}</a>
+            <a href="#privacy" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.nav.security')}</a>
+            <a href="#faq" className="text-sm text-gray-400 hover:text-white transition-colors">{t('landing.nav.faq')}</a>
+          </nav>
+
           <div className="flex items-center gap-4">
             <Link
               to="/ai-pulse"
-              className="text-gray-300 hover:text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors hover:bg-white/5 flex items-center gap-1.5 relative"
+              className="text-xs md:text-sm text-gray-300 hover:text-white px-3 py-1.5 rounded-lg font-medium transition-colors hover:bg-white/5 flex items-center gap-1.5"
             >
-              AI Pulse
+              {t('nav.aiPulse')}
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
               </span>
             </Link>
-            {user ? (
+            {isLoggedIn ? (
               <Link
                 to="/dashboard"
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-white/10 hover:bg-white/20 text-white transition-all"
+                className="px-4 py-2 rounded-lg text-xs md:text-sm font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:shadow-lg hover:shadow-indigo-500/20 transition-all glow-primary"
               >
-                Dashboard
+                {t('nav.dashboard')}
               </Link>
             ) : (
-              <Link
-                to="/login"
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:shadow-lg hover:shadow-indigo-500/20 transition-all glow-primary"
-              >
-                Sign In
-              </Link>
+              <>
+                <Link
+                  to="/login"
+                  className="text-xs md:text-sm text-gray-300 hover:text-white px-3 py-1.5 rounded-lg font-medium transition-colors hover:bg-white/5"
+                >
+                  {t('nav.signIn')}
+                </Link>
+                <Link
+                  to="/login"
+                  className="px-4 py-2 rounded-lg text-xs md:text-sm font-semibold bg-gradient-to-r from-indigo-500 to-purple-500 text-white hover:shadow-lg hover:shadow-indigo-500/20 transition-all glow-primary"
+                >
+                  {t('landing.hero.ctaPrimary')}
+                </Link>
+              </>
             )}
           </div>
         </div>
       </header>
 
-      {/* Animated Background Orbs */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/20 rounded-full blur-3xl animate-pulse-glow"></div>
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl animate-pulse-glow" style={{ animationDelay: '1.5s' }}></div>
-        <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl animate-pulse-glow" style={{ animationDelay: '3s' }}></div>
-      </div>
-
       {/* Hero Section */}
-      <section className="relative pt-20 pb-32 px-4">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center">
-            {/* Badge */}
-            <div className="inline-flex items-center px-4 py-2 rounded-full glass mb-8 animate-float">
-              <span className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
-              <span className="text-sm text-gray-300">AI-Powered Performance Tracking</span>
+      <section className="relative pt-20 pb-28 px-4 flex flex-col items-center overflow-hidden">
+        <div className="absolute top-1/4 left-1/4 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl animate-pulse-glow"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl animate-pulse-glow" style={{ animationDelay: '2s' }}></div>
+
+        <div className="max-w-4xl mx-auto text-center relative z-10">
+          <div className="inline-flex items-center px-3.5 py-1.5 rounded-full glass mb-8 animate-float">
+            <span className="w-2 h-2 bg-indigo-400 rounded-full mr-2.5 animate-pulse"></span>
+            <span className="text-xs text-gray-300 font-semibold tracking-wide">{t('brand.tagline')}</span>
+          </div>
+
+          <h1 className="text-4xl sm:text-6xl md:text-7xl font-extrabold mb-6 leading-tight tracking-tight">
+            <span className="gradient-text text-glow-primary">{t('landing.hero.title')}</span>
+          </h1>
+
+          <p className="text-base sm:text-xl md:text-2xl text-gray-400 max-w-3xl mx-auto mb-10 leading-relaxed font-normal">
+            {t('landing.hero.subtitle')}
+          </p>
+
+          <div className="w-full max-w-md mx-auto mb-6 flex flex-col sm:flex-row gap-2.5 p-1.5 glass rounded-2xl border border-white/10 shadow-2xl">
+            <input
+              type="email"
+              placeholder={t('auth.emailPlaceholder')}
+              className="flex-1 bg-transparent border-0 px-4 py-3 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-0 focus:border-transparent min-w-[200px]"
+            />
+            <Link
+              to="/login"
+              className="px-6 py-3 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold text-xs sm:text-sm rounded-xl flex items-center justify-center gap-1.5 transition-all shadow-md hover:shadow-indigo-500/10 cursor-pointer"
+            >
+              <span>{t('landing.hero.ctaPrimary')}</span>
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+
+          <div className="flex items-center justify-center gap-6 text-[10px] sm:text-xs text-gray-500 tracking-wide mb-16 uppercase">
+            <span className="flex items-center gap-1">{t('landing.hero.private')}</span>
+            <span className="hidden sm:inline">•</span>
+            <span className="flex items-center gap-1">{t('landing.hero.weeklyTime')}</span>
+            <span className="hidden sm:inline">•</span>
+            <span className="flex items-center gap-1">{t('landing.hero.promotionReady')}</span>
+          </div>
+        </div>
+
+        <div className="w-full max-w-4xl mx-auto relative z-10 px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-y-8 gap-x-4 sm:gap-x-8 border-t border-white/5 pt-10">
+            <div className="text-center">
+              <div className="text-2xl sm:text-3xl md:text-3xl font-extrabold gradient-text mb-1">{t('landing.proof.stat2Value')}</div>
+              <div className="text-[10px] sm:text-xs text-gray-500 font-mono tracking-widest uppercase">{t('landing.proof.stat2Label')}</div>
             </div>
-
-            {/* Main Headline */}
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
-              <span className="text-white">Track Your Impact.</span>
-              <br />
-              <span className="gradient-text text-glow-primary">Amplify Your Growth.</span>
-            </h1>
-
-            {/* Subheadline */}
-            <p className="text-xl md:text-2xl text-gray-400 max-w-3xl mx-auto mb-12">
-              The intelligent worklog system that transforms your weekly reflections into
-              <span className="text-white font-medium"> career-defining self-appraisals</span>.
-            </p>
-
-            {/* CTA Buttons */}
-            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mb-16">
-              {user ? (
-                <Link
-                  to="/dashboard"
-                  className="group inline-flex items-center px-8 py-4 rounded-xl text-lg font-semibold bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 text-white hover:shadow-2xl hover:shadow-indigo-500/25 transition-all duration-300 glow-primary"
-                >
-                  Go to Dashboard
-                  <svg className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </Link>
-              ) : (
-                <>
-                  <Link
-                    to="/login"
-                    className="group inline-flex items-center px-8 py-4 rounded-xl text-lg font-semibold bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 text-white hover:shadow-2xl hover:shadow-indigo-500/25 transition-all duration-300 glow-primary"
-                  >
-                    Start Free Trial
-                    <svg className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                    </svg>
-                  </Link>
-                  <a
-                    href="#features"
-                    className="inline-flex items-center px-8 py-4 rounded-xl text-lg font-semibold glass text-white hover:bg-white/10 transition-all duration-300"
-                  >
-                    Learn More
-                  </a>
-                </>
-              )}
+            <div className="text-center">
+              <div className="text-2xl sm:text-3xl md:text-3xl font-extrabold gradient-text mb-1">{t('landing.hero.weeklyTime')}</div>
+              <div className="text-[10px] sm:text-xs text-gray-500 font-mono tracking-widest uppercase">{t('landing.proof.stat3Label')}</div>
             </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 max-w-4xl mx-auto">
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold gradient-text mb-2">5min</div>
-                <div className="text-gray-500 text-sm">Per Week</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold gradient-text mb-2">10x</div>
-                <div className="text-gray-500 text-sm">Faster Appraisals</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold gradient-text mb-2">100%</div>
-                <div className="text-gray-500 text-sm">Private</div>
-              </div>
-              <div className="text-center">
-                <div className="text-3xl md:text-4xl font-bold gradient-text mb-2">AI</div>
-                <div className="text-gray-500 text-sm">Powered</div>
-              </div>
+            <div className="text-center">
+              <div className="text-2xl sm:text-3xl md:text-3xl font-extrabold gradient-text mb-1">{t('landing.proof.stat5Value')}</div>
+              <div className="text-[10px] sm:text-xs text-gray-500 font-mono tracking-widest uppercase">{t('landing.proof.stat5Label')}</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl sm:text-3xl md:text-3xl font-extrabold gradient-text mb-1">{t('landing.proof.stat4Value')}</div>
+              <div className="text-[10px] sm:text-xs text-gray-500 font-mono tracking-widest uppercase">{t('landing.proof.stat4Label')}</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section id="features" className="relative py-24 px-4">
-        <div className="max-w-7xl mx-auto">
-          {/* Section Header */}
+      {/* Customer logos removed pre-launch — replace with real user testimonials post-launch. */}
+
+      {/* Pain Comparison Section */}
+      <section className="py-24 relative overflow-hidden bg-black/10">
+        <div className="max-w-6xl mx-auto text-center mb-16 px-4">
+          <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
+            {t('landing.pain.title')}
+          </h2>
+          <p className="text-sm md:text-base text-gray-400 max-w-xl mx-auto">
+            {t('landing.pain.subtitle')}
+          </p>
+        </div>
+        <LazyOnVisible minHeight={560}>
+          <PainGrid />
+        </LazyOnVisible>
+      </section>
+
+      {/* The Interactive AI Appraisal Playground Widget */}
+      <section id="playground" className="py-24 relative overflow-hidden border-t border-white/5 bg-black/20">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="max-w-6xl mx-auto text-center mb-16 px-4">
+          <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
+            {t('landing.playground.title')}
+          </h2>
+          <p className="text-sm md:text-base text-gray-400 max-w-xl mx-auto">
+            {t('landing.playground.subtitle')}
+          </p>
+        </div>
+        <LazyOnVisible minHeight={720}>
+          <PlaygroundWidget />
+        </LazyOnVisible>
+      </section>
+
+      {/* Key Features Bento Grid */}
+      <section id="features" className="py-24 relative border-t border-white/5 bg-black/10">
+        <div className="max-w-6xl mx-auto px-4">
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              Built for <span className="gradient-text">High Performers</span>
+            <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
+              {t('landing.features.title')}
             </h2>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-              Everything you need to track your impact and ace your self-appraisals
+            <p className="text-sm md:text-base text-gray-400 max-w-xl mx-auto">
+              {t('landing.features.subtitle')}
             </p>
           </div>
 
-          {/* Features Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {/* Feature 1 */}
-            <div className="group card-hover glass rounded-2xl p-8 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/20 to-transparent rounded-bl-full"></div>
-              <div className="relative">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center mb-6 glow-primary">
-                  <svg className="w-7 h-7 text-white" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd" />
-                  </svg>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Bento Card 1: Weekly Work Logs */}
+            <div className="group card-hover glass rounded-2xl p-6 md:p-8 relative overflow-hidden md:col-span-2">
+              <div className="absolute top-0 right-0 w-44 h-44 bg-gradient-to-br from-indigo-500/10 to-transparent rounded-bl-full"></div>
+              <div className="flex flex-col h-full justify-between">
+                <div>
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center mb-6 glow-primary">
+                    <Calendar className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-lg md:text-xl font-bold text-white mb-2">{t('landing.howItWorks.step1Title')}</h3>
+                  <p className="text-xs md:text-sm text-gray-400 leading-relaxed max-w-lg">
+                    {t('landing.howItWorks.step1Desc')}
+                  </p>
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-3">Weekly Logging</h3>
-                <p className="text-gray-400 leading-relaxed">
-                  Spend just 5 minutes each week documenting accomplishments, challenges, and learnings.
-                  Consistent tracking makes appraisal time effortless.
-                </p>
+                <div className="flex items-center gap-2 mt-8 text-xs text-indigo-400 font-semibold uppercase tracking-wider">
+                  <span>{t('landing.features.starTitle')}</span>
+                </div>
               </div>
             </div>
 
-            {/* Feature 2 */}
-            <div className="group card-hover glass rounded-2xl p-8 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-500/20 to-transparent rounded-bl-full"></div>
-              <div className="relative">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-6 glow-accent">
-                  <svg className="w-7 h-7 text-white" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M2 10a8 8 0 018-8v8h8a8 8 0 11-16 0z" />
-                    <path d="M12 2.252A8.014 8.014 0 0117.748 8H12V2.252z" />
-                  </svg>
+            {/* Bento Card 2: Custom Criteria */}
+            <div className="group card-hover glass rounded-2xl p-6 md:p-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-purple-500/10 to-transparent rounded-bl-full"></div>
+              <div className="flex flex-col h-full justify-between">
+                <div>
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mb-6 glow-accent">
+                    <Award className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-2">{t('landing.features.okrTitle')}</h3>
+                  <p className="text-xs md:text-sm text-gray-400 leading-relaxed">
+                    {t('landing.features.okrDesc')}
+                  </p>
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-3">AI Appraisal Generation</h3>
-                <p className="text-gray-400 leading-relaxed">
-                  Transform your weekly logs into polished, professional self-appraisals.
-                  crafts narratives that highlight your impact and growth.
-                </p>
+                <div className="flex items-center gap-2 mt-8 text-xs text-purple-400 font-semibold uppercase tracking-wider">
+                  <span>{t('landing.features.valuesTitle')}</span>
+                </div>
               </div>
             </div>
 
-            {/* Feature 3 */}
-            <div className="group card-hover glass rounded-2xl p-8 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-cyan-500/20 to-transparent rounded-bl-full"></div>
-              <div className="relative">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center mb-6 glow-cyan">
-                  <svg className="w-7 h-7 text-white" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                  </svg>
+            {/* Bento Card 3: AI Chat Assist */}
+            <div className="group card-hover glass rounded-2xl p-6 md:p-8 relative overflow-hidden">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-cyan-500/10 to-transparent rounded-bl-full"></div>
+              <div className="flex flex-col h-full justify-between">
+                <div>
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center mb-6 glow-cyan">
+                    <Terminal className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white mb-2">{t('landing.features.critiqueTitle')}</h3>
+                  <p className="text-xs md:text-sm text-gray-400 leading-relaxed">
+                    {t('landing.features.critiqueDesc')}
+                  </p>
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-3">Custom Criteria Mapping</h3>
-                <p className="text-gray-400 leading-relaxed">
-                  Define your company's appraisal criteria and let AI map your work directly to them.
-                  Never wonder if you're covering the right points again.
-                </p>
+                <div className="flex items-center gap-2 mt-8 text-xs text-cyan-400 font-semibold uppercase tracking-wider">
+                  <span>{t('landing.features.toneTitle')}</span>
+                </div>
               </div>
             </div>
 
-            {/* Feature 4 */}
-            <div className="group card-hover glass rounded-2xl p-8 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-green-500/20 to-transparent rounded-bl-full"></div>
-              <div className="relative">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-500 to-emerald-500 flex items-center justify-center mb-6">
-                  <svg className="w-7 h-7 text-white" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                  </svg>
+            {/* Bento Card 4: Enterprise Safety & RLS */}
+            <div className="group card-hover glass rounded-2xl p-6 md:p-8 relative overflow-hidden md:col-span-2">
+              <div className="absolute top-0 right-0 w-44 h-44 bg-gradient-to-br from-indigo-500/10 to-transparent rounded-bl-full"></div>
+              <div className="flex flex-col h-full justify-between">
+                <div>
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center mb-6">
+                    <Shield className="w-6 h-6 text-white" />
+                  </div>
+                  <h3 className="text-lg md:text-xl font-bold text-white mb-2">{t('landing.privacy.title')}</h3>
+                  <p className="text-xs md:text-sm text-gray-400 leading-relaxed max-w-lg">
+                    {t('landing.privacy.principle1')} {t('landing.privacy.principle2')} {t('landing.privacy.principle3')}
+                  </p>
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-3">Streak Tracking</h3>
-                <p className="text-gray-400 leading-relaxed">
-                  Build a powerful habit with streak tracking and visual progress.
-                  See your consistency pay off with comprehensive impact documentation.
-                </p>
-              </div>
-            </div>
-
-            {/* Feature 5 */}
-            <div className="group card-hover glass rounded-2xl p-8 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-orange-500/20 to-transparent rounded-bl-full"></div>
-              <div className="relative">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-500 to-red-500 flex items-center justify-center mb-6">
-                  <svg className="w-7 h-7 text-white" viewBox="0 0 20 20" fill="currentColor">
-                    <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                    <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                  </svg>
+                <div className="flex items-center gap-2 mt-8 text-xs text-indigo-400 font-semibold uppercase tracking-wider">
+                  <span>{t('landing.features.remindersTitle')}</span>
                 </div>
-                <h3 className="text-xl font-semibold text-white mb-3">Email Reminders</h3>
-                <p className="text-gray-400 leading-relaxed">
-                  Automated Monday morning reminders ensure you never miss a week.
-                  Customize your reminder day and time to fit your workflow.
-                </p>
-              </div>
-            </div>
-
-            {/* Feature 6 */}
-            <div className="group card-hover glass rounded-2xl p-8 relative overflow-hidden">
-              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-indigo-500/20 to-transparent rounded-bl-full"></div>
-              <div className="relative">
-                <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-indigo-500 to-cyan-500 flex items-center justify-center mb-6">
-                  <svg className="w-7 h-7 text-white" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <h3 className="text-xl font-semibold text-white mb-3">Enterprise Security</h3>
-                <p className="text-gray-400 leading-relaxed">
-                  Your data is yours alone. Row-level security, JWT authentication,
-                  and encrypted connections keep your work logs completely private.
-                </p>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* How It Works Section */}
-      <section className="relative py-24 px-4 bg-gradient-to-b from-transparent via-indigo-950/20 to-transparent">
-        <div className="max-w-7xl mx-auto">
-          {/* Section Header */}
-          <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold text-white mb-4">
-              How It <span className="gradient-text">Works</span>
+      {/* Pricing Section */}
+      <section id="pricing" className="py-24 relative border-t border-white/5 bg-black/20">
+        <div className="max-w-6xl mx-auto text-center mb-16 px-4">
+          <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
+            {t('landing.pricing.title')}
+          </h2>
+          <p className="text-sm md:text-base text-gray-400 max-w-xl mx-auto">
+            {t('landing.pricing.subtitle')}
+          </p>
+        </div>
+        <LazyOnVisible minHeight={620}>
+          <PricingSection isLoggedIn={isLoggedIn} />
+        </LazyOnVisible>
+      </section>
+
+      {/* Security Trust Panel */}
+      <section id="privacy" className="py-20 relative bg-black/20 border-t border-white/5">
+        <div className="max-w-4xl mx-auto px-6 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/25 flex items-center justify-center mx-auto mb-6 text-indigo-400">
+            <Lock className="w-6 h-6 animate-pulse" />
+          </div>
+          <h2 className="text-2xl md:text-4xl font-extrabold text-white mb-4">
+            {t('landing.privacy.title')}
+          </h2>
+          <p className="text-sm md:text-base text-gray-400 leading-relaxed max-w-2xl mx-auto mb-8">
+            {t('landing.privacy.principle1')} {t('landing.privacy.principle2')} {t('landing.privacy.principle3')}
+          </p>
+          <div className="flex justify-center gap-6 text-[10px] md:text-xs font-mono text-gray-500">
+            <span className="flex items-center gap-1">✓ TLS 1.3</span>
+            <span>•</span>
+            <span className="flex items-center gap-1">✓ RLS</span>
+            <span>•</span>
+            <span className="flex items-center gap-1">✓ {t('landing.privacy.principle2')}</span>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ Accordion Section */}
+      <section id="faq" className="py-24 relative border-t border-white/5 bg-black/10">
+        <div className="max-w-6xl mx-auto text-center mb-16 px-4">
+          <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4">
+            {t('landing.faq.title')}
+          </h2>
+          <p className="text-sm md:text-base text-gray-400 max-w-xl mx-auto">
+            {t('landing.faq.a6')}
+          </p>
+        </div>
+        <LazyOnVisible minHeight={620}>
+          <FaqAccordion />
+        </LazyOnVisible>
+      </section>
+
+      {/* Closing CTA Banner */}
+      <section className="py-24 relative overflow-hidden border-t border-white/5 bg-gradient-to-b from-transparent to-indigo-950/20 px-4">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="max-w-4xl mx-auto glass-strong rounded-3xl p-8 md:p-14 text-center relative overflow-hidden border border-white/10 shadow-2xl">
+          <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/5 via-purple-500/5 to-cyan-500/5"></div>
+          <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-b from-white/[0.02] to-transparent pointer-events-none"></div>
+
+          <div className="relative z-10">
+            <h2 className="text-3xl md:text-5xl font-extrabold text-white mb-4 tracking-tight leading-tight">
+              {t('landing.finalCta.title')}
             </h2>
-            <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-              Three simple steps to transformation
+            <p className="text-sm md:text-base text-gray-400 max-w-xl mx-auto mb-10 leading-relaxed">
+              {t('landing.finalCta.subtitle')}
+            </p>
+
+            {isLoggedIn ? (
+              <Link
+                to="/dashboard"
+                className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold text-base rounded-xl shadow-xl hover:shadow-indigo-500/20 transition-all cursor-pointer"
+              >
+                <span>{t('nav.dashboard')}</span>
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+            ) : (
+              <Link
+                to="/login"
+                className="inline-flex items-center gap-2 px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 hover:to-purple-600 text-white font-bold text-base rounded-xl shadow-xl hover:shadow-indigo-500/20 transition-all cursor-pointer"
+              >
+                <span>{t('landing.finalCta.button')}</span>
+                <ArrowRight className="w-5 h-5" />
+              </Link>
+            )}
+
+            <p className="text-[10px] text-gray-500 font-medium tracking-wide mt-4 uppercase">
+              {t('landing.hero.trustBadge')}
             </p>
           </div>
-
-          {/* Steps */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {/* Step 1 */}
-            <div className="relative">
-              <div className="glass rounded-2xl p-8 text-center">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center mx-auto mb-6 text-2xl font-bold glow-primary">
-                  1
-                </div>
-                <h3 className="text-xl font-semibold text-white mb-3">Log Weekly</h3>
-                <p className="text-gray-400">
-                  Every week, spend 5 minutes documenting your accomplishments, challenges, learnings, and goals.
-                </p>
-              </div>
-              {/* Connector Line */}
-              <div className="hidden md:block absolute top-1/2 -right-4 w-8 h-0.5 bg-gradient-to-r from-indigo-500 to-purple-500"></div>
-            </div>
-
-            {/* Step 2 */}
-            <div className="relative">
-              <div className="glass rounded-2xl p-8 text-center">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center mx-auto mb-6 text-2xl font-bold glow-accent">
-                  2
-                </div>
-                <h3 className="text-xl font-semibold text-white mb-3">Define Criteria</h3>
-                <p className="text-gray-400">
-                  Set up your company's appraisal criteria so AI knows exactly what to highlight.
-                </p>
-              </div>
-              {/* Connector Line */}
-              <div className="hidden md:block absolute top-1/2 -right-4 w-8 h-0.5 bg-gradient-to-r from-purple-500 to-pink-500"></div>
-            </div>
-
-            {/* Step 3 */}
-            <div className="relative">
-              <div className="glass rounded-2xl p-8 text-center">
-                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500 flex items-center justify-center mx-auto mb-6 text-2xl font-bold glow-cyan">
-                  3
-                </div>
-                <h3 className="text-xl font-semibold text-white mb-3">Generate Appraisal</h3>
-                <p className="text-gray-400">
-                  Click generate and watch transform your logs into a compelling self-appraisal.
-                </p>
-              </div>
-            </div>
-          </div>
         </div>
       </section>
 
-      {/* CTA Section */}
-      <section className="relative py-24 px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="glass-strong rounded-3xl p-12 text-center relative overflow-hidden">
-            {/* Background Effect */}
-            <div className="absolute inset-0 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-cyan-500/10"></div>
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-full bg-gradient-to-b from-white/5 to-transparent"></div>
+      {/* Footer */}
+      <footer className="border-t border-white/5 bg-black/40 py-12 px-6">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center group">
+            <svg className="h-6 w-6 text-indigo-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            <span className="ml-2 text-sm font-bold text-white">{t('brand.name')}</span>
+          </div>
 
-            <div className="relative">
-              <h2 className="text-4xl md:text-5xl font-bold text-white mb-6">
-                Ready to <span className="gradient-text">Transform</span> Your Appraisals?
-              </h2>
-              <p className="text-xl text-gray-400 mb-8 max-w-2xl mx-auto">
-                Join high performers who never stress about self-appraisals again.
-                Start building your impact archive today.
-              </p>
-
-              {user ? (
-                <Link
-                  to="/dashboard"
-                  className="inline-flex items-center px-8 py-4 rounded-xl text-lg font-semibold bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 text-white hover:shadow-2xl hover:shadow-indigo-500/25 transition-all duration-300 glow-primary"
-                >
-                  Go to Dashboard
-                  <svg className="ml-2 w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </Link>
-              ) : (
-                <Link
-                  to="/login"
-                  className="inline-flex items-center px-8 py-4 rounded-xl text-lg font-semibold bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 text-white hover:shadow-2xl hover:shadow-indigo-500/25 transition-all duration-300 glow-primary"
-                >
-                  Get Started Free
-                  <svg className="ml-2 w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
-                  </svg>
-                </Link>
-              )}
-            </div>
+          <div className="flex flex-wrap justify-center gap-8 text-xs text-gray-500">
+            <Link to={isLoggedIn ? "/dashboard" : "/login"} className="hover:text-gray-300 transition-colors flex items-center gap-0.5">
+              <span>{t('nav.signIn')}</span>
+              <ExternalLink className="w-3 h-3" />
+            </Link>
+            <span>•</span>
+            <Link to="/terms" className="hover:text-gray-300 transition-colors">{t('footer.terms')}</Link>
+            <span>•</span>
+            <Link to="/privacy" className="hover:text-gray-300 transition-colors">{t('footer.privacy')}</Link>
+            <span>•</span>
+            <span className="select-text">{t('footer.copyright', { year: new Date().getFullYear() })}</span>
           </div>
         </div>
-      </section>
-
-      {/* Footer Spacer */}
-      <div className="h-32"></div>
+      </footer>
     </div>
   )
 }

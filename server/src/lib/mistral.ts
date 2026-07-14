@@ -1,5 +1,8 @@
 import { Mistral } from '@mistralai/mistralai'
+import dotenv from 'dotenv'
 import { logger } from './logger.js'
+
+dotenv.config()
 
 const mistralApiKey = process.env.MISTRAL_API_KEY
 

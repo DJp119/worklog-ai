@@ -1,4 +1,5 @@
 import type { ChatMessage } from '../../lib/chatApi'
+import { formatTime } from '../../lib/formatters'
 
 interface MessageBubbleProps {
   message: ChatMessage
@@ -87,7 +88,7 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
             {formatContent(message.content)}
           </div>
           <div className={`text-[10px] mt-2 opacity-50 ${isUser ? 'text-right' : 'text-left'}`}>
-            {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {formatTime(message.created_at)}
           </div>
         </div>
       </div>

@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { API_URL } from '../../lib/api';
+import { getStoredTokens } from '../../lib/authStorage';
 
 interface BookmarkBtnProps {
   targetId?: string;
@@ -33,12 +35,17 @@ export const BookmarkBtn: React.FC<BookmarkBtnProps> = ({
         ? { article_id: targetId }
         : { impact_card_id: targetId };
 
-      const response = await fetch('/api/ai-pulse/bookmarks', {
+      const { accessToken } = getStoredTokens();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (accessToken) {
+        headers['Authorization'] = `Bearer ${accessToken}`;
+      }
+
+      const response = await fetch(`${API_URL}/api/ai-pulse/bookmarks`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
+        headers,
         body: JSON.stringify(payload),
       });
 

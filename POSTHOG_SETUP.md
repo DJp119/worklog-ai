@@ -20,25 +20,51 @@ After creating a project:
 
 ### 3. Configure Environment Variables
 
-#### Client (.env)
+#### Client (`client/.env`)
+```env
+VITE_PUBLIC_POSTHOG_PROJECT_TOKEN=phc_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+VITE_PUBLIC_POSTHOG_HOST=https://us.i.posthog.com
+```
+
+Legacy keys are also accepted for backward compatibility:
 ```env
 VITE_POSTHOG_KEY=phc_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 VITE_POSTHOG_HOST=https://us.i.posthog.com
 ```
 
-#### Server (.env)
+#### Server (`server/.env`)
 ```env
-POSTHOG_API_KEY=phc_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+POSTHOG_PROJECT_TOKEN=phc_XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 POSTHOG_HOST=https://us.i.posthog.com
 ```
 
-(`POSTHOG_KEY` is also accepted for older copies of this guide.)
+(`POSTHOG_API_KEY` and `POSTHOG_KEY` are also accepted for backward compatibility.)
 
 ### 4. Restart Your Development Servers
 
 ```bash
 npm run dev
 ```
+
+## Architecture
+
+### Client-Side (`posthog-js` + `@posthog/react`)
+
+PostHog is initialized once at app startup in `client/src/main.tsx` using `posthog.init()` with the `defaults: '2026-01-30'` configuration. The initialized client is passed to `<PostHogProvider>` which wraps the entire app.
+
+**User identification** happens automatically in `AuthContext.tsx`:
+- On login → `posthog.identify(userId, { email, name, ... })`
+- On logout → `posthog.reset()`
+- On session restore → `posthog.identify(...)` is called again
+
+### Server-Side (`posthog-node`)
+
+A lazy-initialized singleton client lives in `server/src/lib/posthog.ts`. It exports:
+- `getPostHogClient()` — returns the singleton (or `null` if unconfigured)
+- `captureEvent(distinctId, eventName, properties)` — capture any event
+- `identifyUser(distinctId, properties)` — identify a user server-side
+- `captureException(error, distinctId?, properties?)` — capture errors
+- `shutdownPostHog()` — flush and close on graceful shutdown
 
 ## What's Tracked
 
@@ -53,28 +79,35 @@ npm run dev
 - **Status codes**: Error tracking
 - **User agent**: Client information
 
-## Events You Can Track
+## Custom Events
 
-To track custom events in your React components:
+### Client-Side (React Components)
+
+Use the `usePostHog` hook from `@posthog/react`:
+
+```typescript
+import { usePostHog } from '@posthog/react'
+
+export default function CheckoutPage() {
+  const posthog = usePostHog()
+
+  function handlePurchase() {
+    posthog.capture('purchase_completed', { amount: 99 })
+  }
+
+  return <button onClick={handlePurchase}>Complete purchase</button>
+}
+```
+
+Or import posthog directly (it's already initialized):
 
 ```typescript
 import posthog from 'posthog-js'
 
-// Track a custom event
 posthog.capture('feature_used', { feature: 'appraisal_generation' })
-
-// Identify a user
-posthog.identify(userId, {
-  email: user.email,
-  company: user.companyName,
-  plan: 'free'
-})
-
-// Set user properties
-posthog.people.set('company_name', 'Acme Corp')
 ```
 
-## Server-Side Events
+### Server-Side
 
 ```typescript
 import { captureEvent, identifyUser } from './lib/posthog.js'
@@ -110,8 +143,8 @@ Once you have data flowing:
 
 ### Events Not Appearing
 1. Check your API keys are correct
-2. Verify `VITE_POSTHOG_KEY` is set (client prefix required)
-3. Check browser console for errors
+2. Verify `VITE_PUBLIC_POSTHOG_PROJECT_TOKEN` is set in `client/.env`
+3. Check browser console for errors (debug mode is auto-enabled in dev)
 4. Look at PostHog's "Activity" tab for incoming events
 
 ### SDK Not Initialized

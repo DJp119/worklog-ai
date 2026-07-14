@@ -1,0 +1,32 @@
+[
+  {
+    "bugId": "BUG-7",
+    "verdict": "REAL_BUG",
+    "trueSeverity": "Medium",
+    "confidenceScore": 92,
+    "confidenceLabel": "high",
+    "verificationMode": "INDEPENDENTLY_VERIFIED",
+    "analysisSummary": "Re-read server/src/routes/auth.ts:552-613 (reset-password) and server/src/routes/users.ts:192-264 (change-password). The reset-password handler at line 587-590 updates users.password_hash and at line 598 deletes the password_reset_tokens row, but never revokes refresh_tokens. The change-password handler at users.ts:251-259 DOES revoke all refresh tokens for the user. The inconsistency is real: the account-compromise recovery path is strictly less secure than the routine change-password path. An attacker who exfiltrated the victim's refreshToken before the compromise retains full account access for the original 7-30 day session, even after the victim resets their password.\n\n**Reachability:** AUTHENTICATED — attacker must already hold a valid (non-revoked) refresh token for the victim.\n**Exploitability:** MEDIUM — requires a prior token exfiltration (XSS, device compromise, DB leak) which the threat model already lists as I2.\n**CVSS:** CVSS:3.1/AV:N/AC:H/PR:L/UI:N/S:U/C:H/I:H/A:L (7.1)\n**Proof of Concept:**\n- Payload: any active refresh token stolen from the victim (e.g., via XSS exfiltrating localStorage)\n- Request: curl -X POST https://api.worklog-ai.com/api/auth/refresh -H 'Content-Type: application/json' -d '{\"refreshToken\":\"<stolen>\"}'\n- Expected: 401 — the password-reset flow should have revoked this token\n- Actual: 200 with a fresh access token; attacker retains full access for the original session TTL even after the victim resets their password",
+    "suggestedFix": "In server/src/routes/auth.ts after line 595 (after the password update succeeds, before the reset-token DELETE at line 598), insert the same revoke block used in users.ts:251-259: `await supabase.from('refresh_tokens').update({ revoked: true, revoked_at: new Date().toISOString() }).eq('user_id', resetData.user_id).eq('revoked', false)`. This brings the reset-password flow to parity with change-password. Extract the block to a shared helper if it starts appearing in 3+ places."
+  },
+  {
+    "bugId": "BUG-8",
+    "verdict": "REAL_BUG",
+    "trueSeverity": "Low",
+    "confidenceScore": 80,
+    "confidenceLabel": "high",
+    "verificationMode": "INDEPENDENTLY_VERIFIED",
+    "analysisSummary": "Re-read server/src/middleware/auth.ts:58-95 (createRefreshToken + revokeRefreshToken use plaintext `token` column) and supabase-schema.sql:230, 242, 254 (all three token tables — email_verifications, password_reset_tokens, refresh_tokens — store token as `TEXT NOT NULL` with no hash column). The threat model at .bug-hunter/threat-model.md:21 lists these as Credentials and S3 explicitly states reset tokens are 'stored as bcrypt-hashed at rest' — a documented mitigation that is NOT implemented. DB exfiltration yields every active refresh token in plaintext. The 512-bit entropy on refresh tokens mitigates brute force but does not help with direct exfiltration. CWE-256 is correct; Low severity is appropriate because the attack path requires DB read access (RLS gap, backup leak, insider).\n\n**Reachability:** INTERNAL — only reachable via DB read access.\n**Exploitability:** MEDIUM — requires a backup leak, RLS gap, or insider.\n**CVSS:** CVSS:3.1/AV:L/AC:H/PR:H/UI:N/S:U/C:H/I:H/A:N (5.7)",
+    "suggestedFix": "HMAC-hash all three token types at rest, keyed on process.env.JWT_SECRET (or a new REFRESH_TOKEN_PEPPER). Pattern: `const tokenHash = crypto.createHmac('sha256', PEPPER).update(token).digest('hex')`. Store `token_hash` instead of `token`; look up by hash. This requires (a) adding a `token_hash` column to each of the three tables, (b) a migration to drop the old `token` column (or keep it as a non-unique index for backwards-compat lookups during a transition window), (c) updating createRefreshToken/createPasswordResetToken/createEmailVerificationToken to store hashes, and (d) updating all matching lookups. Note: the client still needs to send the plaintext token, so the on-the-wire plaintext is unaffected. Add a CHECK constraint on the token column to forbid empty strings, and a UNIQUE index on token_hash."
+  },
+  {
+    "bugId": "BUG-9",
+    "verdict": "REAL_BUG",
+    "trueSeverity": "Low",
+    "confidenceScore": 75,
+    "confidenceLabel": "high",
+    "verificationMode": "INDEPENDENTLY_VERIFIED",
+    "analysisSummary": "Re-read server/src/middleware/requestId.ts:1-16. Line 6 reads `req.headers['x-request-id']` as a string with no validation. The value flows to `res.setHeader('X-Request-Id', requestId)` (line 7) and to the MDC context `{ requestId }` (line 10), which is then consumed by every logger.info/warn/error call in the request lifecycle. Node's `res.setHeader` blocks HTTP response splitting, so the response header echo is low-impact. The MDC path is the real concern: the structured logger interpolates requestId into every log record, so a client can forge newlines, ANSI escape codes, or HTML/script fragments into the log stream. CWE-117 is correct; the attacker requires no auth (any unauthenticated request triggers the logger via the global requestIdMiddleware on server/src/index.ts).\n\n**Reachability:** EXTERNAL — any unauthenticated request to any endpoint.\n**Exploitability:** HARD — requires the operator to view logs in a vulnerable terminal/UI.\n**CVSS:** CVSS:3.1/AV:N/AC:H/PR:N/UI:N/S:U/C:L/I:L/A:N (5.3)",
+    "suggestedFix": "In server/src/middleware/requestId.ts:6, validate the header against a strict regex and fall back to a generated UUID if it doesn't match. Pattern: `const headerId = req.headers['x-request-id']; const VALID = /^[A-Za-z0-9_-]{8,64}$/; const requestId = (typeof headerId === 'string' && VALID.test(headerId)) ? headerId : randomUUID()`. This allows legitimate request IDs (UUIDs, ULIDs, alphanumeric traces) while rejecting newlines, control characters, and oversize values. Apply the same validation to any other client-influenced log fields (User-Agent, X-Forwarded-For) to fully close the log-injection attack surface."
+  }
+]

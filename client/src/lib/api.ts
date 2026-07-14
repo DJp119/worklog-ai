@@ -1,6 +1,6 @@
 import { clearStoredTokens, getStoredTokens, storeStoredTokens } from './authStorage'
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
+export const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001'
 
 export async function refreshAccessToken(): Promise<boolean> {
   const { refreshToken } = getStoredTokens()
@@ -190,13 +190,26 @@ export interface UserProfile {
   id: string
   email: string
   name?: string
+  firstName?: string | null
   companyName?: string
   jobTitle?: string
+  industry?: string | null
+  function?: string | null
+  yearsExperience?: string | null
+  companySize?: string | null
+  reviewFrequency?: string | null
+  orgGoalsAlignment?: boolean
+  onboardingCompleted?: boolean
   reminderDay: number
   reminderTime: string
   reminderEnabled: boolean
   emailVerified: boolean
+  preferredLanguage?: string | null
   createdAt: string
+  totalLogs?: number
+  currentStreak?: number
+  lastLoggedDate?: string | null
+  loggingCadence?: 'daily' | 'weekly'
 }
 
 export async function getProfile(): Promise<UserProfile> {
@@ -209,6 +222,17 @@ export async function updateProfile(
   return apiRequest<UserProfile>('/api/users/profile', {
     method: 'PUT',
     body: JSON.stringify(body),
+  })
+}
+
+// ============================================
+// Waitlist API
+// ============================================
+
+export async function joinWaitlist(email: string, source?: string): Promise<{ ok: true }> {
+  return apiRequest<{ ok: true }>('/api/waitlist', {
+    method: 'POST',
+    body: JSON.stringify({ email, source }),
   })
 }
 
