@@ -28,12 +28,16 @@ export async function refreshAccessToken(): Promise<boolean> {
   }
 }
 
+export interface ApiRequestOptions extends RequestInit {
+  ignoreAuthRedirect?: boolean
+}
+
 /**
  * Generic API request with auth
  */
 export async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: ApiRequestOptions = {}
 ): Promise<T> {
   const { accessToken } = getStoredTokens()
 
@@ -68,7 +72,7 @@ export async function apiRequest<T>(
   const data = await response.json()
 
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401 && !options.ignoreAuthRedirect) {
       // Clear auth and redirect
       clearStoredTokens()
       window.location.href = '/login'
