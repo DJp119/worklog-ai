@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { getEntries, getProfile } from '../lib/api'
+import { getEntries, getProfile, type UserProfile } from '../lib/api'
 import type { WorkLogEntry } from 'shared'
 import { usePageMeta } from '../hooks/usePageMeta'
 import { formatDate } from '../lib/formatters'
@@ -61,9 +61,9 @@ export default function Dashboard() {
   async function loadDashboard() {
     setLoading(true)
     try {
-      const data = await getEntries()
+      const [data, profile] = await Promise.all([getEntries(), getProfile()])
       setEntries(data)
-      calculateStats(data)
+      calculateStats(data, profile)
     } catch (error) {
       console.error('Failed to load dashboard:', error)
     } finally {
@@ -83,7 +83,7 @@ export default function Dashboard() {
     return `${year}-${month}-${day}`
   }
 
-  function calculateStats(entries: WorkLogEntry[]) {
+  function calculateStats(entries: WorkLogEntry[], profile: UserProfile) {
     // Calculate current week start
     const now = new Date()
     const currentStart = getWeekStart(now)
@@ -98,32 +98,15 @@ export default function Dashboard() {
     )
 
     // Total weeks logged
-    const totalWeeks = entries.length
+    const totalWeeks = profile.totalLogs ?? entries.length
 
     // Calculate streaks
-    let currentStreak = 0
+    const currentStreak = profile.currentStreak ?? 0
     let longestStreak = 0
     let tempStreak = 0
 
     // Get all week starts from entries
     const weekStarts = new Set(entries.map(e => e.week_start_date))
-
-    // Calculate current streak (counting backwards from now)
-    const checkDate = new Date()
-    if (!currentWeekLogged) {
-      // If current week not logged, start checking from last week
-      checkDate.setDate(checkDate.getDate() - 7)
-    }
-
-    while (true) {
-      const weekStart = getWeekStart(checkDate)
-      if (weekStarts.has(weekStart)) {
-        currentStreak++
-        checkDate.setDate(checkDate.getDate() - 7)
-      } else {
-        break
-      }
-    }
 
     // Calculate longest streak
     const allWeeks = Array.from(weekStarts).sort()

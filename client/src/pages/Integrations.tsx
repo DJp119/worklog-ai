@@ -224,7 +224,7 @@ export default function Integrations() {
     const state = params.get('state')
     if (!code || !state) return
     try {
-      await confirmOrgSlackOAuth(code, state)
+      await confirmOrgSlackOAuth(code, state, activeOrgId)
       setInfo(t('integrations.slackOrgConnected'))
       params.delete('code'); params.delete('state'); params.delete('provider')
       setParams(params, { replace: true })

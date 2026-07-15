@@ -20,6 +20,7 @@ interface Details {
   reviewFrequency: string
   orgGoalsAlignment: boolean
   companyName: string
+  loggingCadence: 'daily' | 'weekly'
 }
 
 const SELECT_CLASS =
@@ -41,6 +42,7 @@ export default function Onboarding() {
     reviewFrequency: '',
     orgGoalsAlignment: false,
     companyName: user?.companyName || '',
+    loggingCadence: 'weekly',
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -80,6 +82,7 @@ export default function Onboarding() {
         reviewFrequency: details.reviewFrequency,
         orgGoalsAlignment: details.orgGoalsAlignment,
         companyName: details.companyName.trim() || undefined,
+        loggingCadence: details.loggingCadence,
         onboardingCompleted: true,
       })
       await refreshProfile()
@@ -227,6 +230,16 @@ export default function Onboarding() {
                 placeholder={t('onboarding.companyNamePlaceholder')}
                 className="mt-1 block w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
               />
+            </div>
+
+            <div>
+              <label htmlFor="loggingCadence" className="block text-sm font-medium text-gray-300">
+                Logging Cadence
+              </label>
+              <select id="loggingCadence" value={details.loggingCadence} onChange={(e) => setField('loggingCadence', e.target.value as 'daily' | 'weekly')} className={SELECT_CLASS}>
+                <option value="weekly" className="bg-[#0a0a0f]">Weekly</option>
+                <option value="daily" className="bg-[#0a0a0f]">Daily</option>
+              </select>
             </div>
 
             {/* Org goals alignment toggle */}

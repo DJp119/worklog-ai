@@ -14,7 +14,7 @@ export function Layout({ children }: LayoutProps) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const hasOrg = useHasOrg()
+  const hasOrg = useHasOrg(Boolean(user))
 
   const handleSignOut = async () => {
     try {

@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { requireAuth, AuthRequest } from '../middleware/auth.js'
+import { requireAuth, optionalAuth, AuthRequest } from '../middleware/auth.js'
 import { supabase } from '../lib/database.js'
 import { logger } from '../lib/logger.js'
 import { newsCollectionJob } from '../jobs/newsCollectionJob.js'
@@ -67,7 +67,7 @@ function parsePostgresArray(val: any): string[] {
 // ============================================
 
 // GET /api/ai-pulse/articles - Get all articles (public, with optional filtering)
-aiPulseRoutes.get('/articles', async (req: Request, res: Response) => {
+aiPulseRoutes.get('/articles', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { category, limit = 50, offset = 0 } = req.query
 
@@ -98,7 +98,7 @@ aiPulseRoutes.get('/articles', async (req: Request, res: Response) => {
 })
 
 // GET /api/ai-pulse/articles/:slug - Get single article by slug
-aiPulseRoutes.get('/articles/:slug', async (req: Request, res: Response) => {
+aiPulseRoutes.get('/articles/:slug', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { slug } = req.params
 
@@ -122,7 +122,7 @@ aiPulseRoutes.get('/articles/:slug', async (req: Request, res: Response) => {
 })
 
 // GET /api/ai-pulse/impact-cards - Get all impact cards (public)
-aiPulseRoutes.get('/impact-cards', async (req: Request, res: Response) => {
+aiPulseRoutes.get('/impact-cards', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { industry } = req.query
 
@@ -159,7 +159,7 @@ aiPulseRoutes.get('/impact-cards', async (req: Request, res: Response) => {
 })
 
 // GET /api/ai-pulse/impact-cards/:industry - Get single impact card by industry
-aiPulseRoutes.get('/impact-cards/:industry', async (req: Request, res: Response) => {
+aiPulseRoutes.get('/impact-cards/:industry', optionalAuth, async (req: AuthRequest, res: Response) => {
   try {
     const { industry } = req.params
 

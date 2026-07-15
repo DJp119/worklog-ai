@@ -132,10 +132,13 @@ export async function startOrgSlackConnect(
 export async function confirmOrgSlackOAuth(
   code: string,
   state: string,
+  orgId?: string,
 ): Promise<{ provider: 'slack' }> {
+  const body: { code: string; state: string; orgId?: string } = { code, state }
+  if (orgId) body.orgId = orgId
   return apiRequest('/api/integrations/slack/org-callback', {
     method: 'POST',
-    body: JSON.stringify({ code, state }),
+    body: JSON.stringify(body),
   })
 }
 

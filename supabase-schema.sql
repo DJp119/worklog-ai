@@ -476,6 +476,33 @@ CREATE TRIGGER update_ai_impact_cards_updated_at
   EXECUTE FUNCTION update_updated_at_column();
 
 -- =============================================
+-- 6. Marketing Loops — state tracking for automated marketing jobs
+-- =============================================
+
+CREATE TABLE IF NOT EXISTS marketing_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  loop_name TEXT NOT NULL,
+  user_id UUID,
+  action TEXT NOT NULL,
+  detail JSONB DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_marketing_logs_loop_user
+  ON marketing_logs(loop_name, user_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_marketing_logs_created
+  ON marketing_logs(loop_name, created_at DESC);
+
+ALTER TABLE marketing_logs ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Service role can manage marketing logs"
+  ON marketing_logs
+  FOR ALL
+  USING (auth.role() = 'service_role')
+  WITH CHECK (auth.role() = 'service_role');
+
+-- =============================================
 -- 5. I18N — preferred language + translation cache
 -- =============================================
 

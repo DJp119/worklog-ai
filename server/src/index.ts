@@ -24,6 +24,7 @@ import { integrationRoutes } from './routes/integrations.js'
 import { subscriptionRoutes } from './routes/subscriptions.js'
 import { reportRoutes } from './routes/reports.js'
 import { channelPreferenceRoutes } from './routes/channelPreferences.js'
+import { pushRoutes } from './routes/push.js'
 import { reminderJob } from './jobs/reminderJob.js'
 import { monthlySummaryJob } from './jobs/monthlySummaryJob.js'
 import { newsCollectionJob } from './jobs/newsCollectionJob.js'
@@ -32,6 +33,10 @@ import { weeklySyncJob } from './jobs/weeklySyncJob.js'
 import { goalRollupJob } from './jobs/goalRollupJob.js'
 import { goalDigestJob } from './jobs/goalDigestJob.js'
 import { pruneJob } from './jobs/pruneJob.js'
+import { activationLoop } from './jobs/marketing/activationLoop.js'
+import { dormancyWatch } from './jobs/marketing/dormancyWatch.js'
+import { weeklyReview } from './jobs/marketing/weeklyReview.js'
+import { isDatabaseConfigured } from './lib/database.js'
 import { getPostHogClient, shutdownPostHog, captureException, captureEvent } from './lib/posthog.js'
 import { logger } from './lib/logger.js'
 import { requestIdMiddleware } from './middleware/requestId.js'
@@ -196,6 +201,7 @@ app.use('/api/integrations', integrationRoutes)
 app.use('/api/subscriptions', subscriptionRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/channel-preferences', channelPreferenceRoutes)
+app.use('/api/push', pushRoutes)
 
 // Root route
 app.get('/', (req, res) => {
@@ -312,6 +318,16 @@ async function startServer() {
   goalRollupJob.start()
   goalDigestJob.start()
   pruneJob.start()
+
+  // Marketing loops (gated by env var)
+  if (process.env.MARKETING_LOOPS_ENABLED === 'true') {
+    logger.info('Marketing loops enabled — starting activation, dormancy watch, and weekly review')
+    activationLoop.start()
+    dormancyWatch.start()
+    weeklyReview.start()
+  } else {
+    logger.info('Marketing loops disabled (set MARKETING_LOOPS_ENABLED=true to enable)')
+  }
   })
 } // end startServer
 
@@ -331,6 +347,9 @@ process.on('SIGTERM', async () => {
   goalRollupJob.stop()
   goalDigestJob.stop()
   pruneJob.stop()
+  activationLoop.stop()
+  dormancyWatch.stop()
+  weeklyReview.stop()
   await shutdownPostHog()
   process.exit(0)
 })
@@ -345,6 +364,9 @@ process.on('SIGINT', async () => {
   goalRollupJob.stop()
   goalDigestJob.stop()
   pruneJob.stop()
+  activationLoop.stop()
+  dormancyWatch.stop()
+  weeklyReview.stop()
   await shutdownPostHog()
   process.exit(0)
 })
