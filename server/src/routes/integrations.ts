@@ -41,6 +41,7 @@ import {
   exchangeJiraCode,
   fetchJiraMyself,
 } from '../lib/jiraAdapter.js'
+import { getSlackBotToken, type SlackOAuthTokenResponse } from '../lib/slackOAuth.js'
 
 export const integrationRoutes = Router()
 
