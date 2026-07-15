@@ -106,13 +106,17 @@ export const AIPulseHub: React.FC = () => {
         const timestamp = Date.now();
 
         // Fetch articles from RSS-sourced API with cache busting
-        const articlesData = await apiRequest<Article[]>(`/api/ai-pulse/articles?_t=${timestamp}`);
+        const articlesData = await apiRequest<Article[]>(`/api/ai-pulse/articles?_t=${timestamp}`, {
+          ignoreAuthRedirect: true
+        });
         console.log('[AI Pulse] Articles fetched:', articlesData?.length ?? 0, 'articles');
         console.log('[AI Pulse] First article:', articlesData?.[0]);
         setArticles(articlesData);
 
         // Fetch impact cards from API with cache busting
-        const impactsData = await apiRequest<ImpactCard[]>(`/api/ai-pulse/impact-cards?_t=${timestamp}`);
+        const impactsData = await apiRequest<ImpactCard[]>(`/api/ai-pulse/impact-cards?_t=${timestamp}`, {
+          ignoreAuthRedirect: true
+        });
         console.log('[AI Pulse] Impact cards fetched:', impactsData?.length ?? 0, 'cards');
         setImpactCards(impactsData);
       } catch (err) {

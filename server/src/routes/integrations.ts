@@ -55,7 +55,7 @@ const getFrontendUrl = (): string => {
 
 const JIRA_SCOPES = 'read:jira-work read:jira-user offline_access'
 const GITHUB_USER_SCOPES = 'read:user repo'
-const SLACK_SCOPES = 'chat:write commands users:read users:read.email'
+const SLACK_SCOPES = 'chat:write,commands,users:read,users:read.email,users.profile:read'
 
 function buildJiraAuthUrl(state: string, redirectUri: string): string {
   const params = new URLSearchParams({
@@ -627,7 +627,9 @@ integrationRoutes.post('/slack/org-callback', requireAuth, async (req: AuthReque
       refresh_token?: string
       expires_in?: number
     }
-    if (!tok.ok) throw new Error(`Slack token exchange failed: ${tok.error}`)
+    if (!tok.ok) {
+      throw new Error(`Slack token exchange failed: ${tok.error}`)
+    }
     const botToken = getSlackBotToken(tok)
     if (!botToken || !tok.team?.id) throw new Error('Slack token missing bot access token or team.id')
 

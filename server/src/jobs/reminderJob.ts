@@ -4,12 +4,15 @@ import { supabase } from '../lib/database.js'
 import { sendReminderEmail } from '../lib/email.js'
 import { logger } from '../lib/logger.js'
 import { mdc } from '../lib/mdc.js'
+import { sendPushToUser } from '../lib/webPush.js'
 
 interface ReminderUser {
     id: string
     email: string
     name: string | null
     preferred_language: string | null
+    current_streak: number
+    total_logs: number
 }
 
 
@@ -66,7 +69,7 @@ class ReminderJob {
             // Settings page writes to user_profiles, so that is the source of truth.
             const { data: users, error } = await supabase
                 .from('users')
-                .select('id, email, name, preferred_language, user_profiles:user_profiles(preferred_language)')
+                .select('id, email, name, preferred_language, current_streak, total_logs, user_profiles:user_profiles(preferred_language)')
                 .eq('reminder_enabled', true)
                 .eq('reminder_day', utcDay)
                 .eq('reminder_time', utcTimeStr)
@@ -93,7 +96,22 @@ class ReminderJob {
                     // pre-migration redundant column.
                     const profilePref = (user as any).user_profiles?.preferred_language
                     const lang = profilePref || user.preferred_language || 'en'
-                    const sent = await sendReminderEmail(user.email, user.name || undefined, lang)
+                    const currentStreak = user.current_streak || 0
+                    const totalLogs = user.total_logs || 0
+                    const sent = await sendReminderEmail(user.email, user.name || undefined, lang, currentStreak, totalLogs)
+
+                    // Send push notification
+                    const pushPayload = {
+                        title: 'Time to Log Your Work',
+                        body: currentStreak > 1 
+                            ? `🔥 You're on a ${currentStreak}-week streak! Keep the momentum going.`
+                            : `Take 5 minutes to reflect on what you accomplished this week.`,
+                        url: '/log'
+                    }
+                    // Fire and forget push notification
+                    sendPushToUser(user.id, pushPayload).catch(err => {
+                        logger.error('Failed to send push notification to user {}: {}', user.id, err)
+                    })
 
                     // Log the reminder attempt
                     await supabase.from('reminder_logs').insert({

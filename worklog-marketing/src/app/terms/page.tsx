@@ -113,6 +113,13 @@ export default function TermsPage() {
               We reserve the right to periodically update these Terms. When modifications are made, we will update the &quot;Last updated&quot; date. Your continued use of the service following updates signifies your acceptance of the new terms.
             </p>
           </section>
+
+          <section>
+            <h2 className="text-xl md:text-2xl font-semibold text-white mb-3">8. Contact Us</h2>
+            <p className="leading-relaxed text-sm md:text-base">
+              If you have any questions or concerns regarding these Terms of Service or the platform, please reach out to us at <a href="mailto:impactlyai@zohomail.in" className="text-indigo-400 hover:underline">impactlyai@zohomail.in</a>.
+            </p>
+          </section>
         </article>
       </main>
 
@@ -124,6 +131,7 @@ export default function TermsPage() {
             <Link href="/blog" className="hover:text-gray-300 transition-colors">Blog</Link>
             <Link href="/templates/self-appraisal" className="hover:text-gray-300 transition-colors">Templates</Link>
             <Link href="/privacy" className="hover:text-gray-300 transition-colors">Privacy</Link>
+            <a href="mailto:impactlyai@zohomail.in" className="hover:text-gray-300 transition-colors">Contact</a>
           </div>
         </div>
       </footer>
