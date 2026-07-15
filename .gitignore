@@ -86,3 +86,5 @@ nul
 *.md
 .agent/AGENTS.md
 *.md
+/.codex
+.codex/config.toml
