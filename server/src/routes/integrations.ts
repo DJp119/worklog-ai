@@ -41,6 +41,7 @@ import {
   exchangeJiraCode,
   fetchJiraMyself,
 } from '../lib/jiraAdapter.js'
+import { getSlackBotToken, type SlackOAuthTokenResponse } from '../lib/slackOAuth.js'
 
 export const integrationRoutes = Router()
 
@@ -617,9 +618,18 @@ integrationRoutes.post('/slack/org-callback', requireAuth, async (req: AuthReque
       }).toString(),
     })
     if (!resp.ok) throw new Error(`Slack token HTTP ${resp.status}`)
-    const tok: any = await resp.json()
+    const tok = await resp.json() as SlackOAuthTokenResponse & {
+      ok?: boolean
+      error?: string
+      team?: { id?: string; name?: string }
+      bot_user_id?: string
+      scope?: string
+      refresh_token?: string
+      expires_in?: number
+    }
     if (!tok.ok) throw new Error(`Slack token exchange failed: ${tok.error}`)
-    if (!tok.bot_token || !tok.team?.id) throw new Error('Slack token missing bot_token or team.id')
+    const botToken = getSlackBotToken(tok)
+    if (!botToken || !tok.team?.id) throw new Error('Slack token missing bot access token or team.id')
 
     const { error } = await supabase
       .from('org_integrations')
@@ -627,9 +637,12 @@ integrationRoutes.post('/slack/org-callback', requireAuth, async (req: AuthReque
         org_id: resolvedOrgId,
         provider: 'slack',
         external_install_id: String(tok.team.id),
-        bot_token_enc: encryptSecret(tok.bot_token),
-        access_token_enc: encryptSecret(tok.access_token ?? tok.bot_token),
-        refresh_token_enc: null,
+        bot_token_enc: encryptSecret(botToken),
+        access_token_enc: encryptSecret(botToken),
+        refresh_token_enc: tok.refresh_token ? encryptSecret(tok.refresh_token) : null,
+        expires_at: tok.expires_in
+          ? new Date(Date.now() + tok.expires_in * 1000).toISOString()
+          : null,
         config: {
           teamName: tok.team.name,
           botUserId: tok.bot_user_id,
