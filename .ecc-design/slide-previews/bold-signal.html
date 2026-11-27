@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Preview — Bold Signal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #16161a;
+    --ink: #ffffff;
+    --muted: rgba(255,255,255,.55);
+    --signal: #ff4d00;
+  }
+  * { margin: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: "Space Grotesk", sans-serif;
+    height: 100vh; height: 100dvh;
+    display: flex; flex-direction: column;
+  }
+  /* Giant ghost number — the preset's signature */
+  .ghost {
+    position: fixed;
+    top: -4vh; right: -2vw;
+    font-family: "Archivo Black", sans-serif;
+    font-size: clamp(14rem, 40vw, 38rem);
+    line-height: 1;
+    color: transparent;
+    -webkit-text-stroke: 2px rgba(255,255,255,.08);
+    pointer-events: none;
+    user-select: none;
+  }
+  main {
+    flex: 1;
+    display: flex; flex-direction: column; justify-content: center;
+    padding: clamp(1.5rem, 5vw, 5rem);
+    position: relative;
+  }
+  .kicker {
+    font-size: clamp(.7rem, 1.2vw, .9rem);
+    letter-spacing: .35em; text-transform: uppercase;
+    color: var(--signal); font-weight: 700;
+    margin-bottom: clamp(.75rem, 2vh, 1.5rem);
+  }
+  h1 {
+    font-family: "Archivo Black", sans-serif;
+    font-size: clamp(3rem, 11vw, 9.5rem);
+    line-height: .92;
+    text-transform: lowercase;
+    max-width: 12ch;
+  }
+  /* High-contrast orange card on dark field — Bold Signal trademark */
+  .signal-card {
+    margin-top: clamp(1rem, 3.5vh, 2.5rem);
+    background: var(--signal);
+    color: #141414;
+    padding: clamp(.9rem, 2.5vw, 1.6rem) clamp(1.1rem, 3vw, 2.2rem);
+    max-width: min(88vw, 620px);
+    font-weight: 700;
+    font-size: clamp(1rem, 2.6vw, 1.9rem);
+    line-height: 1.2;
+    box-shadow: 16px 16px 0 rgba(255,255,255,.12);
+  }
+  .tagline {
+    margin-top: clamp(.75rem, 2vh, 1.4rem);
+    color: var(--muted);
+    font-size: clamp(.8rem, 1.5vw, 1.05rem);
+    max-width: 46ch;
+  }
+  /* Motion: confident single rise, no noise */
+  .rise { opacity: 0; transform: translateY(28px); animation: rise .8s cubic-bezier(.2,.7,.2,1) forwards; }
+  .d1 { animation-delay: .05s; } .d2 { animation-delay: .2s; } .d3 { animation-delay: .38s; }
+  @keyframes rise { to { opacity: 1; transform: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .rise { animation-duration: .01ms; }
+  }
+</style>
+</head>
+<body>
+  <div class="ghost" aria-hidden="true">01</div>
+  <main>
+    <p class="kicker rise d1">weekly work, remembered</p>
+    <h1 class="rise d2">worklog&#8209;ai</h1>
+    <div class="signal-card rise d3">Appraisal season panic, deleted.</div>
+    <p class="tagline rise d3">Five minutes a week. One AI-written appraisal at the end. Bold Signal preset.</p>
+  </main>
+</body>
+</html>
