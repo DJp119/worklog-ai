@@ -50,7 +50,6 @@ all-tracked.txt
 /graphify-out
 /worklog-marketing/.next
 skillspector/
-docs/setup.md
 
 # Additional common ignores
 .vite/
@@ -86,5 +85,6 @@ nul
 *.md
 .agent/AGENTS.md
 *.md
+/graphify-out
 /.codex
 .codex/config.toml
